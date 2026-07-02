@@ -6,7 +6,8 @@ const router = Router();
 // Get trades by date and account
 router.get('/trades', async (req: Request, res: Response) => {
   try {
-    const { date, account_id, user_id } = req.query;
+    const { date, account_id } = req.query;
+    const user_id = req.userId;
 
     let query = `
       SELECT t.* FROM trades t
@@ -38,7 +39,8 @@ router.get('/trades', async (req: Request, res: Response) => {
 // Get daily summary for calendar
 router.get('/daily-summary', async (req: Request, res: Response) => {
   try {
-    const { month, year, user_id } = req.query;
+    const { month, year } = req.query;
+    const user_id = req.userId;
 
     const startDate = new Date(Number(year), Number(month) - 1, 1);
     const endDate = new Date(Number(year), Number(month), 0);
@@ -61,7 +63,8 @@ router.get('/daily-summary', async (req: Request, res: Response) => {
 // Create manual trade entry
 router.post('/trades', async (req: Request, res: Response) => {
   try {
-    const { account_id, symbol, entry_time, exit_time, entry_price, exit_price, quantity, setup_tag, notes, user_id } = req.body;
+    const { account_id, symbol, entry_time, exit_time, entry_price, exit_price, quantity, setup_tag, notes } = req.body;
+    const user_id = req.userId;
 
     // Verify user owns this account
     const accountCheck = await pool.query(
@@ -98,7 +101,8 @@ router.post('/trades', async (req: Request, res: Response) => {
 router.put('/trades/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { setup_tag, notes, user_id } = req.body;
+    const { setup_tag, notes } = req.body;
+    const user_id = req.userId;
 
     // Verify user owns this trade
     const tradeCheck = await pool.query(

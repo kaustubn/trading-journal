@@ -34,7 +34,14 @@ body {
   font-weight: 600;
 }
 
-.sync-btn {
+.header-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.sync-btn,
+.logout-btn {
   background: white;
   color: #667eea;
   border: none;
@@ -45,9 +52,19 @@ body {
   transition: all 0.2s;
 }
 
-.sync-btn:hover {
+.sync-btn:hover,
+.logout-btn:hover {
   transform: translateY(-2px);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.logout-btn {
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+}
+
+.logout-btn:hover {
+  background: rgba(255, 255, 255, 0.3);
 }
 
 .main {

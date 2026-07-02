@@ -81,9 +81,24 @@ export async function initializeDB() {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
 
+      CREATE TABLE IF NOT EXISTS ideas (
+        id SERIAL PRIMARY KEY,
+        user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        account_id INT REFERENCES accounts(id) ON DELETE SET NULL,
+        title VARCHAR(255) NOT NULL,
+        description TEXT,
+        symbol VARCHAR(50),
+        price_level DECIMAL(10, 2),
+        status VARCHAR(50) DEFAULT 'pending',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+
       CREATE INDEX IF NOT EXISTS idx_trades_account_date ON trades(account_id, DATE(entry_time));
       CREATE INDEX IF NOT EXISTS idx_trades_broker_id ON trades(broker_trade_id);
       CREATE INDEX IF NOT EXISTS idx_daily_summaries ON daily_summaries(account_id, trade_date);
+      CREATE INDEX IF NOT EXISTS idx_ideas_user ON ideas(user_id, created_at);
+      CREATE INDEX IF NOT EXISTS idx_ideas_account ON ideas(account_id, created_at);
     `;
 
     await client.query(schema);

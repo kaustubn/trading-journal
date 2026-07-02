@@ -64,6 +64,19 @@ export interface SyncLog {
   created_at: Date;
 }
 
+export interface Idea {
+  id: number;
+  user_id: number;
+  account_id?: number;
+  title: string;
+  description?: string;
+  symbol?: string;
+  price_level?: number;
+  status: string;
+  created_at: Date;
+  updated_at: Date;
+}
+
 export interface BrokerAdapter {
   authenticate(): Promise<void>;
   fetchTrades(from_date: Date, to_date: Date): Promise<Trade[]>;

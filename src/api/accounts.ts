@@ -8,7 +8,7 @@ const syncService = new SyncService();
 // Get all accounts for user
 router.get('/accounts', async (req: Request, res: Response) => {
   try {
-    const { user_id } = req.query;
+    const user_id = req.userId;
 
     const result = await pool.query(
       `SELECT a.*, bc.api_key FROM accounts a
@@ -28,7 +28,8 @@ router.get('/accounts', async (req: Request, res: Response) => {
 // Link new broker account
 router.post('/accounts', async (req: Request, res: Response) => {
   try {
-    const { user_id, broker, account_number, account_name, api_key, api_secret, access_token } = req.body;
+    const { broker, account_number, account_name, api_key, api_secret, access_token } = req.body;
+    const user_id = req.userId;
 
     const client = await pool.connect();
     try {
@@ -70,7 +71,7 @@ router.post('/accounts', async (req: Request, res: Response) => {
 router.post('/accounts/:id/sync', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { user_id } = req.body;
+    const user_id = req.userId;
 
     // Verify user owns this account
     const accountCheck = await pool.query(
@@ -99,7 +100,7 @@ router.post('/accounts/:id/sync', async (req: Request, res: Response) => {
 router.get('/accounts/:id/stats', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { user_id } = req.query;
+    const user_id = req.userId;
 
     // Verify user owns this account
     const accountCheck = await pool.query(

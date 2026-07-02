@@ -1,6 +1,6 @@
 # Trading Journal - Setup Guide
 
-Multi-account trading journal with real-time sync from Zerodha Kite and Lucid prop firms.
+Multi-account trading journal with real-time sync from Zerodha Kite, Lucid prop firms, and TradingView paper trading. Track trades, journal ideas, and analyze performance.
 
 ## Requirements
 
@@ -56,10 +56,29 @@ Multi-account trading journal with real-time sync from Zerodha Kite and Lucid pr
 - `PUT /api/trades/:id` - Update trade notes/setup_tag
 
 ### Accounts
-- `GET /api/accounts?user_id=1` - List user accounts
+- `GET /api/accounts` - List user accounts
 - `POST /api/accounts` - Link new broker account
 - `POST /api/accounts/:id/sync` - Manual sync trigger
 - `GET /api/accounts/:id/stats` - Get account statistics
+
+### Ideas
+- `GET /api/ideas` - Get all user ideas
+- `GET /api/ideas/date/:date` - Get ideas for specific date
+- `POST /api/ideas` - Create new idea
+- `PUT /api/ideas/:id` - Update idea
+- `DELETE /api/ideas/:id` - Delete idea
+
+## Quick Start with Demo Data
+
+```bash
+npm run seed
+```
+
+This creates a demo user with sample trades from Zerodha and Lucid accounts.
+- **Email:** demo@example.com
+- **Password:** demo123
+
+Then run the frontend and you'll see calendar filled with demo trades.
 
 ## Linking Broker Accounts
 
@@ -83,11 +102,24 @@ Multi-account trading journal with real-time sync from Zerodha Kite and Lucid pr
 2. POST to `/api/accounts` with:
    ```json
    {
-     "user_id": 1,
      "broker": "lucid",
      "account_number": "lucid_account_id",
      "account_name": "My Lucid",
      "api_key": "your_lucid_api_key"
+   }
+   ```
+
+### TradingView Paper Trading
+1. Get API token from TradingView
+2. Find your paper account ID in the dashboard
+3. POST to `/api/accounts` with:
+   ```json
+   {
+     "broker": "tradingview",
+     "account_number": "your_paper_account_id",
+     "account_name": "My TradingView Paper",
+     "api_key": "your_tradingview_token",
+     "api_secret": "your_paper_account_id"
    }
    ```
 
@@ -101,22 +133,29 @@ Multi-account trading journal with real-time sync from Zerodha Kite and Lucid pr
 
 ## Features
 
-✅ Multi-account support (Zerodha, Lucid)
+✅ Multi-account support (Zerodha, Lucid, TradingView)
 ✅ Real-time trade sync from brokers
-✅ Calendar view with daily P&L
+✅ Calendar view with color-coded daily P&L
 ✅ Trade detail panel (entry/exit/P&L)
 ✅ Manual trade entry
 ✅ Trade journaling (setup tags, notes)
+✅ **Ideas section** — capture trading ideas with symbol, price level, status tracking
 ✅ Account statistics
+✅ User auth (register/login)
+✅ Demo data seeding for testing
 
 ## To-Do
 
-- [ ] Auth system (register, login, JWT)
+- [x] Auth system (register, login, JWT)
+- [x] Ideas tracking section
+- [x] TradingView paper trading support
 - [ ] CSV export
-- [ ] Advanced analytics (win rate, profit factor)
+- [ ] Advanced analytics (win rate, profit factor, Sharpe ratio)
 - [ ] Trade replay/charts
 - [ ] Webhook real-time updates
 - [ ] Mobile app
+- [ ] Email notifications for ideas
+- [ ] Backtesting module
 
 ## Development
 
