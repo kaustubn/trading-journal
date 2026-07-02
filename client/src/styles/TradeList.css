@@ -1,0 +1,63 @@
+.trade-list {
+  width: 100%;
+}
+
+.trade-list.loading,
+.trade-list.empty {
+  text-align: center;
+  color: #999;
+  padding: 40px 20px;
+  font-size: 14px;
+}
+
+.trades-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.trades-table thead {
+  background: #f9f9f9;
+  border-bottom: 2px solid #e0e0e0;
+}
+
+.trades-table th {
+  padding: 12px 15px;
+  text-align: left;
+  font-weight: 600;
+  color: #666;
+  text-transform: uppercase;
+  font-size: 12px;
+}
+
+.trades-table td {
+  padding: 12px 15px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.trade-row {
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.trade-row:hover {
+  background: #f9f9f9;
+}
+
+.trade-row.win {
+  border-left: 3px solid #22c55e;
+}
+
+.trade-row.loss {
+  border-left: 3px solid #ef4444;
+}
+
+.trade-row .positive {
+  color: #22c55e;
+  font-weight: 600;
+}
+
+.trade-row .negative {
+  color: #ef4444;
+  font-weight: 600;
+}

@@ -1,0 +1,69 @@
+.account-selector {
+  margin-bottom: 20px;
+}
+
+.account-selector h3 {
+  font-size: 16px;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 15px;
+}
+
+.accounts-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 15px;
+}
+
+.account-item {
+  background: white;
+  border: 1px solid #ddd;
+  padding: 12px 15px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-align: left;
+}
+
+.account-item:hover {
+  border-color: #667eea;
+  background: #f9f9f9;
+}
+
+.account-item.active {
+  background: #f0f4ff;
+  border-color: #667eea;
+  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.1);
+}
+
+.account-broker {
+  font-size: 12px;
+  color: #666;
+  text-transform: uppercase;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.account-number {
+  font-size: 14px;
+  color: #333;
+  font-weight: 600;
+}
+
+.add-account-btn {
+  width: 100%;
+  background: #667eea;
+  color: white;
+  border: none;
+  padding: 10px 15px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: all 0.2s;
+}
+
+.add-account-btn:hover {
+  background: #5568d3;
+  transform: translateY(-2px);
+}

@@ -1,0 +1,126 @@
+.calendar {
+  background: white;
+  border-radius: 8px;
+  padding: 20px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.calendar-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.calendar-header h2 {
+  font-size: 20px;
+  color: #333;
+  margin: 0;
+}
+
+.calendar-header button {
+  background: #f0f0f0;
+  border: 1px solid #ddd;
+  padding: 8px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 16px;
+  transition: all 0.2s;
+}
+
+.calendar-header button:hover {
+  background: #e0e0e0;
+}
+
+.calendar-weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.weekday {
+  text-align: center;
+  font-weight: 600;
+  color: #666;
+  padding: 10px 0;
+  font-size: 14px;
+}
+
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 8px;
+}
+
+.calendar-day {
+  aspect-ratio: 1;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  padding: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+  background: white;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.calendar-day:hover:not(.empty) {
+  border-color: #667eea;
+  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.15);
+}
+
+.calendar-day.empty {
+  background: #f9f9f9;
+  cursor: default;
+  border-color: transparent;
+}
+
+.calendar-day.selected {
+  border: 2px solid #667eea;
+  background: #f0f4ff;
+}
+
+.calendar-day.positive {
+  background: #f0fdf4;
+  border-color: #86efac;
+}
+
+.calendar-day.negative {
+  background: #fef2f2;
+  border-color: #fca5a5;
+}
+
+.calendar-day.neutral {
+  background: #f3f4f6;
+  border-color: #d1d5db;
+}
+
+.day-number {
+  font-weight: 600;
+  color: #333;
+  font-size: 14px;
+}
+
+.day-pnl {
+  font-weight: 700;
+  font-size: 12px;
+  margin-top: 2px;
+}
+
+.calendar-day.positive .day-pnl {
+  color: #22c55e;
+}
+
+.calendar-day.negative .day-pnl {
+  color: #ef4444;
+}
+
+.trade-count {
+  font-size: 11px;
+  color: #666;
+  margin-top: 2px;
+}
