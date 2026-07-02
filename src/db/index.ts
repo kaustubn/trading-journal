@@ -277,6 +277,9 @@ export async function initializeDB() {
 
       CREATE INDEX IF NOT EXISTS idx_trades_account_date ON trades(account_id, DATE(entry_time));
       CREATE INDEX IF NOT EXISTS idx_trades_broker_id ON trades(broker_trade_id);
+      CREATE INDEX IF NOT EXISTS idx_trades_user ON trades(user_id);
+      CREATE INDEX IF NOT EXISTS idx_trades_created ON trades(created_at);
+      CREATE INDEX IF NOT EXISTS idx_accounts_user ON accounts(user_id);
       CREATE INDEX IF NOT EXISTS idx_daily_summaries ON daily_summaries(account_id, trade_date);
       CREATE INDEX IF NOT EXISTS idx_ideas_user ON ideas(user_id, created_at);
       CREATE INDEX IF NOT EXISTS idx_ideas_account ON ideas(account_id, created_at);
@@ -293,6 +296,7 @@ export async function initializeDB() {
       CREATE INDEX IF NOT EXISTS idx_tax_records ON tax_records(user_id, fiscal_year);
       CREATE INDEX IF NOT EXISTS idx_webhooks ON webhook_subscriptions(user_id);
       CREATE INDEX IF NOT EXISTS idx_alerts ON dashboard_alerts(user_id, created_at);
+      CREATE INDEX IF NOT EXISTS idx_alerts_read ON dashboard_alerts(user_id, read);
     `;
 
     await client.query(schema);
