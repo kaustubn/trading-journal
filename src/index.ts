@@ -17,6 +17,7 @@ import notificationsRouter from './api/notifications';
 import backtestRouter from './api/backtest';
 import strategiesRouter from './api/strategies';
 import stages5to10Router from './api/stages5to10';
+import adminRouter from './api/admin';
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -31,6 +32,7 @@ app.use('/api', rateLimit(100, 60 * 1000)); // 100 requests per minute
 
 // Routes
 app.use('/api/auth', authRouter);
+app.use('/api/admin', adminRouter);
 app.use('/api', stages5to10Router);
 app.use('/api/analytics', analyticsRouter);
 app.use('/api/export', exportRouter);
