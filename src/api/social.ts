@@ -1,7 +1,11 @@
 import { Router, Request, Response } from 'express';
+import { verifyToken } from '../middleware/auth';
 import socialService from '../services/socialService';
 
 const router = Router();
+
+// Verify token for all routes
+router.use(verifyToken);
 
 // Follow user
 router.post('/follow/:user_id', async (req: Request, res: Response) => {

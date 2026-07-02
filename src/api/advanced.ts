@@ -1,7 +1,11 @@
 import { Router, Request, Response } from 'express';
+import { verifyToken } from '../middleware/auth';
 import { portfolioService, taxService, webhookService, dashboardService } from '../services/advancedService';
 
 const router = Router();
+
+// Verify token for all routes
+router.use(verifyToken);
 
 // STAGE 7: Portfolio
 router.get('/portfolio', async (req: Request, res: Response) => {

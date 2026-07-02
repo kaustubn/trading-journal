@@ -142,6 +142,19 @@ psql $DATABASE_URL < backup.sql
 3. **CDN**: Vercel includes global CDN
 4. **Database Connection Pooling**: Configured in pg pool
 
+## Known Issues
+
+### Express Router Endpoints Return 404
+- **Affected routes**: `/api/insights/*`, `/api/risk/*`, `/api/social/*`, `/api/automation/*`, `/api/advanced/*`
+- **Workaround**: These endpoints exist but have routing issues. Root cause is Express middleware stack interaction.
+- **Fix options**:
+  1. Use working endpoints first: `/api/accounts`, `/api/trades`, `/api/strategies` (all functional)
+  2. Merge problem routers into monolithic routes/index.ts
+  3. Switch to function-based auth instead of middleware
+  4. Upgrade Express version + test router ordering
+- **Impact**: Stages 5-10 features (social, automation, portfolio, tax) are built but endpoint routing needs debug
+- **Timeline**: Can deploy with stages 1-4, debug stage 5+ routing post-launch
+
 ## Troubleshooting
 
 ### "Database connection failed"
@@ -153,11 +166,17 @@ psql $DATABASE_URL < backup.sql
 - Verify VITE_API_URL points to correct Railway URL
 - Check CORS configuration in Express
 - Ensure webhooks endpoint is open (no auth required)
+- **Known issue**: Sub-path routers (/api/insights, etc.) return 404 — see Known Issues section
 
 ### "Build fails"
 - Check build logs in Railway/Vercel
 - Ensure all dependencies are installed
 - Run `npm run build` locally to test
+
+### "Endpoints return 404 in production"
+- See Known Issues → Express Router Endpoints section
+- These routes exist but have a middleware/routing issue
+- Check backend logs for clues, may need to merge routers or change auth pattern
 
 ## Security Checklist
 

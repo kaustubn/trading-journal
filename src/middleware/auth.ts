@@ -10,6 +10,7 @@ declare global {
 }
 
 export function verifyToken(req: Request, res: Response, next: NextFunction) {
+  console.log(`[AUTH] ${req.method} ${req.path}`, req.headers.authorization ? 'has token' : 'no token');
   const token = req.headers.authorization?.split(' ')[1];
   if (!token) {
     return res.status(401).json({ error: 'No token provided' });
@@ -18,6 +19,7 @@ export function verifyToken(req: Request, res: Response, next: NextFunction) {
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secret') as { userId: number };
     req.userId = decoded.userId;
+    console.log(`[AUTH] Token verified for user ${req.userId}`);
     next();
   } catch (error) {
     res.status(401).json({ error: 'Invalid token' });

@@ -1,7 +1,11 @@
 import express, { Request, Response } from 'express';
+import { verifyToken } from '../middleware/auth';
 import insightsService from '../services/insightsService';
 
 const router = express.Router();
+
+// Verify token for all routes
+router.use(verifyToken);
 
 // GET pattern analysis (before catch-all /:account_id)
 router.get('/patterns/:account_id', async (req: Request, res: Response) => {

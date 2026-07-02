@@ -1,7 +1,11 @@
 import express, { Request, Response } from 'express';
+import { verifyToken } from '../middleware/auth';
 import riskService from '../services/riskService';
 
 const router = express.Router();
+
+// Verify token for all routes
+router.use(verifyToken);
 
 // GET risk metrics for account
 router.get('/metrics/:account_id', async (req: Request, res: Response) => {

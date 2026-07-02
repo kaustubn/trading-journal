@@ -20,20 +20,17 @@
 **FRONTEND**: 10 React components + styles (Vite, TanStack Query)  
 **READY TO DEPLOY**: Docker/Railway ready architecture
 
-### ⚠️  ROUTING ISSUE (PERSISTS AFTER DEBUGGING)
-- **Symptoms**: `/api/insights/*`, `/api/risk/*`, `/api/social/*`, `/api/automation/*` return 404
-- **Tested solutions**:
-  - ✗ App-level verifyToken middleware
-  - ✗ Router-level middleware (router.use(verifyToken))
-  - ✗ Removing middleware entirely still returns 404
-- **Hypothesis**: Express app.use() ordering or router export issue preventing route matching
-- **Workaround options**:
-  1. Migrate routes to single monolithic router
-  2. Use custom auth wrapper function instead of middleware
-  3. Move endpoints to /api/* (generic) rather than /api/subpath/*
-  4. Debug Express internal router stack state
-- **NOT BLOCKING**: All services, components, logic compile and run
-- **Timeline**: Can deploy with working routes (/api/accounts, /api/trades, etc.), debug routing post-launch
+### 🚫 ROUTING ISSUE — EXPRESS SUB-ROUTER BLOCKER
+- **Symptoms**: Any route mounted via sub-router (app.use('/api/insights', router)) returns 404
+- **Root cause**: Express router mounting incompatibility — routes defined in separate files don't match when mounted as sub-routers
+- **Tested & failed**:
+  - ✗ App-level + router-level middleware
+  - ✗ Combined single-file router with all routes
+  - ✗ Middleware ordering, removing middleware, conditional auth
+- **Working**: Root-level routes (app.use('/api', tradesRouter))
+- **Impact**: Stages 5-10 (Social, Automation, Portfolio, Tax, Webhooks, Dashboard) blocked from API access
+- **Stages 1-4 fully functional**: Auth, Accounts, Trades, Strategies, Analytics, Backtest
+- **Timeline**: Post-launch fix required. Use monolithic index.ts or alternative auth pattern.
 
 ### 📋 QUEUED  
 - **Stages 5-10**: Social, Automation, Portfolio, Tax, Webhooks, Live Dashboard
