@@ -4,6 +4,14 @@ import Calendar from './components/Calendar';
 import AccountSelector from './components/AccountSelector';
 import TradeList from './components/TradeList';
 import Ideas from './components/Ideas';
+import Analytics from './components/Analytics';
+import Charts from './components/Charts';
+import StrategyBuilder from './components/StrategyBuilder';
+import Insights from './components/Insights';
+import RiskManagement from './components/RiskManagement';
+import Social from './components/Social';
+import Automation from './components/Automation';
+import Advanced from './components/Advanced';
 import LoginForm from './components/LoginForm';
 import './App.css';
 
@@ -47,12 +55,29 @@ export default function App() {
   const [trades, setTrades] = useState<Trade[]>([]);
   const [loading, setLoading] = useState(false);
 
-  // Verify token on mount
   useEffect(() => {
     if (token) {
       verifyToken();
     }
   }, []);
+
+  useEffect(() => {
+    if (userId) {
+      fetchAccounts();
+    }
+  }, [userId, token]);
+
+  useEffect(() => {
+    if (userId && month && year) {
+      fetchDailySummaries();
+    }
+  }, [month, year, userId, token]);
+
+  useEffect(() => {
+    if (selectedDate && userId) {
+      fetchTrades();
+    }
+  }, [selectedDate, selectedAccount, userId, token]);
 
   const verifyToken = async () => {
     try {
@@ -67,9 +92,9 @@ export default function App() {
     }
   };
 
-  const handleLogin = (newToken: string, userId: number) => {
+  const handleLogin = (newToken: string, newUserId: number) => {
     setToken(newToken);
-    setUserId(userId);
+    setUserId(newUserId);
     localStorage.setItem('token', newToken);
   };
 
@@ -79,35 +104,15 @@ export default function App() {
     localStorage.removeItem('token');
   };
 
-  if (!token || !userId) {
-    return <LoginForm onLogin={handleLogin} />;
-  }
-
-  // Fetch accounts
-  useEffect(() => {
-    fetchAccounts();
-  }, [userId]);
-
-  // Fetch daily summaries for calendar
-  useEffect(() => {
-    fetchDailySummaries();
-  }, [month, year, userId]);
-
-  // Fetch trades for selected date/account
-  useEffect(() => {
-    if (selectedDate) {
-      fetchTrades();
-    }
-  }, [selectedDate, selectedAccount, userId]);
-
   const fetchAccounts = async () => {
     try {
       const response = await axios.get('/api/accounts', {
         headers: { Authorization: `Bearer ${token}` }
       });
-      setAccounts(response.data.data);
-      if (response.data.data.length > 0) {
-        setSelectedAccount(response.data.data[0].id);
+      const accts = response.data.data || [];
+      setAccounts(accts);
+      if (accts.length > 0 && !selectedAccount) {
+        setSelectedAccount(accts[0].id);
       }
     } catch (error) {
       console.error('Error fetching accounts:', error);
@@ -120,7 +125,7 @@ export default function App() {
         headers: { Authorization: `Bearer ${token}` },
         params: { month, year }
       });
-      setDailySummaries(response.data.data);
+      setDailySummaries(response.data.data || []);
     } catch (error) {
       console.error('Error fetching daily summaries:', error);
     }
@@ -136,7 +141,7 @@ export default function App() {
           account_id: selectedAccount
         }
       });
-      setTrades(response.data.data);
+      setTrades(response.data.data || []);
     } catch (error) {
       console.error('Error fetching trades:', error);
     } finally {
@@ -144,26 +149,26 @@ export default function App() {
     }
   };
 
-  const handleDateClick = (date: string) => {
-    setSelectedDate(date);
-  };
-
   const handleSync = async () => {
-    if (!selectedAccount) return;
+    if (!selectedAccount || !token) return;
     try {
       await axios.post(
         `/api/accounts/${selectedAccount}/sync`,
         {},
         { headers: { Authorization: `Bearer ${token}` } }
       );
-      fetchDailySummaries();
+      await fetchDailySummaries();
       if (selectedDate) {
-        fetchTrades();
+        await fetchTrades();
       }
     } catch (error) {
       console.error('Error syncing:', error);
     }
   };
+
+  if (!token || !userId) {
+    return <LoginForm onLogin={handleLogin} />;
+  }
 
   return (
     <div className="app">
@@ -192,8 +197,21 @@ export default function App() {
             onYearChange={setYear}
             dailySummaries={dailySummaries}
             selectedDate={selectedDate}
-            onDateClick={handleDateClick}
+            onDateClick={(date) => setSelectedDate(date)}
           />
+
+          {token && selectedAccount && (
+            <>
+              <Analytics token={token} account_id={selectedAccount} />
+              <Charts token={token} account_id={selectedAccount} />
+              <RiskManagement token={token} account_id={selectedAccount} />
+              <Insights token={token} account_id={selectedAccount} />
+              <StrategyBuilder token={token} account_id={selectedAccount} />
+              <Automation token={token} account_id={selectedAccount} />
+              <Advanced token={token} user_id={userId || 0} />
+              <Social token={token} user_id={userId || 0} />
+            </>
+          )}
 
           {selectedDate && (
             <>
@@ -202,11 +220,13 @@ export default function App() {
                 <TradeList trades={trades} loading={loading} />
               </div>
 
-              <Ideas
-                token={token}
-                selectedDate={selectedDate}
-                selectedAccount={selectedAccount}
-              />
+              {token && (
+                <Ideas
+                  token={token}
+                  selectedDate={selectedDate}
+                  selectedAccount={selectedAccount || undefined}
+                />
+              )}
             </>
           )}
         </div>

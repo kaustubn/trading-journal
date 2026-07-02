@@ -100,19 +100,116 @@ body {
   font-size: 18px;
 }
 
+@media (max-width: 1024px) {
+  .sidebar {
+    width: 200px;
+  }
+
+  .content {
+    padding: 20px;
+  }
+
+  .header {
+    padding: 15px 20px;
+  }
+
+  .header h1 {
+    font-size: 24px;
+  }
+}
+
 @media (max-width: 768px) {
+  .app {
+    display: flex;
+    flex-direction: column;
+  }
+
   .main {
     flex-direction: column;
+    position: relative;
   }
 
   .sidebar {
     width: 100%;
     border-right: none;
     border-bottom: 1px solid #e0e0e0;
+    max-height: 300px;
+    overflow-y: auto;
+    padding: 15px;
+  }
+
+  .content {
+    flex: 1;
+    padding: 15px;
+    overflow-y: auto;
   }
 
   .header {
-    flex-direction: column;
-    gap: 15px;
+    flex-direction: row;
+    padding: 12px 15px;
+    gap: 10px;
+  }
+
+  .header h1 {
+    font-size: 18px;
+  }
+
+  .header-actions {
+    gap: 5px;
+    margin-left: auto;
+  }
+
+  .sync-btn,
+  .logout-btn {
+    padding: 8px 12px;
+    font-size: 12px;
+  }
+
+  .trades-panel {
+    margin-top: 20px;
+    padding: 15px;
+  }
+
+  .trades-panel h2 {
+    font-size: 16px;
+    margin-bottom: 15px;
+  }
+}
+
+@media (max-width: 480px) {
+  .header {
+    padding: 10px 12px;
+    gap: 8px;
+  }
+
+  .header h1 {
+    font-size: 16px;
+  }
+
+  .header-actions {
+    gap: 5px;
+  }
+
+  .sync-btn,
+  .logout-btn {
+    padding: 6px 10px;
+    font-size: 11px;
+  }
+
+  .content {
+    padding: 10px;
+  }
+
+  .sidebar {
+    max-height: 250px;
+    padding: 10px;
+  }
+
+  .trades-panel {
+    padding: 12px;
+  }
+
+  .trades-panel h2 {
+    font-size: 14px;
   }
 }

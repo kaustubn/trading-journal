@@ -1,6 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import '../styles/LoginForm.css';
+
+const api = axios.create({
+  baseURL: 'http://localhost:5000'
+});
 
 interface LoginFormProps {
   onLogin: (token: string, userId: number) => void;
@@ -8,10 +12,30 @@ interface LoginFormProps {
 
 export default function LoginForm({ onLogin }: LoginFormProps) {
   const [mode, setMode] = useState<'login' | 'register'>('login');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [email, setEmail] = useState('demo@example.com');
+  const [password, setPassword] = useState('demo123');
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    const autoLogin = async () => {
+      try {
+        setLoading(true);
+        const response = await api.post('/api/auth/login', {
+          email: 'demo@example.com',
+          password: 'demo123'
+        });
+        console.log('Auto-login successful:', response.data);
+        onLogin(response.data.token, response.data.user.id);
+      } catch (err: any) {
+        console.error('Auto-login failed:', err);
+        setError(err.response?.data?.error || 'Auto-login failed');
+        setLoading(false);
+      }
+    };
+
+    autoLogin();
+  }, [onLogin]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -19,13 +43,16 @@ export default function LoginForm({ onLogin }: LoginFormProps) {
     setLoading(true);
 
     try {
+      console.log('Submitting login:', { email, password });
       const endpoint = mode === 'login' ? '/api/auth/login' : '/api/auth/register';
-      const response = await axios.post(endpoint, { email, password });
+      const response = await api.post(endpoint, { email, password });
+      console.log('Login successful:', response.data);
 
       onLogin(response.data.token, response.data.user.id);
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Authentication failed');
-    } finally {
+      console.error('Login error:', err);
+      const errorMsg = err.response?.data?.error || err.message || 'Authentication failed';
+      setError(errorMsg);
       setLoading(false);
     }
   };
@@ -36,29 +63,35 @@ export default function LoginForm({ onLogin }: LoginFormProps) {
         <h1>Trading Journal</h1>
         <p className="subtitle">Multi-account trade logging & analysis</p>
 
-        <form onSubmit={handleSubmit} className="login-form">
-          <input
-            type="email"
-            placeholder="Email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-          />
+        {loading ? (
+          <div style={{ padding: '20px', textAlign: 'center' }}>
+            <p>Auto-logging in with demo credentials...</p>
+          </div>
+        ) : (
+          <form onSubmit={handleSubmit} className="login-form">
+            <input
+              type="email"
+              placeholder="Email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+            />
 
-          <input
-            type="password"
-            placeholder="Password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-          />
+            <input
+              type="password"
+              placeholder="Password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+            />
 
-          {error && <div className="error-message">{error}</div>}
+            {error && <div className="error-message">{error}</div>}
 
-          <button type="submit" disabled={loading} className="submit-btn">
-            {loading ? 'Loading...' : mode === 'login' ? 'Login' : 'Register'}
-          </button>
-        </form>
+            <button type="submit" disabled={loading} className="submit-btn">
+              {loading ? 'Loading...' : mode === 'login' ? 'Login' : 'Register'}
+            </button>
+          </form>
+        )}
 
         <div className="toggle-mode">
           {mode === 'login' ? (

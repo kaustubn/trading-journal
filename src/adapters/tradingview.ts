@@ -77,7 +77,7 @@ export class TradingViewAdapter implements BrokerAdapter {
         }
 
         if (entry_order) {
-          let pnl = null;
+          let pnl: number | undefined = undefined;
           if (exit_order && exit_order.price) {
             pnl = (exit_order.price - entry_order.price) * entry_order.quantity;
           }

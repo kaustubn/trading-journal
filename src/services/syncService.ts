@@ -1,6 +1,7 @@
 import pool from '../db';
 import { ZerodhaAdapter } from '../adapters/zerodha';
 import { LucidAdapter } from '../adapters/lucid';
+import { FyresAdapter } from '../adapters/fyres';
 import { Trade } from '../types';
 
 export class SyncService {
@@ -21,6 +22,8 @@ export class SyncService {
         adapter = await ZerodhaAdapter.createFromCredentials(account_id);
       } else if (account.broker === 'lucid') {
         adapter = await LucidAdapter.createFromCredentials(account_id);
+      } else if (account.broker === 'fyres') {
+        adapter = await FyresAdapter.createFromCredentials(account_id);
       }
 
       // Fetch trades from broker
