@@ -2,9 +2,8 @@ import React, { useState } from 'react';
 import axios from 'axios';
 import '../styles/Landing.css';
 
-const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:5000',
-});
+// Same-origin: backend serves the frontend (Vite dev proxies /api)
+const api = axios.create({ baseURL: '' });
 
 interface LoginFormProps {
   onLogin: (token: string, userId: number) => void;
