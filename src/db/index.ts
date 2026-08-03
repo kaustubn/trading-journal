@@ -1,7 +1,27 @@
-import { Pool } from 'pg';
+import { Pool, types } from 'pg';
 
+// --- Global type parsers (fixes systemic frontend crashes) ---
+// node-pg returns NUMERIC/DECIMAL (oid 1700) as strings by default, so the
+// frontend's `.toFixed()` calls throw "toFixed is not a function". Parse them
+// as JS numbers so numeric columns arrive as numbers everywhere.
+types.setTypeParser(1700, (val: string | null) => (val === null ? null : parseFloat(val)));
+// DATE (oid 1082) defaults to a JS Date, which serializes to a full ISO string
+// and never matches the calendar's 'YYYY-MM-DD' keys. Keep it as the raw date string.
+types.setTypeParser(1082, (val: string | null) => val);
+// TIMESTAMP without time zone (oid 1114): pg stores broker/platform wall-clock
+// times (e.g. Tradovate "05:36"). node-pg would tag it "…Z" (UTC), so the browser
+// then shifts it by its own offset and shows the wrong hour. Return it as a naive
+// ISO string (no Z) so `new Date(...)` reads it as local → displays exactly as recorded.
+types.setTypeParser(1114, (val: string | null) => (val ? val.replace(' ', 'T') : val));
+
+// Neon (and most hosted Postgres) require SSL. Enable it unless connecting to a
+// local/internal host. rejectUnauthorized:false accepts their managed certs.
+const dbUrl = process.env.DATABASE_URL || '';
+const needsSSL = /neon\.tech|render\.com|amazonaws\.com|supabase|sslmode=require/i.test(dbUrl)
+  || process.env.PGSSL === 'true';
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
+  ssl: needsSSL ? { rejectUnauthorized: false } : undefined,
 });
 
 export async function initializeDB() {
@@ -299,6 +319,94 @@ export async function initializeDB() {
     `;
 
     await client.query(schema);
+
+    // --- Migrations for existing tables (CREATE TABLE IF NOT EXISTS won't add columns) ---
+    const migrations = `
+      ALTER TABLE accounts ADD COLUMN IF NOT EXISTS webhook_token VARCHAR(64);
+      ALTER TABLE accounts ADD COLUMN IF NOT EXISTS account_type VARCHAR(20) DEFAULT 'live';
+      ALTER TABLE accounts ADD COLUMN IF NOT EXISTS prop_starting_balance DECIMAL(14,2);
+      ALTER TABLE accounts ADD COLUMN IF NOT EXISTS prop_profit_target DECIMAL(14,2);
+      ALTER TABLE accounts ADD COLUMN IF NOT EXISTS prop_max_drawdown DECIMAL(14,2);
+      ALTER TABLE accounts ADD COLUMN IF NOT EXISTS prop_daily_loss_limit DECIMAL(14,2);
+      ALTER TABLE accounts ADD COLUMN IF NOT EXISTS prop_trailing BOOLEAN DEFAULT true;
+      ALTER TABLE accounts ADD COLUMN IF NOT EXISTS prop_consistency_pct DECIMAL(5,2);
+      ALTER TABLE accounts ADD COLUMN IF NOT EXISTS prop_min_trading_days INT;
+      ALTER TABLE accounts ADD COLUMN IF NOT EXISTS day_boundary_hour INT DEFAULT 0;
+      ALTER TABLE accounts ADD COLUMN IF NOT EXISTS micro_cost_per_trade DECIMAL(10,2) DEFAULT 0;
+      ALTER TABLE accounts ADD COLUMN IF NOT EXISTS cost_per_trade DECIMAL(10,2) DEFAULT 0;
+      ALTER TABLE accounts ADD COLUMN IF NOT EXISTS currency VARCHAR(3) DEFAULT 'INR';
+      ALTER TABLE trades ADD COLUMN IF NOT EXISTS tags TEXT[];
+      ALTER TABLE trades ADD COLUMN IF NOT EXISTS stop_loss DECIMAL(12,4);
+      ALTER TABLE trades ADD COLUMN IF NOT EXISTS target DECIMAL(12,4);
+      ALTER TABLE trades ADD COLUMN IF NOT EXISTS rating INT;
+      ALTER TABLE trades ADD COLUMN IF NOT EXISTS grade VARCHAR(2);
+      ALTER TABLE trades ADD COLUMN IF NOT EXISTS screenshot TEXT;
+      ALTER TABLE trades ADD COLUMN IF NOT EXISTS screenshots JSONB;
+      UPDATE accounts SET webhook_token = md5(random()::text || id::text || clock_timestamp()::text)
+        WHERE webhook_token IS NULL;
+      UPDATE accounts SET account_type = 'live' WHERE account_type IS NULL;
+      CREATE INDEX IF NOT EXISTS idx_accounts_webhook_token ON accounts(webhook_token);
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS plan VARCHAR(20) DEFAULT 'free';
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS plan_since TIMESTAMP;
+      UPDATE users SET plan = 'pro' WHERE email IN ('kaustubsubbannavar@gmail.com', 'demo@example.com') AND (plan IS NULL OR plan = 'free');
+    `;
+    await client.query(migrations);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS daily_notes (
+        id SERIAL PRIMARY KEY,
+        user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        note_date DATE NOT NULL,
+        day_type VARCHAR(20),
+        bias VARCHAR(20),
+        key_levels TEXT,
+        setups TEXT,
+        plan TEXT,
+        review TEXT,
+        followed_plan BOOLEAN,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(user_id, note_date)
+      );
+      CREATE INDEX IF NOT EXISTS idx_daily_notes ON daily_notes(user_id, note_date);
+      ALTER TABLE daily_notes ADD COLUMN IF NOT EXISTS screenshot TEXT;
+
+      CREATE TABLE IF NOT EXISTS account_events (
+        id SERIAL PRIMARY KEY,
+        account_id INT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+        event_date DATE NOT NULL,
+        type VARCHAR(20) NOT NULL,
+        note TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(account_id, event_date, type)
+      );
+      CREATE INDEX IF NOT EXISTS idx_account_events ON account_events(account_id, event_date);
+
+      CREATE TABLE IF NOT EXISTS account_attempts (
+        id SERIAL PRIMARY KEY,
+        account_id INT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+        seq INT NOT NULL,
+        label VARCHAR(100),
+        status VARCHAR(20) DEFAULT 'active',
+        started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        ended_at TIMESTAMP,
+        note TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE INDEX IF NOT EXISTS idx_attempts_account ON account_attempts(account_id, seq);
+      ALTER TABLE trades ADD COLUMN IF NOT EXISTS attempt_id INT REFERENCES account_attempts(id) ON DELETE SET NULL;
+    `);
+
+    // Backfill: every account gets at least "Attempt 1", and existing trades get assigned to it
+    await client.query(`
+      INSERT INTO account_attempts (account_id, seq, label, status)
+        SELECT a.id, 1, 'Attempt 1', 'active' FROM accounts a
+        WHERE NOT EXISTS (SELECT 1 FROM account_attempts x WHERE x.account_id = a.id);
+      UPDATE trades t SET attempt_id = (
+          SELECT id FROM account_attempts aa WHERE aa.account_id = t.account_id ORDER BY seq DESC LIMIT 1
+        ) WHERE attempt_id IS NULL;
+    `);
+
     console.log('Database initialized successfully');
   } finally {
     client.release();

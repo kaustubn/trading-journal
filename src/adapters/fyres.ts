@@ -1,6 +1,7 @@
 import axios from 'axios';
 import pool from '../db';
 import { BrokerAdapter, Trade } from '../types';
+import { decrypt } from '../utils/crypto';
 
 export class FyresAdapter implements BrokerAdapter {
   private apiKey: string;
@@ -22,7 +23,8 @@ export class FyresAdapter implements BrokerAdapter {
       throw new Error('Fyres credentials not found');
     }
 
-    const { api_key, api_secret } = result.rows[0];
+    const api_key = decrypt(result.rows[0].api_key) || '';
+    const api_secret = decrypt(result.rows[0].api_secret) || '';
     return new FyresAdapter(api_key, api_secret);
   }
 

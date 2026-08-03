@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import '../styles/TradeDetail.css';
 
@@ -14,26 +14,92 @@ interface Trade {
   pnl?: number;
   setup_tag?: string;
   notes?: string;
+  tags?: string[];
+  stop_loss?: number;
+  target?: number;
+  rating?: number;
+  grade?: string;
+  screenshot?: string;
+  has_screenshot?: boolean;
 }
 
 interface TradeDetailProps {
   trade: Trade;
   onClose: () => void;
+  onSaved?: () => void;
 }
 
-export default function TradeDetail({ trade, onClose }: TradeDetailProps) {
+export default function TradeDetail({ trade, onClose, onSaved }: TradeDetailProps) {
   const [setupTag, setSetupTag] = useState(trade.setup_tag || '');
   const [notes, setNotes] = useState(trade.notes || '');
+  const [tags, setTags] = useState((trade.tags || []).join(', '));
+  const [stopLoss, setStopLoss] = useState(trade.stop_loss != null ? String(trade.stop_loss) : '');
+  const [target, setTarget] = useState(trade.target != null ? String(trade.target) : '');
+  const [rating, setRating] = useState(trade.rating || 0);
+  const [grade, setGrade] = useState(trade.grade || '');
+  const TFS = ['1m', '5m', '15m'] as const;
+  const EMO: [string, string, boolean][] = [
+    ['revenge', 'Revenge', true], ['fomo', 'FOMO', true], ['chased', 'Chased', true],
+    ['panic', 'Panic exit', true], ['tilt', 'Tilt', true], ['bored', 'Boredom', true],
+    ['greedy', 'Greedy', true], ['hesitated', 'Hesitated', true], ['no-plan', 'No plan', true],
+    ['moved-stop', 'Moved stop', true], ['disciplined', 'Disciplined', false],
+    ['patient', 'Patient', false], ['planned', 'Planned', false],
+  ];
+  const normTag = (s: string) => s.trim().toLowerCase().replace(/\s+/g, '-');
+  const tagList = () => tags.split(',').map(t => t.trim()).filter(Boolean);
+  const hasEmo = (k: string) => tagList().some(t => normTag(t) === k);
+  const toggleEmo = (k: string) => {
+    const list = tagList();
+    const idx = list.findIndex(t => normTag(t) === k);
+    if (idx >= 0) list.splice(idx, 1); else list.push(k);
+    setTags(list.join(', '));
+  };
+  const [shots, setShots] = useState<Record<string, string>>({});
+  const [lightbox, setLightbox] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [imgError, setImgError] = useState('');
+
+  // Screenshots aren't in the list payload — fetch lazily when the modal opens
+  useEffect(() => {
+    if (trade.has_screenshot) {
+      axios.get(`/api/trades/${trade.id}`).then(r => {
+        const d = r.data.data;
+        const s = d?.screenshots || (d?.screenshot ? { '5m': d.screenshot } : {});
+        setShots(s || {});
+      }).catch(() => {});
+    }
+  }, [trade.id]);
+
+  const handleImage = (tf: string, e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 4 * 1024 * 1024) { setImgError(`${tf} image too large (max 4MB).`); return; }
+    setImgError('');
+    const reader = new FileReader();
+    reader.onload = () => setShots(prev => ({ ...prev, [tf]: String(reader.result || '') }));
+    reader.readAsDataURL(file);
+  };
+  const removeShot = (tf: string) => setShots(prev => { const n = { ...prev }; delete n[tf]; return n; });
+
+  // Live R-multiple preview
+  const stop = parseFloat(stopLoss);
+  const risk = !isNaN(stop) ? Math.abs(Number(trade.entry_price) - stop) * Number(trade.quantity) : 0;
+  const rMultiple = risk > 0 && trade.pnl != null ? Number(trade.pnl) / risk : null;
 
   const handleSave = async () => {
     setSaving(true);
     try {
       await axios.put(`/api/trades/${trade.id}`, {
         setup_tag: setupTag,
-        notes: notes,
-        user_id: 1 // TODO: Get from auth
+        notes,
+        tags,
+        stop_loss: stopLoss ? parseFloat(stopLoss) : null,
+        target: target ? parseFloat(target) : null,
+        rating: rating || null,
+        grade: grade || null,
+        screenshots: shots,
       });
+      if (onSaved) onSaved();
       onClose();
     } catch (error) {
       console.error('Error saving trade:', error);
@@ -78,30 +144,106 @@ export default function TradeDetail({ trade, onClose }: TradeDetailProps) {
           <div className="info-group">
             <label>P&L</label>
             <p className={trade.pnl && trade.pnl > 0 ? 'positive' : 'negative'}>
-              ${trade.pnl?.toFixed(2) || '0.00'}
+              ${trade.pnl != null ? Number(trade.pnl).toFixed(2) : '0.00'}
+              {rMultiple !== null && (
+                <span className={`r-badge ${rMultiple >= 0 ? 'positive' : 'negative'}`}>
+                  {rMultiple >= 0 ? '+' : ''}{rMultiple.toFixed(2)}R
+                </span>
+              )}
             </p>
           </div>
         </div>
 
         <div className="editable-fields">
           <div className="form-group">
-            <label>Setup Tag</label>
-            <input
-              type="text"
-              value={setupTag}
-              onChange={e => setSetupTag(e.target.value)}
-              placeholder="e.g., 1st pullback, breakout, etc."
-            />
+            <label>Setup</label>
+            <div className="chip-row">
+              {['S1', 'S2', 'S3', 'ORB'].map(s => (
+                <button key={s} type="button"
+                  className={`chip ${setupTag === s ? 'on' : ''}`}
+                  onClick={() => setSetupTag(setupTag === s ? '' : s)}>{s}</button>
+              ))}
+              <input type="text" value={setupTag} onChange={e => setSetupTag(e.target.value)}
+                placeholder="or custom…" style={{ flex: 1, minWidth: 100 }} />
+            </div>
+          </div>
+
+          <div className="td-row">
+            <div className="form-group">
+              <label>Grade <span className="hint">(A/B/C from checklist)</span></label>
+              <div className="chip-row">
+                {['A', 'B', 'C'].map(g => (
+                  <button key={g} type="button"
+                    className={`chip grade-${g} ${grade === g ? 'on' : ''}`}
+                    onClick={() => setGrade(grade === g ? '' : g)}>{g}</button>
+                ))}
+              </div>
+            </div>
+            <div className="form-group">
+              <label>Rating</label>
+              <div className="star-row">
+                {[1, 2, 3, 4, 5].map(n => (
+                  <span key={n} className={`star ${n <= rating ? 'on' : ''}`} onClick={() => setRating(n === rating ? 0 : n)}>★</span>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="td-row">
+            <div className="form-group">
+              <label>Stop Loss <span className="hint">(enables R)</span></label>
+              <input type="number" step="0.01" value={stopLoss} onChange={e => setStopLoss(e.target.value)} placeholder="e.g., 19450" />
+            </div>
+            <div className="form-group">
+              <label>Target</label>
+              <input type="number" step="0.01" value={target} onChange={e => setTarget(e.target.value)} placeholder="e.g., 19600" />
+            </div>
+          </div>
+
+          <div className="form-group">
+            <label>How did you feel? <span className="hint">(one tap — feeds the Emotions page)</span></label>
+            <div className="emo-chips">
+              {EMO.map(([k, label, neg]) => (
+                <button key={k} type="button"
+                  className={`emo-chip ${neg ? 'neg' : 'pos'} ${hasEmo(k) ? 'on' : ''}`}
+                  onClick={() => toggleEmo(k)}>{label}</button>
+              ))}
+            </div>
+          </div>
+
+          <div className="form-group">
+            <label>Tags <span className="hint">(comma-separated)</span></label>
+            <input type="text" value={tags} onChange={e => setTags(e.target.value)}
+              placeholder="e.g., A+, news, revenge, fomo, disciplined" />
+          </div>
+
+          <div className="form-group">
+            <label>Chart Screenshots <span className="hint">(one per timeframe, image ≤4MB each)</span></label>
+            <div className="tf-shots">
+              {TFS.map(tf => (
+                <div key={tf} className="tf-slot">
+                  <div className="tf-label">{tf}</div>
+                  {shots[tf] ? (
+                    <div className="tf-imgwrap">
+                      <img src={shots[tf]} alt={`${tf} chart`} className="tf-img" onClick={() => setLightbox(shots[tf])} />
+                      <button type="button" className="tf-remove" onClick={() => removeShot(tf)}>✕</button>
+                    </div>
+                  ) : (
+                    <label className="tf-upload">
+                      + Add {tf}
+                      <input type="file" accept="image/*" hidden onChange={e => handleImage(tf, e)} />
+                    </label>
+                  )}
+                </div>
+              ))}
+            </div>
+            {imgError && <div style={{ color: '#f5a623', fontSize: 12, marginTop: 6 }}>{imgError}</div>}
           </div>
 
           <div className="form-group">
             <label>Notes</label>
-            <textarea
-              value={notes}
-              onChange={e => setNotes(e.target.value)}
-              placeholder="Trade notes, observation, what you learned..."
-              rows={5}
-            />
+            <textarea value={notes} onChange={e => setNotes(e.target.value)}
+              placeholder="What was the plan? What did you learn?" rows={4} />
           </div>
         </div>
 
@@ -112,6 +254,13 @@ export default function TradeDetail({ trade, onClose }: TradeDetailProps) {
           <button onClick={onClose} className="cancel-btn">Cancel</button>
         </div>
       </div>
+
+      {lightbox && (
+        <div className="td-lightbox" onClick={(e) => { e.stopPropagation(); setLightbox(null); }}>
+          <img src={lightbox} alt="chart full size" />
+          <button className="td-lightbox-close" onClick={(e) => { e.stopPropagation(); setLightbox(null); }}>×</button>
+        </div>
+      )}
     </div>
   );
 }

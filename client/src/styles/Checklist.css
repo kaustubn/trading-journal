@@ -1,0 +1,36 @@
+.checklist { margin: 16px 0; }
+.cl-head { margin-bottom: 14px; }
+.cl-head h2 { color: #e6e8ec; font-size: 18px; }
+.cl-head p { color: #9aa0ac; font-size: 13px; margin-top: 4px; }
+
+.cl-card {
+  background: #171920; border: 1px solid #2a2e3a; border-radius: 12px;
+  padding: 16px 20px; margin-bottom: 14px;
+}
+.cl-card h3 { color: #e6e8ec; font-size: 15px; margin-bottom: 10px; }
+.cl-card h4 { color: #c7d2fe; font-size: 14px; margin-bottom: 10px; }
+.cl-note { color: #6b7280; font-weight: 400; font-size: 12px; }
+.cl-tag { font-size: 10px; text-transform: uppercase; letter-spacing: .04em; color: #6b7280; font-weight: 700; margin-left: 6px; }
+.cl-card ul { list-style: none; padding: 0; }
+.cl-card li { color: #cbd0d8; font-size: 13px; padding: 5px 0 5px 22px; position: relative; line-height: 1.4; }
+.cl-card li::before { content: '☐'; position: absolute; left: 0; color: #6366f1; }
+.cl-card strong { color: #e6e8ec; }
+
+.cl-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.cl-card.setup { margin-bottom: 0; }
+
+.cl-card.score { background: linear-gradient(180deg, #1b1e27, #171920); }
+.cl-factors { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 14px; }
+.cl-factors span {
+  background: #1e2129; border: 1px solid #2a2e3a; color: #cbd0d8;
+  padding: 8px 10px; border-radius: 8px; font-size: 12px; text-align: center;
+}
+.cl-ranks { display: flex; flex-direction: column; gap: 8px; }
+.cl-rank { padding: 10px 14px; border-radius: 8px; font-size: 13.5px; color: #e6e8ec; }
+.cl-rank.a { background: rgba(34,197,94,.12); border: 1px solid rgba(34,197,94,.35); }
+.cl-rank.b { background: rgba(245,166,35,.12); border: 1px solid rgba(245,166,35,.35); }
+.cl-rank.c { background: rgba(239,68,68,.12); border: 1px solid rgba(239,68,68,.35); }
+.cl-rank strong { font-size: 15px; margin-right: 6px; }
+.cl-rule { color: #f5a623; font-size: 13px; margin-top: 12px; font-weight: 600; }
+
+@media (max-width: 860px) { .cl-grid { grid-template-columns: 1fr; } .cl-factors { grid-template-columns: 1fr 1fr; } }

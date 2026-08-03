@@ -1,6 +1,7 @@
 import axios from 'axios';
 import { BrokerAdapter, Trade } from '../types';
 import pool from '../db';
+import { decrypt } from '../utils/crypto';
 
 const TV_BASE_URL = 'https://api.tradingview.com'; // placeholder - TradingView API varies
 
@@ -121,7 +122,7 @@ export class TradingViewAdapter implements BrokerAdapter {
         [account_id]
       );
       const creds = result.rows[0];
-      return new TradingViewAdapter(account_id, creds.api_key, creds.api_secret);
+      return new TradingViewAdapter(account_id, decrypt(creds.api_key) || '', decrypt(creds.api_secret) || '');
     } finally {
       client.release();
     }

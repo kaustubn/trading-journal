@@ -1,0 +1,38 @@
+.discipline { margin: 16px 0; }
+.discipline.loading { color: #9aa0ac; padding: 20px; }
+
+.disc-top { display: grid; grid-template-columns: 200px 1fr; gap: 16px; }
+
+.disc-score {
+  background: #171920; border: 2px solid #2a2e3a; border-radius: 12px;
+  padding: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center;
+}
+.disc-score-num { font-size: 52px; font-weight: 800; line-height: 1; letter-spacing: -0.02em; }
+.disc-score-lbl { color: #9aa0ac; font-size: 12px; text-transform: uppercase; letter-spacing: .05em; font-weight: 600; margin-top: 8px; }
+.disc-trend { font-size: 11px; margin-top: 8px; font-weight: 600; }
+.disc-trend.up { color: #22c55e; }
+.disc-trend.down { color: #ef4444; }
+
+.disc-metrics { background: #171920; border: 1px solid #2a2e3a; border-radius: 12px; padding: 18px 20px; display: flex; flex-direction: column; gap: 16px; }
+.disc-metric { }
+.dm-label { color: #cbd0d8; font-size: 13px; font-weight: 600; margin-bottom: 7px; }
+.dm-warn { color: #6b7280; font-weight: 400; font-size: 11px; }
+.dm-bar { height: 10px; background: #0e0f13; border-radius: 999px; overflow: hidden; }
+.dm-fill { height: 100%; border-radius: 999px; }
+.dm-fill.blue { background: linear-gradient(90deg, #6366f1, #818cf8); }
+.dm-fill.green { background: linear-gradient(90deg, #16a34a, #22c55e); }
+.dm-fill.red { background: linear-gradient(90deg, #dc2626, #ef4444); }
+.dm-val { color: #9aa0ac; font-size: 12px; margin-top: 5px; }
+
+.disc-trend-chart { background: #171920; border: 1px solid #2a2e3a; border-radius: 12px; padding: 18px 20px; margin-top: 14px; }
+.disc-trend-chart h3 { color: #e6e8ec; font-size: 14px; margin-bottom: 14px; }
+.disc-weeks { display: flex; align-items: flex-end; gap: 8px; height: 130px; }
+.disc-week { flex: 1; display: flex; flex-direction: column; align-items: center; height: 100%; }
+.dw-bar-wrap { flex: 1; width: 100%; display: flex; align-items: flex-end; }
+.dw-bar { width: 100%; background: linear-gradient(180deg, #22c55e, #16a34a); border-radius: 4px 4px 0 0; min-height: 2px; }
+.dw-val { font-size: 10px; color: #cbd0d8; margin-top: 4px; }
+.dw-week { font-size: 10px; color: #6b7280; }
+
+.disc-note { color: #6b7280; font-size: 12.5px; margin-top: 14px; }
+
+@media (max-width: 760px) { .disc-top { grid-template-columns: 1fr; } }

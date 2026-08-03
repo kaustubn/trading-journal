@@ -75,7 +75,7 @@ export default function Advanced({ token, user_id }: AdvancedProps) {
       const res = await axios.get('/api/advanced/tax/records', {
         headers: { Authorization: `Bearer ${token}` }
       });
-      setTaxRecords(res.data.data);
+      setTaxRecords(res.data.data || []);
     } catch (error) {
       console.error('Error fetching tax records:', error);
     } finally {
@@ -88,7 +88,7 @@ export default function Advanced({ token, user_id }: AdvancedProps) {
       const res = await axios.get('/api/advanced/dashboard/alerts', {
         headers: { Authorization: `Bearer ${token}` }
       });
-      setAlerts(res.data.data);
+      setAlerts(res.data.data || []);
     } catch (error) {
       console.error('Error fetching alerts:', error);
     }
@@ -179,7 +179,7 @@ export default function Advanced({ token, user_id }: AdvancedProps) {
 
           <div className="allocation">
             <h3>Account Allocation</h3>
-            {Object.entries(portfolio.allocation).map(([account, pct]) => (
+            {Object.entries(portfolio.allocation || {}).map(([account, pct]) => (
               <div key={account} className="allocation-bar">
                 <span className="label">{account}: {pct.toFixed(1)}%</span>
                 <div className="bar">

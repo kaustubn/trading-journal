@@ -46,7 +46,7 @@ export default function StrategyBuilder({ token, account_id }: StrategyBuilderPr
       const response = await axios.get('/api/strategies', {
         headers: { Authorization: `Bearer ${token}` }
       });
-      setStrategies(response.data.data);
+      setStrategies(response.data.data || []);
     } catch (error) {
       console.error('Error fetching strategies:', error);
     } finally {
@@ -243,7 +243,7 @@ export default function StrategyBuilder({ token, account_id }: StrategyBuilderPr
                 <h4>{strategy.name}</h4>
                 <p>{strategy.description}</p>
                 <div className="strategy-stats">
-                  <span className="stat">{strategy.rules.length} rules</span>
+                  <span className="stat">{(strategy.rules || []).length} rules</span>
                   <span className={`status ${strategy.enabled ? 'enabled' : 'disabled'}`}>
                     {strategy.enabled ? 'Enabled' : 'Disabled'}
                   </span>

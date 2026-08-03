@@ -2,6 +2,7 @@ import pool from '../db';
 import { ZerodhaAdapter } from '../adapters/zerodha';
 import { LucidAdapter } from '../adapters/lucid';
 import { FyresAdapter } from '../adapters/fyres';
+import { IBKRAdapter } from '../adapters/ibkr';
 import { Trade } from '../types';
 
 export class SyncService {
@@ -24,6 +25,10 @@ export class SyncService {
         adapter = await LucidAdapter.createFromCredentials(account_id);
       } else if (account.broker === 'fyres') {
         adapter = await FyresAdapter.createFromCredentials(account_id);
+      } else if (account.broker === 'ibkr') {
+        adapter = await IBKRAdapter.createFromCredentials(account_id);
+      } else {
+        throw new Error(`Unsupported broker: ${account.broker}`);
       }
 
       // Fetch trades from broker

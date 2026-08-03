@@ -1,0 +1,45 @@
+.range-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: #171920;
+  border: 1px solid #2a2e3a;
+  border-radius: 10px;
+  padding: 8px 10px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+
+.range-presets { display: flex; gap: 4px; flex-wrap: wrap; }
+
+.range-btn {
+  background: transparent;
+  border: 1px solid transparent;
+  color: #9aa0ac;
+  padding: 6px 12px;
+  border-radius: 7px;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+.range-btn:hover { background: #1e2129; color: #e6e8ec; }
+.range-btn.active {
+  background: linear-gradient(180deg, rgba(99,102,241,.18), rgba(99,102,241,.06));
+  color: #fff;
+  box-shadow: inset 0 0 0 1px rgba(99,102,241,.4);
+}
+
+.range-custom { display: flex; align-items: center; gap: 6px; color: #6b7280; font-size: 12px; }
+.range-custom input {
+  background: #0e0f13;
+  border: 1px solid #2a2e3a;
+  color: #e6e8ec;
+  border-radius: 7px;
+  padding: 6px 8px;
+  font-size: 12px;
+  outline: none;
+  color-scheme: dark;
+}
+.range-custom input:focus { border-color: #6366f1; box-shadow: 0 0 0 3px rgba(99,102,241,.18); }

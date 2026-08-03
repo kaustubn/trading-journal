@@ -1,5 +1,6 @@
 import axios from 'axios';
 import pool from '../db';
+import emailService from './emailService';
 
 export class NotificationService {
   // Send daily summary via email
@@ -159,17 +160,18 @@ export class NotificationService {
 
   // Generic email sender (requires SMTP configuration)
   private async sendEmail(to: string, subject: string, htmlBody: string) {
-    // TODO: Implement email service
-    // Options: SendGrid, Nodemailer, AWS SES, etc.
-    console.log(`Email to ${to}: ${subject}`);
-    // Example with SendGrid:
-    // const sgMail = require('@sendgrid/mail');
-    // sgMail.setApiKey(process.env.SENDGRID_API_KEY);
-    // await sgMail.send({
-    //   to,
-    //   from: 'noreply@tradingjournal.com',
-    //   subject,
-    //   html: htmlBody
-    // });
+    try {
+      const success = await emailService.sendEmail({
+        to,
+        subject,
+        html: htmlBody,
+        type: 'daily_summary'
+      });
+      if (!success) {
+        console.warn(`Failed to send email to ${to}: ${subject}`);
+      }
+    } catch (error) {
+      console.error('Error sending email:', error);
+    }
   }
 }

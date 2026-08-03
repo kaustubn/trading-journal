@@ -1,0 +1,396 @@
+/* ============================================================
+   Trading Journal — Dark design system (TradeZella-style)
+   Single global override sheet. Imported last in main.tsx so it
+   wins the cascade; overrides are scoped under .app for specificity.
+   ============================================================ */
+
+:root {
+  /* Surfaces */
+  --bg:        #0e0f13;
+  --panel:     #171920;
+  --card:      #1e2129;
+  --card-2:    #232733;
+  --border:    #2a2e3a;
+  --border-2:  #363b49;
+
+  /* Text */
+  --text:      #e6e8ec;
+  --text-dim:  #9aa0ac;
+  --text-mute: #6b7280;
+
+  /* Brand + semantic */
+  --brand:     #6366f1;
+  --brand-2:   #818cf8;
+  --brand-ink: #c7d2fe;
+  --green:     #22c55e;
+  --green-dim: #16a34a;
+  --red:       #ef4444;
+  --red-dim:   #dc2626;
+  --yellow:    #f5a623;
+
+  --radius:    12px;
+  --radius-sm: 8px;
+  --shadow:    0 1px 3px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.25);
+  --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+html, body, #root {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body { margin: 0; }
+
+/* ---------- Scrollbar ---------- */
+.app ::-webkit-scrollbar { width: 10px; height: 10px; }
+.app ::-webkit-scrollbar-track { background: transparent; }
+.app ::-webkit-scrollbar-thumb { background: var(--border-2); border-radius: 8px; }
+.app ::-webkit-scrollbar-thumb:hover { background: #454b5c; }
+
+/* ---------- Headings ---------- */
+.app h2 { font-size: 18px; font-weight: 650; letter-spacing: -0.01em; color: var(--text); }
+.app h3 { font-size: 15px; font-weight: 600; color: var(--text); }
+.app h4 { font-size: 14px; font-weight: 600; color: var(--text); }
+.app p  { color: var(--text-dim); }
+
+/* ---------- Cards (shared across every stage) ---------- */
+.app .stat-card,
+.app .metric-card,
+.app .card,
+.app .kelly-card,
+.app .bot-card,
+.app .pattern-card,
+.app .recommendation-card,
+.app .trade-card,
+.app .result-item,
+.app .live-metrics,
+.app .position-result,
+.app .kelly-section,
+.app .position-size-section,
+.app .risk-rules,
+.app .backtest-results,
+.app .strategy-card,
+.app .strategy-form,
+.app .form-new-bot {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  box-shadow: none;
+}
+
+.app .stat-card,
+.app .metric-card,
+.app .kelly-card,
+.app .card {
+  padding: 16px 18px;
+  transition: border-color .15s ease, transform .15s ease;
+}
+.app .stat-card:hover,
+.app .metric-card:hover,
+.app .card:hover { border-color: var(--border-2); }
+
+/* Card labels + values */
+.app .stat-label, .app .metric-label, .app .kelly-label, .app .label,
+.app .metric-key { color: var(--text-dim); font-size: 12px; font-weight: 500;
+  text-transform: uppercase; letter-spacing: .04em; }
+.app .stat-value, .app .metric-value, .app .kelly-value, .app .value {
+  color: var(--text); font-size: 22px; font-weight: 680; margin-top: 4px; }
+.app .stat-detail, .app .metric-sub, .app .kelly-note { color: var(--text-mute); font-size: 12px; }
+
+/* Grids */
+.app .stats-grid, .app .metric-grid, .app .kelly-grid, .app .results-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; }
+
+/* P&L semantics */
+.app .positive, .app .win, .app .stat-value.positive, .app .value.positive { color: var(--green) !important; }
+.app .negative, .app .loss, .app .stat-value.negative, .app .value.negative { color: var(--red) !important; }
+
+/* ---------- Section wrappers each stage renders in ---------- */
+.app .analytics, .app .charts, .app .risk-management, .app .insights,
+.app .strategy-builder, .app .automation, .app .advanced, .app .social,
+.app .trades-panel, .app .ideas-panel, .app .ideas {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+  margin: 16px 0;
+}
+.app .analytics.loading, .app .analytics.empty,
+.app .charts.loading, .app .charts.empty,
+.app .risk-management.loading, .app .insights.loading,
+.app .social-loading, .app .loading {
+  color: var(--text-dim);
+}
+
+/* Section header rows */
+.app .analytics-header, .app .charts-header, .app .risk-header,
+.app .insights-header, .app .strategy-header, .app .automation-header,
+.app .advanced-header, .app .social-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 16px; padding-bottom: 14px; border-bottom: 1px solid var(--border);
+}
+
+/* ---------- Tabs / toggles ---------- */
+.app .view-toggle, .app .chart-toggle, .app .insights-tabs,
+.app .social-tabs, .app .tabs {
+  display: inline-flex; gap: 4px; background: var(--bg);
+  padding: 4px; border-radius: 10px; border: 1px solid var(--border);
+}
+.app .view-btn, .app .chart-btn, .app .tab {
+  background: transparent; border: none; color: var(--text-dim);
+  padding: 7px 14px; border-radius: 7px; font-size: 13px; font-weight: 550;
+  cursor: pointer; transition: all .15s ease;
+}
+.app .view-btn:hover, .app .chart-btn:hover, .app .tab:hover { color: var(--text); }
+.app .view-btn.active, .app .chart-btn.active, .app .tab.active {
+  background: var(--card-2); color: var(--text); box-shadow: 0 1px 2px rgba(0,0,0,.3);
+}
+
+/* ---------- Buttons ---------- */
+.app button { font-family: var(--font); }
+.app .btn-primary, .app .btn-generate, .app .btn-calculate, .app .btn-create,
+.app .btn-follow, .app .btn-refresh {
+  background: var(--brand); color: #fff; border: none;
+  padding: 9px 16px; border-radius: var(--radius-sm); font-weight: 600; font-size: 13px;
+  cursor: pointer; transition: background .15s ease;
+}
+.app .btn-primary:hover, .app .btn-generate:hover, .app .btn-calculate:hover,
+.app .btn-create:hover, .app .btn-follow:hover, .app .btn-refresh:hover { background: var(--brand-2); }
+
+.app .btn-secondary, .app .btn-settings, .app .btn-close, .app .btn-unfollow,
+.app .btn-like, .app .btn-dismiss {
+  background: var(--card-2); color: var(--text); border: 1px solid var(--border-2);
+  padding: 8px 14px; border-radius: var(--radius-sm); font-weight: 550; font-size: 13px; cursor: pointer;
+  transition: all .15s ease;
+}
+.app .btn-secondary:hover, .app .btn-settings:hover { border-color: #4b5163; background: #2b3040; }
+
+.app .btn-danger, .app .btn-close-position {
+  background: transparent; color: var(--red); border: 1px solid rgba(239,68,68,.35);
+  padding: 8px 14px; border-radius: var(--radius-sm); font-weight: 550; font-size: 13px; cursor: pointer;
+}
+.app .btn-danger:hover, .app .btn-close-position:hover { background: rgba(239,68,68,.12); }
+
+.app .btn-toggle.start { background: var(--green); color:#062812; border:none; padding:8px 14px; border-radius: var(--radius-sm); font-weight:600; cursor:pointer; }
+.app .btn-toggle.stop  { background: var(--red);   color:#fff;    border:none; padding:8px 14px; border-radius: var(--radius-sm); font-weight:600; cursor:pointer; }
+
+/* ---------- Tables ---------- */
+.app table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.app thead th {
+  text-align: left; color: var(--text-mute); font-weight: 600; font-size: 11px;
+  text-transform: uppercase; letter-spacing: .05em;
+  padding: 10px 12px; border-bottom: 1px solid var(--border);
+}
+.app tbody td { padding: 12px; border-bottom: 1px solid var(--border); color: var(--text); }
+.app tbody tr:last-child td { border-bottom: none; }
+.app tbody tr { transition: background .12s ease; }
+.app tbody tr:hover { background: rgba(255,255,255,.02); }
+.app .clickable { cursor: pointer; color: var(--brand-ink); }
+
+/* ---------- Inputs ---------- */
+.app input, .app select, .app textarea {
+  background: var(--bg); color: var(--text);
+  border: 1px solid var(--border-2); border-radius: var(--radius-sm);
+  padding: 9px 12px; font-size: 13px; font-family: var(--font); outline: none;
+  transition: border-color .15s ease, box-shadow .15s ease;
+}
+.app input:focus, .app select:focus, .app textarea:focus {
+  border-color: var(--brand); box-shadow: 0 0 0 3px rgba(99,102,241,.18);
+}
+.app label { color: var(--text-dim); font-size: 12px; font-weight: 550; }
+.app select option { background: var(--panel); color: var(--text); }
+
+/* ---------- Badges ---------- */
+.app .stat-badge, .app .badge, .app .factor-tag {
+  display: inline-block; padding: 3px 9px; border-radius: 999px; font-size: 11px; font-weight: 600;
+  background: var(--card-2); color: var(--text-dim); border: 1px solid var(--border);
+}
+.app .badge.active { background: rgba(34,197,94,.15); color: var(--green); border-color: rgba(34,197,94,.3); }
+.app .badge.inactive { background: var(--card-2); color: var(--text-mute); }
+.app .status.enabled { color: var(--green); }
+.app .status.disabled { color: var(--text-mute); }
+
+/* ---------- Confidence / progress bars ---------- */
+.app .confidence-bar, .app .rec-confidence, .app .allocation-bar .bar {
+  background: var(--bg); border-radius: 999px; overflow: hidden; position: relative;
+}
+.app .confidence-fill, .app .conf-bar, .app .allocation-bar .fill {
+  background: linear-gradient(90deg, var(--brand), var(--brand-2)); height: 8px;
+}
+
+/* ---------- Alerts ---------- */
+.app .circuit-breaker-alert { background: rgba(239,68,68,.1); border: 1px solid rgba(239,68,68,.35);
+  color: #fecaca; border-radius: var(--radius-sm); padding: 12px 16px; }
+.app .alert { background: var(--card); border: 1px solid var(--border); border-left: 3px solid var(--brand);
+  border-radius: var(--radius-sm); padding: 12px 14px; margin-bottom: 8px; }
+.app .alert-high { border-left-color: var(--red); }
+.app .alert-medium { border-left-color: var(--yellow); }
+.app .alert-low { border-left-color: var(--green); }
+.app .warning { color: var(--yellow); font-size: 13px; }
+.app .empty { color: var(--text-mute); font-style: normal; padding: 8px 0; }
+
+/* ---------- Modals ---------- */
+.app .modal-overlay, .trade-detail-overlay {
+  background: rgba(6,7,10,.72) !important; backdrop-filter: blur(3px);
+}
+.app .modal-content, .trade-detail {
+  background: var(--panel) !important; color: var(--text) !important;
+  border: 1px solid var(--border-2); border-radius: var(--radius);
+  box-shadow: 0 24px 60px rgba(0,0,0,.55) !important;
+}
+.app .modal-content h2, .trade-detail h2 { color: var(--text); }
+.app .error-message { background: rgba(239,68,68,.12); color: #fecaca;
+  border: 1px solid rgba(239,68,68,.3); border-radius: var(--radius-sm); }
+
+/* Medals on leaderboard */
+.app .medal { font-size: 16px; }
+.app .rank-number { color: var(--text-dim); font-weight: 600; }
+
+/* ---------- Insights: patterns & recommendations (kill light bg) ---------- */
+.app .pattern-card,
+.app .recommendation-card,
+.app .recommendation-card.rec-pattern,
+.app .recommendation-card.rec-recommendation,
+.app .recommendation-card.rec-anomaly,
+.app .recommendation-card.rec-opportunity {
+  background: var(--card) !important;
+  border: 1px solid var(--border);
+  padding: 16px;
+}
+.app .recommendation-card { border-left: 4px solid var(--brand); }
+.app .recommendation-card.rec-recommendation { border-left-color: var(--yellow); }
+.app .recommendation-card.rec-anomaly { border-left-color: var(--red); }
+.app .recommendation-card.rec-opportunity { border-left-color: var(--green); }
+
+.app .pattern-header { display: flex; justify-content: space-between; align-items: center; }
+.app .pattern-name { color: var(--text); font-weight: 650; font-size: 15px; }
+.app .rec-header h4 { color: var(--text); }
+.app .rec-description { color: var(--text-dim); }
+.app .win-rate { color: var(--text-dim); margin-top: 8px; }
+.app .win-rate strong { color: var(--text); }
+
+/* Progress tracks */
+.app .rec-confidence { background: var(--bg) !important; height: 20px; border-radius: 999px; overflow: hidden; }
+.app .confidence-bar { background: var(--bg) !important; height: 20px; border-radius: 999px; margin: 10px 0; }
+.app .conf-value, .app .confidence-label { color: var(--text); font-weight: 700; }
+
+/* Metric rows inside a recommendation — dark chips, readable */
+.app .rec-metrics { margin-top: 10px; display: grid; gap: 6px; }
+.app .metric {
+  display: flex; justify-content: space-between; align-items: center;
+  background: var(--card-2) !important;
+  border: 1px solid var(--border); border-top: 1px solid var(--border);
+  border-radius: 8px; padding: 8px 12px; font-size: 13px;
+}
+.app .metric-key { color: var(--text-dim) !important; text-transform: capitalize; }
+.app .metric-value { color: var(--text) !important; font-weight: 650; }
+
+/* Empty states + text selection on dark */
+.app .empty { background: var(--card) !important; color: var(--text-mute) !important;
+  border: 1px solid var(--border); border-radius: var(--radius-sm); text-align: center; padding: 24px; }
+.app ::selection { background: rgba(99,102,241,.4); color: #fff; }
+
+/* ============================================================
+   Catch-all dark overrides for leftover light backgrounds
+   across every stage (Social/Advanced/Automation/Risk/Strategy/
+   Analytics/Charts/Ideas/TradeDetail).
+   ============================================================ */
+
+/* Stage wrappers missed above */
+.app .ideas-section, .app .social, .app .advanced, .app .automation,
+.app .risk-management, .app .strategy-builder, .app .analytics, .app .charts {
+  background: var(--panel) !important;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+/* Table headers + row hovers */
+.app .leaderboard-table th, .app .tax-table th,
+.app .positions-table th, .app .performance-table th {
+  background: var(--bg) !important; color: var(--text-mute) !important;
+  border-bottom: 1px solid var(--border) !important;
+}
+.app .leaderboard-table tbody tr:hover,
+.app .positions-table tbody tr:hover,
+.app .performance-table tr:hover { background: rgba(255,255,255,.03) !important; }
+
+/* Small tiles / inner panels that were white or #f8f9fa */
+.app .stat, .app .profile-card, .app .kelly-note, .app .position-result,
+.app .rule-editor, .app .idea-card, .app .idea-description, .app .chart-info,
+.app .result-item, .app .live-metrics {
+  background: var(--card-2) !important; color: var(--text) !important;
+  border: 1px solid var(--border) !important;
+}
+.app .idea-card:hover, .app .trade-card:hover { background: #262a35 !important; }
+
+/* Inline code / webhook URL chips */
+.app code, .app .webhook-info code {
+  background: var(--bg) !important; color: var(--brand-ink) !important;
+  border: 1px solid var(--border); border-radius: 6px; padding: 2px 6px;
+  font-size: 12px; word-break: break-all;
+}
+
+/* Track / progress bars */
+.app .allocation-bar .bar { background: var(--bg) !important; }
+
+/* Secondary/cancel buttons that went light */
+.app .btn-cancel, .app .cancel-btn {
+  background: var(--card-2) !important; color: var(--text) !important;
+  border: 1px solid var(--border-2) !important;
+}
+.app .btn-cancel:hover, .app .cancel-btn:hover { background: #2b3040 !important; }
+
+/* Highlight / warning cells */
+.app .tax-table .highlight { background: rgba(245,166,35,.15) !important; color: var(--yellow) !important; }
+.app .alert-medium { background: var(--card) !important; }
+
+/* Modal profile overlay on leaderboard */
+.app .profile-modal { background: rgba(6,7,10,.72) !important; backdrop-filter: blur(3px); }
+
+/* ---------- TradeDetail: tags, stars, R badge ---------- */
+.trade-detail .td-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.trade-detail .hint { color: #6b7280; font-weight: 400; font-size: 11px; }
+.trade-detail .r-badge {
+  display: inline-block; margin-left: 10px; padding: 2px 8px; border-radius: 999px;
+  font-size: 12px; font-weight: 700; background: var(--card-2); border: 1px solid var(--border);
+}
+.trade-detail .r-badge.positive { color: var(--green); border-color: rgba(34,197,94,.35); }
+.trade-detail .r-badge.negative { color: var(--red); border-color: rgba(239,68,68,.35); }
+.trade-detail .star-row { display: flex; gap: 4px; font-size: 20px; }
+.trade-detail .star { color: #3a3f4c; cursor: pointer; transition: color .1s ease; }
+.trade-detail .star:hover, .trade-detail .star.on { color: #f5a623; }
+
+/* Setup + grade chips */
+.trade-detail .chip-row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.trade-detail .chip {
+  background: var(--card-2); border: 1px solid var(--border-2); color: var(--text-dim);
+  padding: 7px 14px; border-radius: 8px; font-size: 13px; font-weight: 650; cursor: pointer; transition: all .12s ease;
+}
+.trade-detail .chip:hover { color: var(--text); border-color: #4b5163; }
+.trade-detail .chip.on { background: var(--brand); border-color: var(--brand); color: #fff; }
+.trade-detail .chip.grade-A.on { background: #22c55e; border-color: #22c55e; color: #04220f; }
+.trade-detail .chip.grade-B.on { background: #f5a623; border-color: #f5a623; color: #241800; }
+.trade-detail .chip.grade-C.on { background: #ef4444; border-color: #ef4444; color: #fff; }
+
+/* Screenshots — one slot per timeframe */
+.trade-detail .tf-shots { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.trade-detail .tf-slot { display: flex; flex-direction: column; gap: 5px; }
+.trade-detail .tf-label { font-size: 11px; font-weight: 700; color: #c7d2fe; text-transform: uppercase; letter-spacing: .04em; }
+.trade-detail .tf-upload {
+  display: flex; align-items: center; justify-content: center; height: 90px;
+  background: var(--bg); border: 1px dashed var(--border-2); border-radius: 8px;
+  color: var(--text-dim); font-size: 12px; font-weight: 600; cursor: pointer; transition: all .12s ease;
+}
+.trade-detail .tf-upload:hover { border-color: var(--brand); color: var(--brand-ink); }
+.trade-detail .tf-imgwrap { position: relative; }
+.trade-detail .tf-img { width: 100%; height: 90px; object-fit: cover; border-radius: 8px; border: 1px solid var(--border-2); cursor: zoom-in; display: block; }
+.trade-detail .tf-remove {
+  position: absolute; top: 5px; right: 5px; background: rgba(6,7,10,.85); color: #fff;
+  border: 1px solid var(--border-2); border-radius: 5px; width: 22px; height: 22px; font-size: 11px; cursor: pointer; line-height: 1;
+}

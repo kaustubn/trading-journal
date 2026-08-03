@@ -1,63 +1,63 @@
-.trade-list {
-  width: 100%;
-}
+.trade-list { width: 100%; }
 
-.trade-list.loading,
-.trade-list.empty {
+.trade-list.loading, .trade-list.empty {
   text-align: center;
-  color: #999;
+  color: #6b7280;
   padding: 40px 20px;
   font-size: 14px;
 }
 
-.trades-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 14px;
+/* Bulk action bar */
+.bulk-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  background: linear-gradient(180deg, rgba(99,102,241,.14), #171920);
+  border: 1px solid rgba(99,102,241,.35);
+  border-radius: 10px;
+  padding: 10px 14px;
+  margin-bottom: 12px;
 }
-
-.trades-table thead {
-  background: #f9f9f9;
-  border-bottom: 2px solid #e0e0e0;
+.bulk-count { font-weight: 700; color: #c7d2fe; font-size: 13px; margin-right: 6px; }
+.bulk-lbl { color: #9aa0ac; font-size: 12px; margin-left: 6px; }
+.bulk-chip {
+  background: #232733; border: 1px solid #363b49; color: #e6e8ec;
+  padding: 5px 11px; border-radius: 7px; font-size: 12px; font-weight: 700; cursor: pointer;
 }
+.bulk-chip:hover { background: #6366f1; border-color: #6366f1; }
+.bulk-chip.grade-A:hover { background: #22c55e; border-color: #22c55e; }
+.bulk-chip.grade-B:hover { background: #f5a623; border-color: #f5a623; }
+.bulk-chip.grade-C:hover { background: #ef4444; border-color: #ef4444; }
+.bulk-clear { margin-left: auto; background: transparent; border: none; color: #9aa0ac; cursor: pointer; font-size: 12px; font-weight: 600; }
 
-.trades-table th {
-  padding: 12px 15px;
-  text-align: left;
-  font-weight: 600;
-  color: #666;
-  text-transform: uppercase;
-  font-size: 12px;
+/* Table */
+.trades-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.trades-table thead th {
+  text-align: left; color: #6b7280; font-size: 11px; text-transform: uppercase;
+  letter-spacing: .04em; font-weight: 600; padding: 8px 10px; border-bottom: 1px solid #2a2e3a;
 }
+.trades-table td { padding: 8px 10px; border-bottom: 1px solid #23262f; color: #cbd0d8; cursor: pointer; }
+.trade-row:hover { background: rgba(255,255,255,.02); }
+.trade-row.sel { background: rgba(99,102,241,.08); }
+.trades-table .positive { color: #22c55e; font-weight: 600; }
+.trades-table .negative { color: #ef4444; font-weight: 600; }
+.col-check { width: 34px; cursor: default; }
+.col-check input { cursor: pointer; accent-color: #6366f1; }
 
-.trades-table td {
-  padding: 12px 15px;
-  border-bottom: 1px solid #f0f0f0;
+/* Inline row chips (setup + grade quick-tag) */
+.row-chips { display: flex; gap: 3px; }
+.row-chip {
+  background: #1a1d24; border: 1px solid #2a2e3a; color: #6b7280;
+  padding: 3px 7px; border-radius: 6px; font-size: 11px; font-weight: 700; cursor: pointer; transition: all .1s ease;
 }
+.row-chip:hover { color: #e6e8ec; border-color: #4b5163; }
+.row-chip.on { background: #6366f1; border-color: #6366f1; color: #fff; }
+.row-chip.grade-A.on { background: #22c55e; border-color: #22c55e; color: #04220f; }
+.row-chip.grade-B.on { background: #f5a623; border-color: #f5a623; color: #241800; }
+.row-chip.grade-C.on { background: #ef4444; border-color: #ef4444; color: #fff; }
 
-.trade-row {
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.trade-row:hover {
-  background: #f9f9f9;
-}
-
-.trade-row.win {
-  border-left: 3px solid #22c55e;
-}
-
-.trade-row.loss {
-  border-left: 3px solid #ef4444;
-}
-
-.trade-row .positive {
-  color: #22c55e;
-  font-weight: 600;
-}
-
-.trade-row .negative {
-  color: #ef4444;
-  font-weight: 600;
+@media (max-width: 700px) {
+  .trades-table { font-size: 12px; }
+  .row-chip { padding: 2px 5px; }
 }

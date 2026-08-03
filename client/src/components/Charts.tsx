@@ -40,7 +40,7 @@ export default function Charts({ token, account_id }: ChartsProps) {
       ]);
 
       // Process daily P&L
-      const dailyChartData = dailyRes.data.data.map((row: any) => ({
+      const dailyChartData = (dailyRes.data.data || []).map((row: any) => ({
         label: row.date,
         value: parseFloat(row.pnl),
         pnl: parseFloat(row.pnl)
@@ -48,7 +48,7 @@ export default function Charts({ token, account_id }: ChartsProps) {
       setDailyPnLData(dailyChartData);
 
       // Process monthly P&L
-      const monthlyChartData = monthlyRes.data.data.map((row: any) => ({
+      const monthlyChartData = (monthlyRes.data.data || []).map((row: any) => ({
         label: row.month,
         value: parseFloat(row.pnl),
         pnl: parseFloat(row.pnl)

@@ -1,0 +1,41 @@
+.emo { padding: 2px 2px 40px; }
+.emo-load { padding: 40px; color: var(--muted, #8a90a2); text-align: center; }
+.emo-head h2 { margin: 0 0 4px; font-size: 22px; }
+.emo-head p { margin: 0 0 18px; color: var(--muted, #8a90a2); font-size: 13px; max-width: 640px; line-height: 1.5; }
+
+.emo-empty { background: var(--card, #171922); border: 1px dashed var(--border, #262a38); border-radius: 12px; padding: 30px; text-align: center; }
+.emo-empty h3 { margin: 0 0 8px; }
+.emo-empty p { margin: 0 auto; color: var(--muted, #8a90a2); font-size: 14px; max-width: 460px; line-height: 1.6; }
+
+.emo-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 20px; }
+.emo-card { background: var(--card, #171922); border: 1px solid var(--border, #262a38); border-radius: 12px; padding: 16px; }
+.emo-card.bad { border-color: rgba(239,68,68,.4); }
+.emo-card.good { border-color: rgba(34,197,94,.4); }
+.emo-card-l { font-size: 12px; color: var(--muted, #8a90a2); text-transform: uppercase; letter-spacing: .4px; }
+.emo-card-v { font-size: 26px; font-weight: 700; margin: 6px 0 4px; }
+.emo-card.bad .emo-card-v { color: #f87171; }
+.emo-card.good .emo-card-v { color: #4ade80; }
+.emo-card-s { font-size: 12px; color: var(--muted, #8a90a2); }
+
+.emo-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.emo-colbox { background: var(--card, #171922); border: 1px solid var(--border, #262a38); border-radius: 12px; padding: 14px 16px; }
+.emo-col-title { margin: 0 0 10px; font-size: 14px; }
+.emo-col-title.bad { color: #f87171; }
+.emo-col-title.good { color: #4ade80; }
+.emo-none { color: var(--muted, #8a90a2); font-size: 13px; padding: 6px 0; }
+
+.emo-row { display: grid; grid-template-columns: 1.3fr 1fr auto auto; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--border, #21242f); font-size: 13px; }
+.emo-row:last-child { border-bottom: none; }
+.emo-row-label { font-weight: 600; }
+.emo-row-trades { color: var(--muted, #8a90a2); font-size: 12px; }
+.emo-row-net { text-align: right; font-weight: 700; font-variant-numeric: tabular-nums; }
+.emo-row-avg { text-align: right; color: var(--muted, #8a90a2); font-size: 12px; }
+.emo-row-net.pos { color: #22c55e; }
+.emo-row-net.neg { color: #ef4444; }
+
+.emo-cov { margin-top: 16px; color: var(--muted, #8a90a2); font-size: 12px; text-align: center; }
+
+@media (max-width: 720px) {
+  .emo-cards { grid-template-columns: 1fr; }
+  .emo-cols { grid-template-columns: 1fr; }
+}

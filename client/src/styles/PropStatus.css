@@ -1,0 +1,81 @@
+.prop-status {
+  background: #171920;
+  border: 1px solid #2a2e3a;
+  border-radius: 12px;
+  padding: 18px 20px;
+  margin: 16px 0;
+}
+
+.prop-status.breached { border-color: rgba(239,68,68,.5); box-shadow: 0 0 0 1px rgba(239,68,68,.3) inset; }
+
+.prop-status.not-configured {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  border-style: dashed; color: #9aa0ac; font-size: 13px;
+}
+.prop-status.not-configured strong { color: #e6e8ec; }
+
+.prop-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+.prop-header h3 { font-size: 14px; font-weight: 650; color: #e6e8ec; }
+
+.btn-edit {
+  background: transparent; border: 1px solid #2a2e3a; color: #9aa0ac;
+  padding: 5px 12px; border-radius: 7px; font-size: 12px; font-weight: 600; cursor: pointer;
+}
+.btn-edit:hover { color: #e6e8ec; border-color: #454b5c; }
+
+.breach-banner {
+  background: rgba(239,68,68,.14); border: 1px solid rgba(239,68,68,.4); color: #fecaca;
+  padding: 10px 14px; border-radius: 8px; font-weight: 700; font-size: 13px; margin-bottom: 14px;
+}
+.target-banner {
+  background: rgba(34,197,94,.14); border: 1px solid rgba(34,197,94,.4); color: #bbf7d0;
+  padding: 10px 14px; border-radius: 8px; font-weight: 700; font-size: 13px; margin-bottom: 14px;
+}
+
+.prop-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin-bottom: 16px;
+}
+.pf-stat { background: #1e2129; border: 1px solid #2a2e3a; border-radius: 10px; padding: 12px 14px; }
+.pf-label { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: #9aa0ac; font-weight: 600; }
+.pf-value { font-size: 20px; font-weight: 700; color: #e6e8ec; margin-top: 4px; }
+.pf-value.positive { color: #22c55e; }
+.pf-value.negative { color: #ef4444; }
+.pf-sub { font-size: 11px; color: #6b7280; margin-top: 2px; }
+
+.pf-bar-wrap { margin-top: 10px; }
+.pf-bar-label { display: flex; justify-content: space-between; font-size: 12px; color: #9aa0ac; margin-bottom: 6px; }
+.pf-bar { height: 8px; background: #0e0f13; border-radius: 999px; overflow: hidden; }
+.pf-bar-fill { height: 100%; border-radius: 999px; transition: width .3s ease; }
+.pf-bar-fill.target { background: linear-gradient(90deg, #6366f1, #22c55e); }
+.pf-bar-fill.dd { background: linear-gradient(90deg, #f5a623, #f59e0b); }
+.pf-bar-fill.dd.danger { background: linear-gradient(90deg, #f59e0b, #ef4444); }
+.pf-bar-fill.cons { background: linear-gradient(90deg, #22c55e, #6366f1); }
+.pf-bar-fill.cons.danger { background: linear-gradient(90deg, #f59e0b, #ef4444); }
+.pf-bar { position: relative; }
+.pf-bar-limit { position: absolute; top: -2px; width: 2px; height: 12px; background: #e6e8ec; opacity: .5; transform: translateX(-1px); }
+
+.pf-hint { color: #6b7180; font-weight: 400; font-size: 11px; }
+
+.pf-consistency { margin-top: 14px; padding: 12px; border-radius: 9px; background: #0e0f13; border: 1px solid #2a2e3a; }
+.pf-consistency.bad { border-color: rgba(239,68,68,.45); background: rgba(239,68,68,.06); }
+.pf-consistency.ok { border-color: rgba(34,197,94,.35); }
+.pf-cons-detail { margin-top: 8px; font-size: 12px; color: #b6bcc8; line-height: 1.5; }
+.pf-cons-detail b { color: #e6e8ec; }
+
+.pf-mindays { margin-top: 10px; display: flex; justify-content: space-between; align-items: center;
+  padding: 9px 12px; border-radius: 8px; background: #0e0f13; border: 1px solid #2a2e3a; font-size: 13px; }
+.pf-mindays.ok { border-color: rgba(34,197,94,.35); }
+.pf-mindays-label { color: #9aa0ac; }
+.pf-mindays-val { font-weight: 600; color: #e6e8ec; }
+
+.prop-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; }
+.pf-field { display: flex; flex-direction: column; gap: 5px; }
+.pf-field label { font-size: 12px; color: #9aa0ac; font-weight: 550; }
+.pf-field input[type="number"] {
+  background: #0e0f13; border: 1px solid #363b49; color: #e6e8ec;
+  border-radius: 8px; padding: 9px 12px; font-size: 13px; outline: none;
+}
+.pf-field input:focus { border-color: #6366f1; box-shadow: 0 0 0 3px rgba(99,102,241,.18); }
+.pf-toggle { justify-content: flex-end; }
+.pf-toggle label { display: flex; align-items: center; gap: 8px; color: #e6e8ec; cursor: pointer; }
+.prop-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 16px; }

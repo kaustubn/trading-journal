@@ -67,3 +67,16 @@
   background: #5568d3;
   transform: translateY(-2px);
 }
+
+/* Right-click context menu */
+.acct-ctx {
+  position: fixed; z-index: 1000; background: #1e2130; border: 1px solid #2a2e3a;
+  border-radius: 9px; padding: 5px; box-shadow: 0 8px 24px rgba(0,0,0,.45); min-width: 160px;
+}
+.acct-ctx-item {
+  display: flex; align-items: center; gap: 8px; width: 100%; text-align: left;
+  background: none; border: none; color: #e6e8ee; padding: 9px 11px; border-radius: 6px;
+  font-size: 13px; cursor: pointer;
+}
+.acct-ctx-item:hover { background: #262a38; }
+.acct-ctx-item.danger:hover { background: rgba(239,68,68,.15); color: #f87171; }

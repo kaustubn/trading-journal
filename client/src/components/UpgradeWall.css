@@ -1,0 +1,17 @@
+.wall { display: grid; place-items: center; padding: 40px 16px; }
+.wall-card { background: var(--card, #171922); border: 1px solid var(--border, #262a38); border-radius: 16px;
+  padding: 32px; max-width: 440px; width: 100%; text-align: center; position: relative; }
+.wall-badge { display: inline-block; background: linear-gradient(90deg, #6c5ce7, #a99cff); color: #fff;
+  font-size: 12px; font-weight: 800; letter-spacing: 1px; padding: 4px 12px; border-radius: 999px; margin-bottom: 14px; }
+.wall-card h2 { margin: 0 0 6px; font-size: 20px; }
+.wall-sub { margin: 0 0 18px; color: var(--muted, #8a90a2); font-size: 14px; }
+.wall-price { margin-bottom: 18px; }
+.wall-amt { font-size: 40px; font-weight: 800; }
+.wall-per { color: var(--muted, #8a90a2); font-size: 15px; }
+.wall-feats { list-style: none; padding: 0; margin: 0 0 22px; text-align: left; display: flex; flex-direction: column; gap: 10px; }
+.wall-feats li { font-size: 14px; color: var(--text, #e6e8ee); line-height: 1.4; }
+.wall-feats b { font-weight: 600; }
+.wall-btn { width: 100%; background: var(--accent, #6c5ce7); color: #fff; border: none; border-radius: 10px;
+  padding: 13px; font-size: 15px; font-weight: 700; cursor: pointer; }
+.wall-btn:hover { filter: brightness(1.1); }
+.wall-note { margin: 12px 0 0; color: var(--muted, #8a90a2); font-size: 12px; }

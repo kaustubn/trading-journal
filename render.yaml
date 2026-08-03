@@ -1,0 +1,21 @@
+# Render Blueprint — deploys the trading journal as a free web service.
+# DB is external (Neon free tier): set DATABASE_URL in the Render dashboard.
+services:
+  - type: web
+    name: trading-journal
+    runtime: node
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/auth/me
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false   # paste your Neon connection string in the Render dashboard
+      - key: JWT_SECRET
+        generateValue: true
+      - key: ENCRYPTION_KEY
+        generateValue: true
+      - key: ANTHROPIC_API_KEY
+        sync: false   # paste your Anthropic key in the Render dashboard

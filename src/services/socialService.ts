@@ -132,7 +132,7 @@ export class SocialService {
           a.user_id,
           u.email,
           SUM(CASE WHEN DATE(t.entry_time) >= CURRENT_DATE - INTERVAL '30 days' THEN t.pnl ELSE 0 END)::DECIMAL(12,2) as monthly_pnl,
-          (SUM(CASE WHEN t.pnl > 0 THEN 1 ELSE 0 END)::FLOAT / COUNT(t.id) * 100)::DECIMAL(5,2) as win_rate,
+          CASE WHEN COUNT(t.id) > 0 THEN (SUM(CASE WHEN t.pnl > 0 THEN 1 ELSE 0 END)::FLOAT / COUNT(t.id) * 100)::DECIMAL(5,2) ELSE 0 END as win_rate,
           COUNT(t.id)::INT as total_trades,
           (SELECT COUNT(*) FROM followers WHERE following_id = a.user_id)::INT as followers_count
         FROM accounts a

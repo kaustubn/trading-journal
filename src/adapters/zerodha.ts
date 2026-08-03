@@ -1,6 +1,7 @@
 import axios from 'axios';
 import { BrokerAdapter, Trade } from '../types';
 import pool from '../db';
+import { decrypt } from '../utils/crypto';
 
 const KITE_BASE_URL = 'https://api.kite.trade';
 
@@ -87,9 +88,9 @@ export class ZerodhaAdapter implements BrokerAdapter {
       const creds = result.rows[0];
       return new ZerodhaAdapter(
         account_id,
-        creds.api_key,
-        creds.api_secret,
-        creds.access_token
+        decrypt(creds.api_key) || '',
+        decrypt(creds.api_secret) || '',
+        decrypt(creds.access_token) || ''
       );
     } finally {
       client.release();

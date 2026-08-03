@@ -43,7 +43,7 @@ export default function Automation({ token, account_id }: AutomationProps) {
   useEffect(() => {
     fetchBots();
     fetchPositions();
-    const interval = setInterval(fetchPositions, 5000); // Update positions every 5s
+    const interval = setInterval(fetchPositions, 30000); // Update positions every 30s (rate-limit friendly)
     return () => clearInterval(interval);
   }, [account_id]);
 
@@ -52,7 +52,7 @@ export default function Automation({ token, account_id }: AutomationProps) {
       const res = await axios.get(`/api/automation/bots?account_id=${account_id}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      setBots(res.data.data);
+      setBots(res.data.data || []);
     } catch (error) {
       console.error('Error fetching bots:', error);
     }
@@ -63,7 +63,7 @@ export default function Automation({ token, account_id }: AutomationProps) {
       const res = await axios.get(`/api/automation/positions?account_id=${account_id}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      setPositions(res.data.data);
+      setPositions(res.data.data || []);
     } catch (error) {
       console.error('Error fetching positions:', error);
     }
@@ -221,7 +221,7 @@ export default function Automation({ token, account_id }: AutomationProps) {
               {positions.map((pos) => (
                 <tr key={pos.id}>
                   <td className="symbol">{pos.symbol}</td>
-                  <td className={`side ${pos.side.toLowerCase()}`}>{pos.side}</td>
+                  <td className={`side ${(pos.side || '').toLowerCase()}`}>{pos.side}</td>
                   <td>{pos.quantity}</td>
                   <td>${pos.entry_price.toFixed(2)}</td>
                   <td>${pos.current_price.toFixed(2)}</td>

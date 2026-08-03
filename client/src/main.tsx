@@ -3,8 +3,10 @@ import ReactDOM from 'react-dom/client'
 import axios from 'axios'
 import App from './App.tsx'
 import './App.css'
+import './styles/theme.css'
 
-axios.defaults.baseURL = 'http://localhost:5000'
+const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000'
+axios.defaults.baseURL = apiUrl
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

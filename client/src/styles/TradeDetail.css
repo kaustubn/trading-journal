@@ -1,3 +1,10 @@
+.emo-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.emo-chip { border: 1px solid var(--border, #2a2e3a); background: var(--card2, #1e2130); color: var(--text, #e6e8ec);
+  border-radius: 999px; padding: 5px 11px; font-size: 12px; cursor: pointer; opacity: .8; }
+.emo-chip:hover { opacity: 1; }
+.emo-chip.neg.on { background: rgba(239,68,68,.18); border-color: #ef4444; color: #f87171; opacity: 1; }
+.emo-chip.pos.on { background: rgba(34,197,94,.18); border-color: #22c55e; color: #4ade80; opacity: 1; }
+
 .trade-detail-overlay {
   position: fixed;
   top: 0;
@@ -155,3 +162,15 @@
 .cancel-btn:hover {
   background: #e0e0e0;
 }
+
+/* Fullscreen image lightbox (data: URLs can't open in a new tab) */
+.td-lightbox {
+  position: fixed; inset: 0; z-index: 2000; background: rgba(0,0,0,.9);
+  display: grid; place-items: center; padding: 24px; cursor: zoom-out;
+}
+.td-lightbox img { max-width: 96vw; max-height: 92vh; object-fit: contain; border-radius: 8px; box-shadow: 0 10px 40px rgba(0,0,0,.6); }
+.td-lightbox-close {
+  position: fixed; top: 18px; right: 24px; width: 40px; height: 40px; border-radius: 50%;
+  background: rgba(255,255,255,.12); color: #fff; border: none; font-size: 24px; cursor: pointer; line-height: 1;
+}
+.td-lightbox-close:hover { background: rgba(255,255,255,.25); }

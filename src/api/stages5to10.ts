@@ -138,8 +138,10 @@ router.get('/risk/circuit-breaker/:account_id', async (req: Request, res: Respon
 
 router.get('/risk/correlation/:user_id', async (req: Request, res: Response) => {
   try {
-    const user_id = String(req.params.user_id);
-    const correlation = await riskService.getAccountCorrelation(parseInt(user_id));
+    // Security: ignore the URL param — only ever return the authenticated user's own data (prevents IDOR)
+    const user_id = req.userId;
+    if (!user_id) return res.status(401).json({ error: 'Unauthorized' });
+    const correlation = await riskService.getAccountCorrelation(user_id);
     res.json({ success: true, data: correlation });
   } catch (error) {
     res.status(500).json({ success: false, error: (error as Error).message });
@@ -174,12 +176,11 @@ router.delete('/social/follow/:user_id', async (req: Request, res: Response) => 
 
 router.get('/social/profile/:user_id', async (req: Request, res: Response) => {
   try {
-    const user_id = parseInt(String(req.params.user_id));
-    const profile = await socialService.getUserProfile(user_id);
-    const isFollowing = req.userId
-      ? await socialService.isFollowing(req.userId, user_id)
-      : false;
-    res.json({ data: { ...profile, isFollowing } });
+    const requested = parseInt(String(req.params.user_id));
+    // Privacy: only allow viewing your own profile (social sharing is not enabled)
+    if (requested !== req.userId) return res.status(403).json({ error: 'Forbidden' });
+    const profile = await socialService.getUserProfile(requested);
+    res.json({ data: { ...profile, isFollowing: false } });
   } catch (error) {
     res.status(404).json({ error: (error as Error).message });
   }
@@ -210,6 +211,8 @@ router.post('/social/share/:trade_id', async (req: Request, res: Response) => {
 router.get('/social/shared/:user_id', async (req: Request, res: Response) => {
   try {
     const user_id = parseInt(String(req.params.user_id));
+    // Privacy: only your own shared trades (social feed is not enabled for other users)
+    if (user_id !== req.userId) return res.status(403).json({ error: 'Forbidden' });
     const limit = Math.min(parseInt(req.query.limit as string) || 20, 100);
     const trades = await socialService.getSharedTrades(user_id, limit);
     res.json({ data: trades });

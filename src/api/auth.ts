@@ -72,7 +72,7 @@ router.post('/login', async (req: Request, res: Response) => {
 router.get('/me', verifyToken, async (req: Request, res: Response) => {
   try {
     const result = await pool.query(
-      'SELECT id, email, created_at FROM users WHERE id = $1',
+      "SELECT id, email, created_at, COALESCE(plan,'free') AS plan FROM users WHERE id = $1",
       [req.userId]
     );
     res.json({ user: result.rows[0] });

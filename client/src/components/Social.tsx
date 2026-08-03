@@ -61,7 +61,7 @@ export default function Social({ token, user_id }: SocialProps) {
       const res = await axios.get('/api/social/leaderboard?limit=50', {
         headers: { Authorization: `Bearer ${token}` }
       });
-      setLeaderboard(res.data.data);
+      setLeaderboard(res.data.data || []);
     } catch (error) {
       console.error('Error fetching leaderboard:', error);
     } finally {
@@ -90,7 +90,7 @@ export default function Social({ token, user_id }: SocialProps) {
       const res = await axios.get('/api/social/feed?limit=50', {
         headers: { Authorization: `Bearer ${token}` }
       });
-      setFeed(res.data.data);
+      setFeed(res.data.data || []);
     } catch (error) {
       console.error('Error fetching feed:', error);
     } finally {

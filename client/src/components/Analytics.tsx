@@ -51,9 +51,9 @@ export default function Analytics({ token, account_id }: AnalyticsProps) {
         })
       ]);
 
-      setStats(statsRes.data.data);
-      setMonthlyData(monthlyRes.data.data);
-      setDailyData(dailyRes.data.data);
+      setStats(statsRes.data.data || null);
+      setMonthlyData(monthlyRes.data.data || []);
+      setDailyData(dailyRes.data.data || []);
     } catch (error) {
       console.error('Error fetching analytics:', error);
     } finally {

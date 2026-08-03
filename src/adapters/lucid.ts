@@ -1,6 +1,7 @@
 import axios from 'axios';
 import { BrokerAdapter, Trade } from '../types';
 import pool from '../db';
+import { decrypt } from '../utils/crypto';
 
 const LUCID_BASE_URL = 'https://api.lucidtrading.com'; // placeholder
 
@@ -80,7 +81,7 @@ export class LucidAdapter implements BrokerAdapter {
         [account_id]
       );
       const creds = result.rows[0];
-      return new LucidAdapter(account_id, creds.api_key);
+      return new LucidAdapter(account_id, decrypt(creds.api_key) || '');
     } finally {
       client.release();
     }
