@@ -28,9 +28,7 @@
     "nodemailer": "^9.0.3",
     "pg": "^8.22.0",
     "ts-node": "^10.9.2",
-    "typescript": "^6.0.3"
-  },
-  "devDependencies": {
+    "typescript": "^6.0.3",
     "@types/cors": "^2.8.19",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/nodemailer": "^8.0.1"
