@@ -342,6 +342,11 @@ export async function initializeDB() {
       ALTER TABLE trades ADD COLUMN IF NOT EXISTS grade VARCHAR(2);
       ALTER TABLE trades ADD COLUMN IF NOT EXISTS screenshot TEXT;
       ALTER TABLE trades ADD COLUMN IF NOT EXISTS screenshots JSONB;
+      ALTER TABLE trades ADD COLUMN IF NOT EXISTS session VARCHAR(20);
+      ALTER TABLE trades ADD COLUMN IF NOT EXISTS test_type VARCHAR(40);
+      ALTER TABLE trades ADD COLUMN IF NOT EXISTS timeframe VARCHAR(10);
+      ALTER TABLE trades ADD COLUMN IF NOT EXISTS tf_align INT;
+      ALTER TABLE trades ADD COLUMN IF NOT EXISTS planned_rr VARCHAR(12);
       UPDATE accounts SET webhook_token = md5(random()::text || id::text || clock_timestamp()::text)
         WHERE webhook_token IS NULL;
       UPDATE accounts SET account_type = 'live' WHERE account_type IS NULL;

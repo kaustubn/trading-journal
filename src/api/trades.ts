@@ -26,6 +26,7 @@ router.get('/trades', async (req: Request, res: Response) => {
       SELECT t.id, t.account_id, t.broker_trade_id, t.symbol, t.entry_time, t.exit_time,
              t.entry_price, t.exit_price, t.quantity, t.pnl, t.setup_tag, t.notes,
              t.tags, t.stop_loss, t.target, t.rating, t.grade, t.attempt_id,
+             t.session, t.test_type, t.timeframe, t.tf_align, t.planned_rr,
              (t.screenshot IS NOT NULL OR t.screenshots IS NOT NULL) AS has_screenshot
       FROM trades t
       JOIN accounts a ON t.account_id = a.id
@@ -208,18 +209,34 @@ router.post('/trades', async (req: Request, res: Response) => {
 router.post('/trades/bulk-tag', async (req: Request, res: Response) => {
   try {
     const user_id = req.userId;
-    const { ids, setup_tag, grade } = req.body;
+    const { ids, setup_tag, grade, session, test_type, timeframe, tf_align, planned_rr } = req.body;
     if (!Array.isArray(ids) || ids.length === 0) {
       return res.status(400).json({ error: 'ids array required' });
     }
+    // Journal fields clear on '' (chip toggled off) — see PUT /trades/:id
+    const vals: any[] = [setup_tag ?? null, grade ?? null];
+    const extra: string[] = [];
+    const setClearable = (col: string, v: any, num = false) => {
+      if (v === undefined) return;
+      const clean = v === '' || v === null ? null : (num ? Number(v) : v);
+      vals.push(Number.isNaN(clean as number) ? null : clean);
+      extra.push(`${col} = $${vals.length}`);
+    };
+    setClearable('session', session);
+    setClearable('test_type', test_type);
+    setClearable('timeframe', timeframe);
+    setClearable('tf_align', tf_align, true);
+    setClearable('planned_rr', planned_rr);
+
+    vals.push(user_id, ids);
     const result = await pool.query(
       `UPDATE trades t SET
          setup_tag = COALESCE($1, setup_tag),
-         grade = COALESCE($2, grade),
+         grade = COALESCE($2, grade)${extra.length ? ', ' + extra.join(', ') : ''},
          updated_at = NOW()
        FROM accounts a
-       WHERE t.account_id = a.id AND a.user_id = $3 AND t.id = ANY($4::int[])`,
-      [setup_tag ?? null, grade ?? null, user_id, ids]
+       WHERE t.account_id = a.id AND a.user_id = $${vals.length - 1} AND t.id = ANY($${vals.length}::int[])`,
+      vals
     );
     res.json({ success: true, updated: result.rowCount });
   } catch (error: any) {
@@ -232,7 +249,8 @@ router.post('/trades/bulk-tag', async (req: Request, res: Response) => {
 router.put('/trades/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { setup_tag, notes, tags, stop_loss, target, rating, grade, screenshot, screenshots } = req.body;
+    const { setup_tag, notes, tags, stop_loss, target, rating, grade, screenshot, screenshots,
+            session, test_type, timeframe, tf_align, planned_rr } = req.body;
     const user_id = req.userId;
 
     // Verify user owns this trade
@@ -252,6 +270,24 @@ router.put('/trades/:id', async (req: Request, res: Response) => {
     if (Array.isArray(tags)) tagArr = tags.map((t: any) => String(t).trim()).filter(Boolean);
     else if (typeof tags === 'string') tagArr = tags.split(',').map(t => t.trim()).filter(Boolean);
 
+    // Journal fields (session/test type/timeframe/TF align/RR) are chip toggles, so an
+    // empty value must CLEAR them — unlike the COALESCE fields above, where null = leave alone.
+    const vals: any[] = [setup_tag ?? null, notes ?? null, tagArr, stop_loss ?? null, target ?? null,
+      rating ?? null, grade ?? null, screenshot ?? null, screenshots ? JSON.stringify(screenshots) : null];
+    const extra: string[] = [];
+    const setClearable = (col: string, v: any, num = false) => {
+      if (v === undefined) return;                       // key absent → leave as-is
+      const clean = v === '' || v === null ? null : (num ? Number(v) : v);
+      vals.push(Number.isNaN(clean as number) ? null : clean);
+      extra.push(`${col} = $${vals.length}`);
+    };
+    setClearable('session', session);
+    setClearable('test_type', test_type);
+    setClearable('timeframe', timeframe);
+    setClearable('tf_align', tf_align, true);
+    setClearable('planned_rr', planned_rr);
+
+    vals.push(id);
     const result = await pool.query(
       `UPDATE trades SET
          setup_tag = COALESCE($1, setup_tag),
@@ -262,11 +298,10 @@ router.put('/trades/:id', async (req: Request, res: Response) => {
          rating = COALESCE($6, rating),
          grade = COALESCE($7, grade),
          screenshot = COALESCE($8, screenshot),
-         screenshots = COALESCE($9, screenshots),
+         screenshots = COALESCE($9, screenshots)${extra.length ? ', ' + extra.join(', ') : ''},
          updated_at = NOW()
-       WHERE id = $10 RETURNING id`,
-      [setup_tag ?? null, notes ?? null, tagArr, stop_loss ?? null, target ?? null, rating ?? null, grade ?? null,
-       screenshot ?? null, screenshots ? JSON.stringify(screenshots) : null, id]
+       WHERE id = $${vals.length} RETURNING id`,
+      vals
     );
 
     res.json({ data: result.rows[0] });

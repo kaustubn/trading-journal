@@ -21,7 +21,18 @@ interface Trade {
   grade?: string;
   screenshot?: string;
   has_screenshot?: boolean;
+  session?: string;
+  test_type?: string;
+  timeframe?: string;
+  tf_align?: number;
+  planned_rr?: string;
 }
+
+// Journal dimensions (replaces the Notion template's columns)
+export const SESSIONS = ['Asia', 'London', 'NY AM', 'NY PM'];
+export const TEST_TYPES = ['Retracement', 'Continuation', 'Reversal', 'Breakout', 'Range'];
+export const TIMEFRAMES = ['1m', '2m', '5m', '15m', '1h'];
+export const RRS = ['1:1', '1:2', '1:3', '1:5'];
 
 interface TradeDetailProps {
   trade: Trade;
@@ -37,6 +48,13 @@ export default function TradeDetail({ trade, onClose, onSaved }: TradeDetailProp
   const [target, setTarget] = useState(trade.target != null ? String(trade.target) : '');
   const [rating, setRating] = useState(trade.rating || 0);
   const [grade, setGrade] = useState(trade.grade || '');
+  const [session, setSession] = useState(trade.session || '');
+  const [testType, setTestType] = useState(trade.test_type || '');
+  const [timeframe, setTimeframe] = useState(trade.timeframe || '');
+  const [tfAlign, setTfAlign] = useState(trade.tf_align != null ? String(trade.tf_align) : '');
+  const [plannedRr, setPlannedRr] = useState(trade.planned_rr || '');
+  // Chips toggle: clicking the active one clears it (saved as '' → NULL)
+  const pick = (cur: string, v: string, set: (s: string) => void) => set(cur === v ? '' : v);
   const TFS = ['1m', '5m', '15m'] as const;
   const EMO: [string, string, boolean][] = [
     ['revenge', 'Revenge', true], ['fomo', 'FOMO', true], ['chased', 'Chased', true],
@@ -98,6 +116,7 @@ export default function TradeDetail({ trade, onClose, onSaved }: TradeDetailProp
         rating: rating || null,
         grade: grade || null,
         screenshots: shots,
+        session, test_type: testType, timeframe, tf_align: tfAlign, planned_rr: plannedRr,
       });
       if (onSaved) onSaved();
       onClose();
@@ -186,6 +205,59 @@ export default function TradeDetail({ trade, onClose, onSaved }: TradeDetailProp
                   <span key={n} className={`star ${n <= rating ? 'on' : ''}`} onClick={() => setRating(n === rating ? 0 : n)}>★</span>
                 ))}
               </div>
+            </div>
+          </div>
+
+          <div className="form-group">
+            <label>Session</label>
+            <div className="chip-row">
+              {SESSIONS.map(s => (
+                <button key={s} type="button" className={`chip ${session === s ? 'on' : ''}`}
+                  onClick={() => pick(session, s, setSession)}>{s}</button>
+              ))}
+            </div>
+          </div>
+
+          <div className="form-group">
+            <label>Testing type</label>
+            <div className="chip-row">
+              {TEST_TYPES.map(t => (
+                <button key={t} type="button" className={`chip ${testType === t ? 'on' : ''}`}
+                  onClick={() => pick(testType, t, setTestType)}>{t}</button>
+              ))}
+            </div>
+          </div>
+
+          <div className="td-row">
+            <div className="form-group">
+              <label>Timeframe</label>
+              <div className="chip-row">
+                {TIMEFRAMES.map(t => (
+                  <button key={t} type="button" className={`chip ${timeframe === t ? 'on' : ''}`}
+                    onClick={() => pick(timeframe, t, setTimeframe)}>{t}</button>
+                ))}
+              </div>
+            </div>
+            <div className="form-group">
+              <label>TF Align <span className="hint">(timeframes agreeing)</span></label>
+              <div className="chip-row">
+                {['1', '2', '3', '4', '5'].map(n => (
+                  <button key={n} type="button" className={`chip ${tfAlign === n ? 'on' : ''}`}
+                    onClick={() => pick(tfAlign, n, setTfAlign)}>{n}</button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="form-group">
+            <label>Planned R:R</label>
+            <div className="chip-row">
+              {RRS.map(r => (
+                <button key={r} type="button" className={`chip ${plannedRr === r ? 'on' : ''}`}
+                  onClick={() => pick(plannedRr, r, setPlannedRr)}>{r}</button>
+              ))}
+              <input type="text" value={plannedRr} onChange={e => setPlannedRr(e.target.value)}
+                placeholder="or custom…" style={{ flex: 1, minWidth: 90 }} />
             </div>
           </div>
 

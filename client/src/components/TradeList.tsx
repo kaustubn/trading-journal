@@ -29,6 +29,9 @@ interface TradeListProps {
 
 const SETUPS = ['S1', 'S2', 'S3', 'ORB'];
 const GRADES = ['A', 'B', 'C'];
+const SESSIONS = ['Asia', 'London', 'NY AM', 'NY PM'];
+const TEST_TYPES = ['Retracement', 'Continuation', 'Reversal', 'Breakout', 'Range'];
+const TIMEFRAMES = ['1m', '2m', '5m', '15m', '1h'];
 
 export default function TradeList({ trades, loading, token, onTradeSaved }: TradeListProps) {
   const [selectedTrade, setSelectedTrade] = useState<Trade | null>(null);
@@ -39,7 +42,7 @@ export default function TradeList({ trades, loading, token, onTradeSaved }: Trad
 
   const H = { headers: { Authorization: `Bearer ${token}` } };
 
-  const bulkTag = async (ids: number[], fields: { setup_tag?: string; grade?: string }) => {
+  const bulkTag = async (ids: number[], fields: Record<string, string>) => {
     if (!ids.length) return;
     try {
       await axios.post('/api/trades/bulk-tag', { ids, ...fields }, H);
@@ -60,6 +63,12 @@ export default function TradeList({ trades, loading, token, onTradeSaved }: Trad
           {SETUPS.map(s => <button key={s} className="bulk-chip" onClick={() => bulkTag([...sel], { setup_tag: s })}>{s}</button>)}
           <span className="bulk-lbl">Grade:</span>
           {GRADES.map(g => <button key={g} className={`bulk-chip grade-${g}`} onClick={() => bulkTag([...sel], { grade: g })}>{g}</button>)}
+          <span className="bulk-lbl">Session:</span>
+          {SESSIONS.map(s => <button key={s} className="bulk-chip" onClick={() => bulkTag([...sel], { session: s })}>{s}</button>)}
+          <span className="bulk-lbl">Type:</span>
+          {TEST_TYPES.map(t => <button key={t} className="bulk-chip" onClick={() => bulkTag([...sel], { test_type: t })}>{t}</button>)}
+          <span className="bulk-lbl">TF:</span>
+          {TIMEFRAMES.map(t => <button key={t} className="bulk-chip" onClick={() => bulkTag([...sel], { timeframe: t })}>{t}</button>)}
           <button className="bulk-clear" onClick={() => setSel(new Set())}>Clear</button>
         </div>
       )}
