@@ -399,6 +399,18 @@ export async function initializeDB() {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
       CREATE INDEX IF NOT EXISTS idx_attempts_account ON account_attempts(account_id, seq);
+
+      -- User-editable dropdown lists (pairs, setups, testing types, sessions, timeframes)
+      CREATE TABLE IF NOT EXISTS journal_options (
+        id SERIAL PRIMARY KEY,
+        user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        field VARCHAR(30) NOT NULL,
+        value VARCHAR(60) NOT NULL,
+        sort_order INT DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(user_id, field, value)
+      );
+      CREATE INDEX IF NOT EXISTS idx_journal_options ON journal_options(user_id, field, sort_order);
       ALTER TABLE trades ADD COLUMN IF NOT EXISTS attempt_id INT REFERENCES account_attempts(id) ON DELETE SET NULL;
     `);
 

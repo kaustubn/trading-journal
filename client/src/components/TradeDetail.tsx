@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import OptionPicker from './OptionPicker';
 import '../styles/TradeDetail.css';
 
 interface Trade {
@@ -53,6 +54,7 @@ export default function TradeDetail({ trade, onClose, onSaved }: TradeDetailProp
   const [timeframe, setTimeframe] = useState(trade.timeframe || '');
   const [tfAlign, setTfAlign] = useState(trade.tf_align != null ? String(trade.tf_align) : '');
   const [plannedRr, setPlannedRr] = useState(trade.planned_rr || '');
+  const [symbol, setSymbol] = useState(trade.symbol || '');
   // Chips toggle: clicking the active one clears it (saved as '' → NULL)
   const pick = (cur: string, v: string, set: (s: string) => void) => set(cur === v ? '' : v);
   const TFS = ['1m', '5m', '15m'] as const;
@@ -117,6 +119,7 @@ export default function TradeDetail({ trade, onClose, onSaved }: TradeDetailProp
         grade: grade || null,
         screenshots: shots,
         session, test_type: testType, timeframe, tf_align: tfAlign, planned_rr: plannedRr,
+        symbol,
       });
       if (onSaved) onSaved();
       onClose();
@@ -174,18 +177,10 @@ export default function TradeDetail({ trade, onClose, onSaved }: TradeDetailProp
         </div>
 
         <div className="editable-fields">
-          <div className="form-group">
-            <label>Setup</label>
-            <div className="chip-row">
-              {['S1', 'S2', 'S3', 'ORB'].map(s => (
-                <button key={s} type="button"
-                  className={`chip ${setupTag === s ? 'on' : ''}`}
-                  onClick={() => setSetupTag(setupTag === s ? '' : s)}>{s}</button>
-              ))}
-              <input type="text" value={setupTag} onChange={e => setSetupTag(e.target.value)}
-                placeholder="or custom…" style={{ flex: 1, minWidth: 100 }} />
-            </div>
-          </div>
+          <OptionPicker field="pair" label="Pair" value={symbol} onChange={setSymbol}
+            hint="(instrument on this trade)" allowCustomText />
+
+          <OptionPicker field="setup" label="Setup / Type" value={setupTag} onChange={setSetupTag} allowCustomText />
 
           <div className="td-row">
             <div className="form-group">
@@ -208,36 +203,12 @@ export default function TradeDetail({ trade, onClose, onSaved }: TradeDetailProp
             </div>
           </div>
 
-          <div className="form-group">
-            <label>Session</label>
-            <div className="chip-row">
-              {SESSIONS.map(s => (
-                <button key={s} type="button" className={`chip ${session === s ? 'on' : ''}`}
-                  onClick={() => pick(session, s, setSession)}>{s}</button>
-              ))}
-            </div>
-          </div>
+          <OptionPicker field="session" label="Session" value={session} onChange={setSession} />
 
-          <div className="form-group">
-            <label>Testing type</label>
-            <div className="chip-row">
-              {TEST_TYPES.map(t => (
-                <button key={t} type="button" className={`chip ${testType === t ? 'on' : ''}`}
-                  onClick={() => pick(testType, t, setTestType)}>{t}</button>
-              ))}
-            </div>
-          </div>
+          <OptionPicker field="test_type" label="Testing type" value={testType} onChange={setTestType} />
 
           <div className="td-row">
-            <div className="form-group">
-              <label>Timeframe</label>
-              <div className="chip-row">
-                {TIMEFRAMES.map(t => (
-                  <button key={t} type="button" className={`chip ${timeframe === t ? 'on' : ''}`}
-                    onClick={() => pick(timeframe, t, setTimeframe)}>{t}</button>
-                ))}
-              </div>
-            </div>
+            <OptionPicker field="timeframe" label="Timeframe" value={timeframe} onChange={setTimeframe} />
             <div className="form-group">
               <label>TF Align <span className="hint">(timeframes agreeing)</span></label>
               <div className="chip-row">

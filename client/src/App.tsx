@@ -31,6 +31,7 @@ import PropFirms from './components/PropFirms';
 import Challenges from './components/Challenges';
 import Coach from './components/Coach';
 import Emotions from './components/Emotions';
+import DataTable from './components/DataTable';
 import AttemptBar, { AttemptLite } from './components/AttemptBar';
 import UpgradeWall from './components/UpgradeWall';
 import ErrorBoundary from './components/ErrorBoundary';
@@ -121,6 +122,11 @@ export default function App() {
         { key: 'checklist', label: 'Checklist', icon: '✅' },
         { key: 'strategy', label: 'Strategy Builder', icon: '⚗️' },
         { key: 'risk', label: 'Risk Management', icon: '🛡️' },
+      ]
+    },
+    {
+      title: 'Data', items: [
+        { key: 'data', label: 'All Trades', icon: '🗄️' },
       ]
     },
     {
@@ -518,6 +524,12 @@ export default function App() {
           )}
           {view === 'propfirms' && (
             <ErrorBoundary name="Prop Firms"><PropFirms /></ErrorBoundary>
+          )}
+          {token && selectedAccount && view === 'data' && (
+            <ErrorBoundary name="All Trades">
+              <DataTable token={token} account_id={selectedAccount} attempt={selectedAttempt}
+                accountName={accounts.find(a => a.id === selectedAccount)?.account_name} />
+            </ErrorBoundary>
           )}
           {token && selectedAccount && view === 'emotions' && (
             <ErrorBoundary name="Emotions"><Emotions token={token} account_id={selectedAccount} attempt={selectedAttempt} /></ErrorBoundary>

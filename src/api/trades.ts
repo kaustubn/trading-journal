@@ -286,6 +286,11 @@ router.put('/trades/:id', async (req: Request, res: Response) => {
     setClearable('timeframe', timeframe);
     setClearable('tf_align', tf_align, true);
     setClearable('planned_rr', planned_rr);
+    // Pair picker rewrites the instrument; never allow blanking it (symbol is required)
+    if (typeof req.body.symbol === 'string' && req.body.symbol.trim()) {
+      vals.push(req.body.symbol.trim().slice(0, 50));
+      extra.push(`symbol = $${vals.length}`);
+    }
 
     vals.push(id);
     const result = await pool.query(

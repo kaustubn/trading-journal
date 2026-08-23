@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { num, money } from '../utils/format';
-import { SESSIONS, TEST_TYPES, TIMEFRAMES } from './TradeDetail';
+import { useOptions, values } from '../utils/options';
 import '../styles/Breakdown.css';
 
 interface Row { key: string; trades: number; wins: number; winRate: number; pnl: number; }
@@ -41,6 +41,7 @@ export default function Breakdown({ token, account_id, from, to }: BreakdownProp
   const [f, setF] = useState<{ session: string; test_type: string; timeframe: string; tf_align: string }>({
     session: '', test_type: '', timeframe: '', tf_align: '',
   });
+  const opts = useOptions();
 
   const load = async () => {
     setLoading(true);
@@ -79,9 +80,9 @@ export default function Breakdown({ token, account_id, from, to }: BreakdownProp
           <h3>🔎 Filter</h3>
           {anyFilter && <button className="bd-clear" onClick={() => setF({ session: '', test_type: '', timeframe: '', tf_align: '' })}>Clear all</button>}
         </div>
-        <FilterRow label="Session" k="session" opts={SESSIONS} />
-        <FilterRow label="Testing type" k="test_type" opts={TEST_TYPES} />
-        <FilterRow label="Timeframe" k="timeframe" opts={TIMEFRAMES} />
+        <FilterRow label="Session" k="session" opts={values(opts, 'session')} />
+        <FilterRow label="Testing type" k="test_type" opts={values(opts, 'test_type')} />
+        <FilterRow label="Timeframe" k="timeframe" opts={values(opts, 'timeframe')} />
         <FilterRow label="TF Align" k="tf_align" opts={['1', '2', '3', '4', '5']} />
       </div>
 

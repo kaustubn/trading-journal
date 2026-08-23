@@ -1,0 +1,34 @@
+.op-group label { display: flex; align-items: center; gap: 8px; }
+.op-manage {
+  background: none; border: 1px solid #2a2e3a; color: #8a90a2; border-radius: 6px;
+  padding: 1px 7px; font-size: 11px; cursor: pointer; line-height: 1.6;
+}
+.op-manage:hover { border-color: #6c5ce7; color: #a99cff; }
+.op-manage.on { background: rgba(108,92,231,.2); border-color: #6c5ce7; color: #a99cff; }
+
+.op-chip-wrap { position: relative; display: inline-flex; }
+.op-chip-wrap.managing .chip { cursor: default; opacity: .75; padding-right: 20px; }
+.op-del {
+  position: absolute; right: 2px; top: 50%; transform: translateY(-50%);
+  width: 16px; height: 16px; border-radius: 50%; border: none; cursor: pointer;
+  background: #ef4444; color: #fff; font-size: 12px; line-height: 1; padding: 0;
+  display: grid; place-items: center;
+}
+.op-del:hover { background: #dc2626; }
+
+.op-addbtn {
+  background: none; border: 1px dashed #2a2e3a; color: #8a90a2; border-radius: 999px;
+  padding: 5px 12px; font-size: 12px; cursor: pointer;
+}
+.op-addbtn:hover { border-color: #6c5ce7; color: #a99cff; }
+
+.op-add-row { display: inline-flex; gap: 5px; align-items: center; }
+.op-input {
+  background: #0e0f13; border: 1px solid #6c5ce7; color: #e6e8ec;
+  border-radius: 7px; padding: 5px 9px; font-size: 12px; min-width: 130px;
+}
+.op-save { background: #6c5ce7; color: #fff; border: none; border-radius: 7px; padding: 5px 11px; font-size: 12px; cursor: pointer; }
+.op-cancel { background: none; border: none; color: #8a90a2; cursor: pointer; font-size: 13px; }
+.op-free { flex: 1; min-width: 100px; }
+
+.op-note { font-size: 11px; color: #6b7180; margin-top: 6px; line-height: 1.5; }

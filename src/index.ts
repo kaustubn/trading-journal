@@ -13,6 +13,7 @@ import accountsRouter from './api/accounts';
 import attemptsRouter from './api/attempts';
 import coachRouter from './api/coach';
 import emotionsRouter from './api/emotions';
+import optionsRouter from './api/options';
 import ideasRouter from './api/ideas';
 import analyticsRouter from './api/analytics';
 import exportRouter from './api/export';
@@ -56,6 +57,7 @@ app.use('/api', verifyToken, accountsRouter);
 app.use('/api', verifyToken, attemptsRouter);
 app.use('/api', verifyToken, coachRouter);
 app.use('/api', verifyToken, emotionsRouter);
+app.use('/api', verifyToken, optionsRouter);
 app.use('/api', ideasRouter); // ideas router has own verifyToken on routes
 app.use('/api', verifyToken, importRouter);
 app.use('/api', verifyToken, setupsRouter);
