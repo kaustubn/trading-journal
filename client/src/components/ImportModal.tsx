@@ -1,6 +1,16 @@
 import React, { useState } from 'react';
 import axios from 'axios';
+import { money } from '../utils/format';
 import '../styles/AddAccountModal.css';
+
+// Promise wrapper so we can await the read (and catch failures) instead of
+// relying on state being set by the time Import is clicked.
+const readFile = (f: File) => new Promise<string>((resolve, reject) => {
+  const r = new FileReader();
+  r.onload = () => resolve(String(r.result || ''));
+  r.onerror = () => reject(new Error('Could not read that file'));
+  r.readAsText(f);
+});
 
 interface ImportModalProps {
   isOpen: boolean;
@@ -14,27 +24,48 @@ interface ImportModalProps {
 export default function ImportModal({ isOpen, onClose, onImported, token, accountId, accountName }: ImportModalProps) {
   const [csv, setCsv] = useState('');
   const [fileName, setFileName] = useState('');
+  const [file, setFile] = useState<File | null>(null);
+  const [reading, setReading] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [result, setResult] = useState<any>(null);
 
-  const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setFileName(file.name);
-    setError('');
-    const reader = new FileReader();
-    reader.onload = () => setCsv(String(reader.result || ''));
-    reader.readAsText(file);
+  const rowCount = csv.trim() ? csv.trim().split(/\r?\n/).length : 0;
+
+  const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    setFile(f); setFileName(f.name); setError(''); setCsv(''); setReading(true);
+    try {
+      const text = await readFile(f);
+      setCsv(text);
+      if (!text.trim()) {
+        setError(`"${f.name}" is empty — there's nothing in it to import. In TradingView export **Order history** (not Orders), and make sure the date range covers your trades.`);
+      }
+    } catch {
+      setError(`Could not read "${f.name}". Try re-downloading it, or open it and paste the text below.`);
+    } finally {
+      setReading(false);
+    }
   };
 
   const handleImport = async () => {
     if (!accountId) { setError('Select an account first'); return; }
-    if (!csv.trim()) { setError('Choose a CSV file or paste CSV text'); return; }
+    // Read on demand if the file is picked but its text hasn't landed yet
+    let text = csv;
+    if (!text.trim() && file) {
+      try { text = await readFile(file); setCsv(text); } catch { /* handled below */ }
+    }
+    if (!text.trim()) {
+      setError(file
+        ? `"${file.name}" appears to be empty — nothing to import. In TradingView use **Order history** (not Orders), or paste the CSV text below.`
+        : 'Choose a CSV file or paste CSV text');
+      return;
+    }
     setError(''); setLoading(true); setResult(null);
     try {
       const res = await axios.post('/api/import/csv',
-        { account_id: accountId, csv },
+        { account_id: accountId, csv: text },
         { headers: { Authorization: `Bearer ${token}` } });
       setResult(res.data);
       if (res.data.inserted > 0) onImported();
@@ -49,7 +80,7 @@ export default function ImportModal({ isOpen, onClose, onImported, token, accoun
     }
   };
 
-  const reset = () => { setCsv(''); setFileName(''); setResult(null); setError(''); };
+  const reset = () => { setCsv(''); setFileName(''); setFile(null); setResult(null); setError(''); };
 
   const handleClear = async () => {
     if (!accountId) return;
@@ -84,8 +115,16 @@ export default function ImportModal({ isOpen, onClose, onImported, token, accoun
           <>
             <div className="form-group">
               <label>CSV File</label>
-              <input type="file" accept=".csv,text/csv" onChange={handleFile} />
-              {fileName && <div style={{ color: '#22c55e', fontSize: 12, marginTop: 6 }}>✓ {fileName} loaded</div>}
+              <input type="file" accept=".csv,text/csv,text/plain" onChange={handleFile} />
+              {reading && <div style={{ color: '#9aa0ac', fontSize: 12, marginTop: 6 }}>Reading {fileName}…</div>}
+              {!reading && fileName && rowCount > 0 && (
+                <div style={{ color: '#22c55e', fontSize: 12, marginTop: 6 }}>
+                  ✓ {fileName} — {rowCount} line{rowCount === 1 ? '' : 's'} ready
+                </div>
+              )}
+              {!reading && fileName && rowCount === 0 && (
+                <div style={{ color: '#f5a623', fontSize: 12, marginTop: 6 }}>⚠ {fileName} is empty</div>
+              )}
             </div>
 
             <div className="form-group">
@@ -100,8 +139,8 @@ export default function ImportModal({ isOpen, onClose, onImported, token, accoun
 
             <div className="form-actions">
               <button type="button" onClick={onClose} className="cancel-btn">Cancel</button>
-              <button type="button" onClick={handleImport} disabled={loading} className="submit-btn">
-                {loading ? 'Importing…' : 'Import'}
+              <button type="button" onClick={handleImport} disabled={loading || reading || rowCount === 0} className="submit-btn">
+                {loading ? 'Importing…' : reading ? 'Reading file…' : rowCount > 0 ? `Import ${rowCount} lines` : 'Import'}
               </button>
             </div>
 
@@ -127,7 +166,7 @@ export default function ImportModal({ isOpen, onClose, onImported, token, accoun
                   <div style={{ fontSize: 22, fontWeight: 700, color: '#22c55e' }}>✓ {result.inserted} trades imported</div>
                   <div style={{ color: '#9aa0ac', fontSize: 13, marginTop: 6 }}>
                     {result.mode === 'orderbook-aggregated'
-                      ? `Built from ${result.executedFills} executed fills · ${result.ignoredRows} rejected/cancelled ignored · total P&L ₹${result.totalPnl}`
+                      ? `Built from ${result.executedFills} executed fills · ${result.ignoredRows} rejected/cancelled ignored · total P&L ${money(result.totalPnl, 2)}`
                       : `${result.skipped} skipped (duplicates/blank) · ${result.totalRows} rows read`}
                   </div>
                   {result.errors?.length > 0 && (
