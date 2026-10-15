@@ -47,6 +47,8 @@ const SYNONYMS: Record<string, string[]> = {
   pnl:         ['pnl', 'pl', 'grosspl', 'grosspnl', 'netpnl', 'realizedpnl', 'realized', 'profit', 'plvalue', 'profitloss', 'net'],
   setup:       ['setup', 'setuptag', 'strategy'],
   notes:       ['notes', 'note', 'comment', 'comments', 'remarks', 'segment'],
+  // Only our own backtest exports carry this; broker files keep the field-hash dedupe
+  trade_id:    ['backtesttradeid'],
 };
 
 function buildColumnMap(header: string[]): Record<string, number> {
@@ -333,7 +335,11 @@ router.post('/import/csv', async (req: Request, res: Response) => {
         const hash = crypto.createHash('md5')
           .update(`${account_id}|${symbol}|${entryTime.toISOString()}|${entryPrice}|${qty}|${pnl}`)
           .digest('hex').slice(0, 20);
-        const brokerTradeId = `csv_${hash}`;
+        // A backtest file names each trade, so identical trades from different runs both import
+        const tradeId = col.trade_id !== undefined ? (row[col.trade_id] || '').trim() : '';
+        const brokerTradeId = tradeId
+          ? `bt_${crypto.createHash('md5').update(`${account_id}|${tradeId}`).digest('hex').slice(0, 20)}`
+          : `csv_${hash}`;
 
         const result = await pool.query(
           `INSERT INTO trades (account_id, broker_trade_id, symbol, entry_time, exit_time,
