@@ -424,6 +424,26 @@ export async function initializeDB() {
         ) WHERE attempt_id IS NULL;
     `);
 
+    // Market bars for the chart page (see src/bars/store.ts). Prices are integer price x 100.
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS bars_1m (
+        ts TIMESTAMPTZ NOT NULL,
+        o INTEGER NOT NULL, h INTEGER NOT NULL, l INTEGER NOT NULL, c INTEGER NOT NULL,
+        v INTEGER NOT NULL,
+        sym SMALLINT NOT NULL,
+        contract SMALLINT NOT NULL DEFAULT 0,
+        PRIMARY KEY (sym, ts)
+      );
+      CREATE TABLE IF NOT EXISTS bars_agg (
+        ts TIMESTAMPTZ NOT NULL,
+        o INTEGER NOT NULL, h INTEGER NOT NULL, l INTEGER NOT NULL, c INTEGER NOT NULL,
+        v INTEGER NOT NULL,
+        sym SMALLINT NOT NULL,
+        tf SMALLINT NOT NULL,
+        PRIMARY KEY (sym, tf, ts)
+      );
+    `);
+
     console.log('Database initialized successfully');
   } finally {
     client.release();

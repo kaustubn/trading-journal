@@ -9,3 +9,4 @@ dist/
 client/dist/
 client/node_modules/
 backups/
+data/
