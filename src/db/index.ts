@@ -453,6 +453,17 @@ export async function initializeDB() {
       );
     `);
 
+    // Per-user, per-symbol chart drawings (opaque JSON array; see src/api/chartDrawings.ts)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS drawings (
+        user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        symbol VARCHAR(16) NOT NULL,
+        drawings JSONB NOT NULL DEFAULT '[]'::jsonb,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (user_id, symbol)
+      );
+    `);
+
     console.log('Database initialized successfully');
   } finally {
     client.release();

@@ -65,7 +65,9 @@
 .mc-top { gap: 2px; height: 40px; border-bottom: 1px solid var(--mc-border); }
 .mc-bottom { gap: 8px; height: 30px; border-top: 1px solid var(--mc-border); font-size: 12px; font-variant-numeric: tabular-nums; }
 
-.mc-body { flex: 1; min-height: 0; position: relative; }
+.mc-body { flex: 1; min-height: 0; display: flex; }
+.mc-stage { flex: 1; min-width: 0; position: relative; }
+.mc-stage.mc-measuring { cursor: crosshair; }
 .mc-chart { position: absolute; inset: 0; }
 .mc-grow { flex: 1; }
 .mc-sep { width: 1px; height: 20px; background: var(--mc-border); margin: 0 6px; flex-shrink: 0; }
@@ -193,8 +195,8 @@
   max-height: calc(100% - 20px);
   overflow-y: auto;
 }
-.mc-panel-ind { left: 300px; width: 340px; }
-.mc-panel-levels { left: 470px; width: 320px; }
+.mc-panel-ind { left: 256px; width: 340px; }
+.mc-panel-levels { left: 426px; width: 320px; }
 .mc-panel-goto { right: 8px; width: 300px; }
 @media (max-width: 899px) {
   .mc-panel-ind,
@@ -239,3 +241,54 @@
   border-radius: 12px;
 }
 .main.main-wide { max-width: none; padding: 8px; gap: 8px; }
+
+/* ---------- Drawing toolbar (left) ---------- */
+.mc-btn:disabled { opacity: 0.35; cursor: default; background: transparent; }
+.mc-draw {
+  width: 44px; flex-shrink: 0; display: flex; flex-direction: column; align-items: center;
+  gap: 2px; padding: 6px 0; border-right: 1px solid var(--mc-border); background: var(--mc-bar);
+  overflow-y: auto; scrollbar-width: none;
+}
+.mc-draw::-webkit-scrollbar { display: none; }
+.mc-dbtn {
+  position: relative; width: 34px; height: 34px; flex-shrink: 0; border: none; border-radius: 4px;
+  background: transparent; color: var(--mc-text); cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.mc-dbtn:hover { background: var(--mc-hover); }
+.mc-dbtn:focus-visible { outline: 2px solid var(--mc-accent); outline-offset: -2px; }
+.mc-dbtn.on { color: var(--mc-accent); background: var(--mc-accent-soft); }
+.mc-dbtn.danger { color: #fff; background: var(--mc-danger); }
+.mc-dbtn:disabled { opacity: 0.35; cursor: default; background: transparent; }
+.mc-dsep { width: 24px; height: 1px; background: var(--mc-border); margin: 4px 0; flex-shrink: 0; }
+.mc-dgrow { flex: 1; min-height: 8px; }
+.mc-dbadge {
+  position: absolute; right: 2px; bottom: 2px; font-size: 9px; font-weight: 700; line-height: 1;
+  color: var(--mc-accent);
+}
+
+/* ---------- Edit bar for the selected drawing ---------- */
+.mc-edit {
+  position: absolute; top: 8px; left: 50%; transform: translateX(-50%); z-index: 9;
+  display: flex; align-items: center; gap: 8px; padding: 5px 8px; max-width: calc(100% - 16px);
+  background: var(--mc-panel); border: 1px solid var(--mc-border); border-radius: 6px;
+  box-shadow: var(--mc-shadow); white-space: nowrap; overflow-x: auto; scrollbar-width: none;
+}
+.mc-edit::-webkit-scrollbar { display: none; }
+.mc-edit-name { font-weight: 600; font-size: 12px; color: var(--mc-dim); padding-right: 2px; }
+.mc-swatches { display: flex; gap: 3px; }
+.mc-swatch {
+  width: 18px; height: 18px; border-radius: 3px; border: 1px solid var(--mc-border); cursor: pointer; padding: 0;
+}
+.mc-swatch.on { outline: 2px solid var(--mc-accent); outline-offset: 1px; }
+.mc-edit .mc-btn.mc-small { height: 26px; padding: 0 3px; }
+.mc-edit .mc-btn.mc-small svg { width: 18px; height: 18px; }
+.mc-danger-btn:hover { color: var(--mc-danger); }
+.mc-edit-text { width: 190px; height: 26px; }
+.mc-edit-label { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--mc-dim); }
+.mc-edit-qty { width: 52px; height: 26px; text-align: right; }
+
+@media (max-width: 899px) {
+  .mc-draw { width: 38px; }
+  .mc-dbtn { width: 30px; height: 30px; }
+}

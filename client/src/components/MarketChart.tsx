@@ -5,7 +5,14 @@ import type { Chart, KLineData, Period, DataLoaderGetBarsParams, DataLoadMore } 
 import { registerChartIndicators, BgData, LevelsData } from '../chart/indicators';
 import { chartStyles, Theme } from '../chart/theme';
 import { Clock, TZ, wallToUtc, fmtWall, utcLabel } from '../chart/time';
+import { registerDrawingOverlays } from '../chart/overlays';
+import { DrawingController, DrawView, Magnet } from '../chart/drawingController';
+import { Drawing, Tool, validDrawing } from '../chart/drawings';
+import { DrawToolbar, DrawEditBar } from './DrawingTools';
 import '../styles/MarketChart.css';
+
+// Drawing shortcuts (TradingView's), matched on the physical key
+const DRAW_KEYS: Record<string, Tool> = { KeyT: 'trend', KeyH: 'hline', KeyJ: 'hray', KeyV: 'vline', KeyF: 'fib' };
 
 // ---------- timeframes ----------
 const TFS = [
@@ -63,10 +70,12 @@ interface Settings {
   sessions: boolean; rth: boolean; log: boolean; rolls: boolean;
   levels: { pd: boolean; on: boolean; open: boolean; round: boolean };
   indicators: Record<IndKey, { on: boolean; params: number[] }>;
+  magnet: Magnet; drawHidden: boolean; drawLocked: boolean;
 }
 const DEFAULTS: Settings = {
   tf: 5, clock: 'ET', theme: 'dark',
   sessions: true, rth: false, log: false, rolls: true,
+  magnet: 'off', drawHidden: false, drawLocked: false,
   levels: { pd: true, on: true, open: true, round: false },
   indicators: IND_KEYS.reduce((acc, k) => {
     acc[k] = { on: k === 'VOL', params: INDS[k].def };
@@ -80,7 +89,8 @@ function mergeSettings(saved: any): Settings {
   if (TFS.some(t => t.m === saved.tf)) s.tf = saved.tf;
   if (saved.clock === 'ET' || saved.clock === 'BC') s.clock = saved.clock;
   if (saved.theme === 'dark' || saved.theme === 'light') s.theme = saved.theme;
-  for (const k of ['sessions', 'rth', 'log', 'rolls'] as const) if (typeof saved[k] === 'boolean') s[k] = saved[k];
+  for (const k of ['sessions', 'rth', 'log', 'rolls', 'drawHidden', 'drawLocked'] as const) if (typeof saved[k] === 'boolean') s[k] = saved[k];
+  if (saved.magnet === 'off' || saved.magnet === 'weak' || saved.magnet === 'strong') s.magnet = saved.magnet;
   for (const k of ['pd', 'on', 'open', 'round'] as const) {
     if (typeof saved.levels?.[k] === 'boolean') s.levels[k] = saved.levels[k];
   }
@@ -100,6 +110,8 @@ const toK = (b: BarsResp['bars'][number]): KLineData =>
   ({ timestamp: b[0], open: b[1], high: b[2], low: b[3], close: b[4], volume: b[5] });
 
 const PANE = 'candle_pane';
+const viewOf = (s: Settings): DrawView =>
+  ({ tf: s.tf, rth: s.rth, magnet: s.magnet, hidden: s.drawHidden, lockAll: s.drawLocked });
 
 function syncIndicators(chart: Chart, s: Settings) {
   for (const key of IND_KEYS) {
@@ -127,9 +139,15 @@ export default function MarketChart({ token }: { token: string }) {
   const [paramText, setParamText] = useState<Record<string, string>>({});
   const [goDate, setGoDate] = useState('');
   const [goTime, setGoTime] = useState('09:30');
+  const [, redraw] = useState(0);                  // drawing controller changed
+  const [measureArmed, setMeasureArmed] = useState(false); // ruler button: next drag measures
 
   const rootRef = useRef<HTMLDivElement>(null);
   const boxRef = useRef<HTMLDivElement>(null);
+  const stageRef = useRef<HTMLDivElement>(null);
+  const ctlRef = useRef<DrawingController | null>(null);
+  const measureArmedRef = useRef(false);
+  measureArmedRef.current = measureArmed;
   const chartRef = useRef<Chart | null>(null);
   const sRef = useRef<Settings>(DEFAULTS);
   const appliedRef = useRef<Settings | null>(null);
@@ -304,7 +322,30 @@ export default function MarketChart({ token }: { token: string }) {
     chart.subscribeAction('onVisibleRangeChange', refreshLevels);
     const ro = new ResizeObserver(() => chart.resize());
     ro.observe(box);
+
+    // Drawings: saved as one list per symbol, a moment after each change
+    registerDrawingOverlays();
+    let saveTimer: number | undefined;
+    let pending: Drawing[] | null = null;
+    const flush = () => {
+      window.clearTimeout(saveTimer);
+      if (!pending) return;
+      const list = pending;
+      pending = null;
+      axios.put('/api/chart/drawings', { drawings: list }, { ...auth(), params: { symbol: 'NQ' } })
+        .catch(() => setError('Drawings could not be saved. Check your connection — your next change will retry.'));
+    };
+    const ctl = new DrawingController(chart, viewOf(st),
+      list => { pending = list; window.clearTimeout(saveTimer); saveTimer = window.setTimeout(flush, 700); },
+      () => redraw(n => n + 1));
+    ctlRef.current = ctl;
+    axios.get('/api/chart/drawings', { ...auth(), params: { symbol: 'NQ' } })
+      .then(r => { if (ctlRef.current === ctl) ctl.load((r.data.drawings || []).filter(validDrawing)); })
+      .catch(() => { if (ctlRef.current === ctl) setError('Your drawings could not be loaded. Reload the page to try again.'); });
+
     return () => {
+      flush();
+      ctlRef.current = null;
       ro.disconnect();
       window.clearTimeout(levelsTimer.current);
       loadSeq.current++; // drop any answer still in flight
@@ -338,6 +379,7 @@ export default function MarketChart({ token }: { token: string }) {
       if (a.indicators !== s.indicators || a.tf !== s.tf) syncIndicators(chart, s);
       pushBg();
       if (a.levels !== s.levels || a.tf !== s.tf) { levelsAt.current = null; refreshLevels(); }
+      ctlRef.current?.setView(viewOf(s));
       appliedRef.current = s;
     }
     if (!ready || fatal) return;
@@ -381,10 +423,28 @@ export default function MarketChart({ token }: { token: string }) {
     const onKey = (e: KeyboardEvent) => {
       const el = e.target as HTMLElement | null;
       if (el && (/^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName) || el.isContentEditable)) return;
-      if (e.altKey && !e.ctrlKey && !e.metaKey && e.key.toLowerCase() === 'g') { e.preventDefault(); openGoTo(); return; }
-      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      const ctl = ctlRef.current;
+      if (e.altKey && !e.ctrlKey && !e.metaKey) {
+        const tool: Tool | undefined = e.shiftKey ? (e.code === 'KeyR' ? 'rect' : undefined) : DRAW_KEYS[e.code];
+        if (e.code === 'KeyG' && !e.shiftKey) { e.preventDefault(); openGoTo(); return; }
+        if (tool && ctl) { e.preventDefault(); setMeasureArmed(false); ctl.start(tool); return; }
+        return;
+      }
+      if ((e.ctrlKey || e.metaKey) && ctl) {
+        const k = e.key.toLowerCase();
+        if (k === 'z' && !e.shiftKey) { e.preventDefault(); ctl.undo(); return; }
+        if (k === 'y' || (k === 'z' && e.shiftKey)) { e.preventDefault(); ctl.redo(); return; }
+      }
+      if (e.ctrlKey || e.metaKey) return;
       if (panelRef.current) { if (e.key === 'Escape') setPanel(null); return; }
       const cur = tfKeysRef.current;
+      if (!cur && ctl) {
+        if (e.key === 'Escape' && (ctl.active || ctl.hasMeasure || measureArmedRef.current || ctl.selected)) {
+          ctl.cancel(); ctl.clearMeasure(); setMeasureArmed(false); ctl.select(null);
+          return;
+        }
+        if ((e.key === 'Delete' || e.key === 'Backspace') && ctl.selected) { e.preventDefault(); ctl.remove(ctl.selected); return; }
+      }
       if (/^\d$/.test(e.key)) { setKeys((cur + e.key).slice(0, 4)); e.preventDefault(); }
       else if (/^[dhm]$/i.test(e.key) && /^\d*$/.test(cur) && (cur || /d/i.test(e.key))) { setKeys(cur + e.key.toUpperCase()); e.preventDefault(); }
       else if (!cur) return;
@@ -415,6 +475,65 @@ export default function MarketChart({ token }: { token: string }) {
     if (document.fullscreenElement) document.exitFullscreen();
     else rootRef.current?.requestFullscreen?.();
   };
+
+  // ----- measure: Shift + drag (or the ruler button, then drag or click-click) -----
+  // Runs in the capture phase so the chart does not also start panning.
+  useEffect(() => {
+    const stage = stageRef.current;
+    if (!stage) return;
+    let follow = false;          // clicked without dragging: second click finishes
+    let start: { x: number; y: number } | null = null;
+    const pointAt = (e: MouseEvent) => {
+      const chart = chartRef.current;
+      const paneEl = chart?.getDom(PANE, 'main');
+      if (!chart || !paneEl) return null;
+      const r = paneEl.getBoundingClientRect();
+      const x = e.clientX - r.left, y = e.clientY - r.top;
+      if (x < 0 || y < 0 || x > r.width || y > r.height) return null;
+      const p = chart.convertFromPixel([{ x, y }], { paneId: PANE });
+      return Array.isArray(p) ? p[0] : p;
+    };
+    const onMove = (e: MouseEvent) => {
+      const p = pointAt(e);
+      if (p) ctlRef.current?.moveMeasure(p);
+    };
+    const stop = () => {
+      window.removeEventListener('mousemove', onMove, true);
+      window.removeEventListener('mouseup', onUp, true);
+    };
+    const onUp = (e: MouseEvent) => {
+      if (!start) return;
+      const dragged = Math.hypot(e.clientX - start.x, e.clientY - start.y) > 4;
+      start = null;
+      if (dragged) { stop(); ctlRef.current?.endMeasure(); setMeasureArmed(false); }
+      else { follow = true; window.removeEventListener('mouseup', onUp, true); }
+    };
+    const onDown = (e: MouseEvent) => {
+      const ctl = ctlRef.current;
+      if (!ctl || e.button !== 0) return;
+      if (follow) {
+        // second click of click-move-click
+        follow = false;
+        e.stopPropagation(); e.preventDefault();
+        stop(); ctl.endMeasure(); setMeasureArmed(false);
+        return;
+      }
+      if (!(e.shiftKey || measureArmedRef.current) || ctl.active) {
+        // An ordinary click removes the last measurement, like TradingView
+        if (ctl.hasMeasure && !ctl.measuring) ctl.clearMeasure();
+        return;
+      }
+      const p = pointAt(e);
+      if (!p) return;
+      e.stopPropagation(); e.preventDefault();
+      start = { x: e.clientX, y: e.clientY };
+      ctl.startMeasure(p);
+      window.addEventListener('mousemove', onMove, true);
+      window.addEventListener('mouseup', onUp, true);
+    };
+    stage.addEventListener('mousedown', onDown, true);
+    return () => { stage.removeEventListener('mousedown', onDown, true); stop(); };
+  }, [ready, fatal]);
 
   // Auto-fit the price scale again after it was dragged (same as double-clicking it)
   const autoScale = () => {
@@ -463,6 +582,9 @@ export default function MarketChart({ token }: { token: string }) {
         </button>
         <button className={`mc-btn${panel === 'levels' ? ' open' : ''}`} onClick={() => setPanel(panel === 'levels' ? null : 'levels')}>Levels</button>
         <span className="mc-grow" />
+        <button className="mc-btn" disabled={!ctlRef.current?.canUndo} onClick={() => ctlRef.current?.undo()} title="Undo (Ctrl+Z)">↶</button>
+        <button className="mc-btn" disabled={!ctlRef.current?.canRedo} onClick={() => ctlRef.current?.redo()} title="Redo (Ctrl+Y)">↷</button>
+        <span className="mc-sep" />
         <button className="mc-btn" onClick={openGoTo} title="Go to a date and time (Alt+G)">Go to…</button>
         {target !== null && <button className="mc-btn mc-accent" onClick={goLatest} title="Back to the most recent bars">Latest »</button>}
         <button className="mc-btn" onClick={() => update({ theme: s.theme === 'dark' ? 'light' : 'dark' })}
@@ -471,7 +593,13 @@ export default function MarketChart({ token }: { token: string }) {
       </div>
 
       <div className="mc-body">
+        <DrawToolbar ctl={ctlRef.current} magnet={s.magnet} hidden={s.drawHidden} lockAll={s.drawLocked}
+          measureArmed={measureArmed}
+          onMagnet={m => update({ magnet: m })} onHidden={v => update({ drawHidden: v })}
+          onLockAll={v => update({ drawLocked: v })} onMeasure={setMeasureArmed} />
+        <div ref={stageRef} className={`mc-stage${measureArmed ? ' mc-measuring' : ''}`}>
         <div ref={boxRef} className="mc-chart" />
+        <DrawEditBar ctl={ctlRef.current} />
         {busy && <div className="mc-busy">Loading…</div>}
         {error && <div className="mc-error">{error}</div>}
 
@@ -543,6 +671,7 @@ export default function MarketChart({ token }: { token: string }) {
             </div>
           </form>
         )}
+        </div>
       </div>
 
       <div className="mc-bottom">

@@ -83,5 +83,19 @@ export function chartStyles(theme: Theme): DeepPartial<Styles> {
       horizontal: { show: true, line: crossLine, text: crossText },
       vertical: { show: true, line: crossLine, text: crossText },
     },
+    // Drawing handles and the axis labels of a selected drawing, TradingView-style
+    overlay: {
+      point: {
+        color: theme === 'dark' ? '#131722' : '#ffffff', borderColor: '#2962ff', borderSize: 1.5, radius: 4.5,
+        activeColor: theme === 'dark' ? '#131722' : '#ffffff', activeBorderColor: '#2962ff', activeBorderSize: 2, activeRadius: 5.5,
+      },
+      line: { color: '#2962ff', size: 1 },
+      rect: { style: 'fill', color: 'rgba(41, 98, 255, 0.12)', borderColor: '#2962ff', borderSize: 1 },
+      text: {
+        color: '#ffffff', size: 11, family: FONT, weight: 'normal',
+        backgroundColor: '#2962ff', borderColor: '#2962ff', borderRadius: 2,
+        paddingLeft: 4, paddingRight: 4, paddingTop: 2, paddingBottom: 2,
+      },
+    },
   };
 }
