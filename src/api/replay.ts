@@ -82,11 +82,11 @@ router.post('/trades', async (req: Request, res: Response) => {
     const { entry_price, exit_price, stop_loss, target } = b as Record<string, number>;
 
     const acct = await pool.query(
-      `SELECT id, COALESCE(timezone, 'America/New_York') AS tz FROM accounts WHERE id = $1 AND user_id = $2`,
+      `SELECT id, timezone AS tz FROM accounts WHERE id = $1 AND user_id = $2`,
       [accountId, req.userId]
     );
     if (acct.rows.length === 0) return res.status(404).json({ error: 'Account not found' });
-    const tz: string = acct.rows[0].tz;
+    const tz: string | null = acct.rows[0].tz;
 
     const dir = side === 'long' ? 1 : -1;
     const pnl = Math.round((exit_price - entry_price) * dir * POINT_VALUE[symbol] * quantity * 100) / 100;
@@ -124,7 +124,7 @@ router.post('/trades', async (req: Request, res: Response) => {
     const result = await pool.query(
       `INSERT INTO trades (account_id, broker_trade_id, symbol, entry_time, exit_time, entry_price, exit_price,
          quantity, pnl, setup_tag, notes, tags, stop_loss, target, attempt_id, session, timeframe, planned_rr)
-       VALUES ($1, $2, $3, ($4::timestamptz AT TIME ZONE $19), ($5::timestamptz AT TIME ZONE $19), $6, $7,
+       VALUES ($1, $2, $3, journal_utc_to_wall($4::timestamptz, $19), journal_utc_to_wall($5::timestamptz, $19), $6, $7,
          $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
        ON CONFLICT (broker_trade_id) DO NOTHING
        RETURNING *`,

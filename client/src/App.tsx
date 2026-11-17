@@ -36,6 +36,7 @@ import DataTable from './components/DataTable';
 import AttemptBar, { AttemptLite } from './components/AttemptBar';
 import UpgradeWall from './components/UpgradeWall';
 import ErrorBoundary from './components/ErrorBoundary';
+import { setChartLinkEnabled, OPEN_CHART_EVENT } from './utils/chartLink';
 import './App.css';
 
 interface Account {
@@ -45,6 +46,7 @@ interface Account {
   account_name: string;
   account_type?: string;
   currency?: string;
+  timezone?: string | null;
 }
 
 interface DailySummary {
@@ -81,6 +83,18 @@ export default function App() {
   const [userId, setUserId] = useState<number | null>(null);
   const [plan, setPlan] = useState<'free' | 'pro'>('pro'); // optimistic; corrected from /me
   const [isAdmin, setIsAdmin] = useState(false); // owner-only pages (market chart)
+  const [chartFocus, setChartFocus] = useState<{ tradeId: number; nonce: number } | null>(null);
+  // 'Open on chart' from any trade view
+  useEffect(() => {
+    const open = (e: Event) => {
+      const id = Number((e as CustomEvent).detail?.tradeId);
+      if (!id) return;
+      setChartFocus({ tradeId: id, nonce: Date.now() });
+      setView('marketchart');
+    };
+    window.addEventListener(OPEN_CHART_EVENT, open);
+    return () => window.removeEventListener(OPEN_CHART_EVENT, open);
+  }, []);
   const [month, setMonth] = useState(new Date().getMonth() + 1);
   const [year, setYear] = useState(new Date().getFullYear());
   const [accounts, setAccounts] = useState<Account[]>([]);
@@ -192,6 +206,7 @@ export default function App() {
       });
       setUserId(response.data.user.id);
       setPlan(response.data.user.plan === 'pro' ? 'pro' : 'free');
+      setChartLinkEnabled(!!response.data.user.is_admin);
       setIsAdmin(!!response.data.user.is_admin);
     } catch (error) {
       console.error('Token invalid:', error);
@@ -279,6 +294,16 @@ export default function App() {
       await fetchAccounts();
     } catch (e: any) {
       alert(e?.response?.data?.error || 'Could not rename account');
+    }
+  };
+
+  const handleSetTimezone = async (id: number, timezone: string | null) => {
+    if (!token) return;
+    try {
+      await axios.put(`/api/accounts/${id}/timezone`, { timezone }, { headers: { Authorization: `Bearer ${token}` } });
+      await fetchAccounts();
+    } catch (e: any) {
+      alert(e?.response?.data?.error || 'Could not change the time zone');
     }
   };
 
@@ -395,6 +420,7 @@ export default function App() {
             onAddClick={() => setShowAddModal(true)}
             onDeleteAccount={handleDeleteAccount}
             onRenameAccount={handleRenameAccount}
+            onSetTimezone={handleSetTimezone}
           />
 
           <nav className="nav-menu">
@@ -552,7 +578,7 @@ export default function App() {
             </ErrorBoundary>
           )}
           {token && isAdmin && view === 'marketchart' && (
-            <ErrorBoundary name="Market Chart"><MarketChart token={token} /></ErrorBoundary>
+            <ErrorBoundary name="Market Chart"><MarketChart token={token} focus={chartFocus} /></ErrorBoundary>
           )}
           {token && view === 'premarket' && (
             <ErrorBoundary name="Pre-Market"><PreMarket token={token} /></ErrorBoundary>

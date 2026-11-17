@@ -467,6 +467,24 @@ export async function initializeDB() {
     // IANA zone the account's trade times are recorded in; NULL means New York
     await client.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS timezone VARCHAR(40);`);
 
+    // Convert between an account's wall-clock timestamps and UTC (handles NULL = New York and 'BC' = Vancouver until 2026-03-08, then fixed UTC-7)
+    await client.query(`
+      CREATE OR REPLACE FUNCTION journal_wall_to_utc(ts timestamp, tz text) RETURNS timestamptz AS $$
+        SELECT CASE
+          WHEN tz IS NULL OR tz = '' THEN ts AT TIME ZONE 'America/New_York'
+          WHEN tz = 'BC' THEN ts AT TIME ZONE (CASE WHEN ts < TIMESTAMP '2026-03-08 02:00' THEN 'America/Vancouver' ELSE 'Etc/GMT+7' END)
+          ELSE ts AT TIME ZONE tz
+        END
+      $$ LANGUAGE sql STABLE;
+      CREATE OR REPLACE FUNCTION journal_utc_to_wall(t timestamptz, tz text) RETURNS timestamp AS $$
+        SELECT CASE
+          WHEN tz IS NULL OR tz = '' THEN t AT TIME ZONE 'America/New_York'
+          WHEN tz = 'BC' THEN t AT TIME ZONE (CASE WHEN t < TIMESTAMPTZ '2026-03-08 10:00:00+00' THEN 'America/Vancouver' ELSE 'Etc/GMT+7' END)
+          ELSE t AT TIME ZONE tz
+        END
+      $$ LANGUAGE sql STABLE;
+    `);
+
     console.log('Database initialized successfully');
   } finally {
     client.release();

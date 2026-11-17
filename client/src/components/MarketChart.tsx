@@ -4,10 +4,12 @@ import { init, dispose } from 'klinecharts';
 import type { Chart, KLineData, Period, DataLoaderGetBarsParams, DataLoadMore } from 'klinecharts';
 import { registerChartIndicators, BgData, LevelsData } from '../chart/indicators';
 import { chartStyles, Theme } from '../chart/theme';
-import { Clock, TZ, wallToUtc, fmtWall, utcLabel } from '../chart/time';
+import { Clock, TZ, wallToUtc, fmtWall, utcLabel, sessionDay } from '../chart/time';
+import DayNotes from './DayNotes';
+import { barTime as snapBar } from '../chart/drawings';
 import { registerDrawingOverlays } from '../chart/overlays';
 import { DrawingController, DrawView, Magnet } from '../chart/drawingController';
-import { Drawing, Tool, validDrawing } from '../chart/drawings';
+import { Drawing, Tool, validDrawing, fmtUsd } from '../chart/drawings';
 import { DrawToolbar, DrawEditBar } from './DrawingTools';
 import { ReplayEngine, ClosedTrade } from '../chart/replay';
 import ReplayBar from './ReplayBar';
@@ -73,11 +75,12 @@ interface Settings {
   levels: { pd: boolean; on: boolean; open: boolean; round: boolean };
   indicators: Record<IndKey, { on: boolean; params: number[] }>;
   magnet: Magnet; drawHidden: boolean; drawLocked: boolean;
+  notesOpen: boolean;
 }
 const DEFAULTS: Settings = {
   tf: 5, clock: 'ET', theme: 'dark',
   sessions: true, rth: false, log: false, rolls: true,
-  magnet: 'off', drawHidden: false, drawLocked: false,
+  magnet: 'off', drawHidden: false, drawLocked: false, notesOpen: false,
   levels: { pd: true, on: true, open: true, round: false },
   indicators: IND_KEYS.reduce((acc, k) => {
     acc[k] = { on: k === 'VOL', params: INDS[k].def };
@@ -91,7 +94,7 @@ function mergeSettings(saved: any): Settings {
   if (TFS.some(t => t.m === saved.tf)) s.tf = saved.tf;
   if (saved.clock === 'ET' || saved.clock === 'BC') s.clock = saved.clock;
   if (saved.theme === 'dark' || saved.theme === 'light') s.theme = saved.theme;
-  for (const k of ['sessions', 'rth', 'log', 'rolls', 'drawHidden', 'drawLocked'] as const) if (typeof saved[k] === 'boolean') s[k] = saved[k];
+  for (const k of ['sessions', 'rth', 'log', 'rolls', 'drawHidden', 'drawLocked', 'notesOpen'] as const) if (typeof saved[k] === 'boolean') s[k] = saved[k];
   if (saved.magnet === 'off' || saved.magnet === 'weak' || saved.magnet === 'strong') s.magnet = saved.magnet;
   for (const k of ['pd', 'on', 'open', 'round'] as const) {
     if (typeof saved.levels?.[k] === 'boolean') s.levels[k] = saved.levels[k];
@@ -133,7 +136,13 @@ function syncIndicators(chart: Chart, s: Settings) {
   }
 }
 
-export default function MarketChart({ token }: { token: string }) {
+interface FocusTrade {
+  id: number; symbol: string; quantity: number | null; entry_price: number | null; exit_price: number | null;
+  stop_loss: number | null; target: number | null; pnl: number | null; account_name: string;
+  entry: number; exit: number | null; side: 'long' | 'short' | null; chartable: boolean;
+}
+
+export default function MarketChart({ token, focus }: { token: string; focus?: { tradeId: number; nonce: number } | null }) {
   const [s, setS] = useState<Settings>(DEFAULTS);
   const [ready, setReady] = useState(false);       // saved settings + data range loaded
   const [fatal, setFatal] = useState('');          // page cannot work (e.g. not the owner)
@@ -170,6 +179,34 @@ export default function MarketChart({ token }: { token: string }) {
   replayAcctRef.current = replayAcct;
   const saveTradeRef = useRef<(t: ClosedTrade) => void>(() => {});
   const startReplayRef = useRef<(t: number) => void>(() => {});
+
+  // journal link: trading day for the notes panel, and a trade opened from the journal
+  const [chartDate, setChartDate] = useState<string | null>(null);
+  const [focusTrade, setFocusTrade] = useState<FocusTrade | null>(null);
+  const focusRef = useRef<FocusTrade | null>(null);
+  /** Entry/exit markers (and stop/target) of the trade opened from the journal. */
+  const drawFocus = () => {
+    const chart = chartRef.current;
+    if (!chart) return;
+    chart.removeOverlay({ groupId: 'focus' });
+    const t = focusRef.current;
+    if (!t || !t.chartable || t.entry_price === null) return;
+    const { tf, rth } = sRef.current;
+    const exitT = t.exit ?? t.entry, exitP = t.exit_price ?? t.entry_price;
+    const dir = t.side === 'short' ? -1 : 1;
+    const risk = t.stop_loss !== null && t.side ? Math.abs(t.entry_price - t.stop_loss) : 0;
+    chart.createOverlay({
+      name: 'jc_trade', groupId: 'focus', paneId: PANE, lock: true,
+      points: [{ timestamp: snapBar(t.entry, tf, rth), value: t.entry_price }, { timestamp: snapBar(exitT, tf, rth), value: exitP }],
+      extendData: { side: t.side, pnl: t.pnl, r: risk > 0 ? ((exitP - t.entry_price) * dir) / risk : null, stop: t.stop_loss, target: t.target },
+    });
+  };
+  const clearFocus = () => {
+    focusRef.current = null;
+    setFocusTrade(null);
+    chartRef.current?.removeOverlay({ groupId: 'focus' });
+    refreshLevels(); // notes go back to following the chart's right edge
+  };
   const chartRef = useRef<Chart | null>(null);
   const sRef = useRef<Settings>(DEFAULTS);
   const appliedRef = useRef<Settings | null>(null);
@@ -212,6 +249,15 @@ export default function MarketChart({ token }: { token: string }) {
       if (!chart) return;
       const wanted = st.tf < 1440 && (st.levels.pd || st.levels.on || st.levels.open);
       const data = chart.getDataList();
+      if (data.length) {
+        // trading day (6pm ET roll) of the right-most visible bar, or of the replay cursor
+        const edge = data[Math.max(0, Math.min(data.length, chart.getVisibleRange().to) - 1)].timestamp;
+        const eng0 = replayRef.current;
+        // a trade opened from the journal pins the notes to that trade's day
+        const t = eng0?.active ? Math.min(edge + (st.tf - 1) * 60000, eng0.cursor) : focusRef.current?.entry ?? edge;
+        const day = new Date(sessionDay(t) * 86400000).toISOString().slice(0, 10);
+        setChartDate(cur => (cur === day ? cur : day));
+      }
       if (!wanted || !data.length) {
         levelsAt.current = null;
         if (levelsRef.current) { levelsRef.current = null; pushBg(); }
@@ -262,6 +308,7 @@ export default function MarketChart({ token }: { token: string }) {
           setError('');
           eng.afterReset();
           eng.drawTrades();
+          drawFocus();
           levelsAt.current = null;
           refreshLevels();
           return;
@@ -303,6 +350,7 @@ export default function MarketChart({ token }: { token: string }) {
           }
           chart.scrollToDataIndex(idx);
         }
+        drawFocus();
         levelsAt.current = null;
         refreshLevels();
       }
@@ -537,6 +585,24 @@ export default function MarketChart({ token }: { token: string }) {
       .catch(err => replayRef.current?.markSaved(t.id, 'failed', err?.response?.data?.error || 'Could not reach the server.'));
   };
 
+  // ----- 'Open on chart' from the journal -----
+  useEffect(() => {
+    if (!focus || !ready || fatal) return;
+    let dead = false;
+    axios.get(`/api/chart/trade/${focus.tradeId}`, auth()).then(r => {
+      if (dead) return;
+      const t: FocusTrade = r.data.trade;
+      if (replayRef.current?.active) { replayRef.current.exit(); chartRef.current?.setHotkey({ enabled: true }); }
+      focusRef.current = t;
+      setFocusTrade(t);
+      setChartDate(new Date(sessionDay(t.entry) * 86400000).toISOString().slice(0, 10));
+      if (!t.chartable) { setError(`${t.symbol}: the chart only has NQ prices, so this trade can't be shown.`); return; }
+      setError('');
+      goTo(t.exit ? Math.round((t.entry + t.exit) / 2) : t.entry);
+    }).catch(() => { if (!dead) setError('Could not load that trade for the chart.'); });
+    return () => { dead = true; };
+  }, [focus?.nonce, ready, fatal]);
+
   // ----- keyboard: type a number + Enter to change timeframe, Alt+G to go to a date -----
   useEffect(() => {
     const setKeys = (v: string) => { tfKeysRef.current = v; setTfKeys(v); };
@@ -727,6 +793,8 @@ export default function MarketChart({ token }: { token: string }) {
           {s.rth ? 'RTH' : 'ETH'}
         </button>
         <button className={`mc-btn${panel === 'levels' ? ' open' : ''}`} onClick={() => setPanel(panel === 'levels' ? null : 'levels')}>Levels</button>
+        <button className={`mc-btn${s.notesOpen ? ' on' : ''}`} onClick={() => update({ notesOpen: !s.notesOpen })}
+          title="Day notes: pre-market plan and review for the trading day on the chart">Notes</button>
         <span className="mc-grow" />
         <button className="mc-btn" disabled={!ctlRef.current?.canUndo} onClick={() => ctlRef.current?.undo()} title="Undo (Ctrl+Z)">↶</button>
         <button className="mc-btn" disabled={!ctlRef.current?.canRedo} onClick={() => ctlRef.current?.redo()} title="Redo (Ctrl+Y)">↷</button>
@@ -749,6 +817,18 @@ export default function MarketChart({ token }: { token: string }) {
         <div ref={stageRef} className={`mc-stage${measureArmed ? ' mc-measuring' : ''}`}>
         <div ref={boxRef} className="mc-chart" />
         <DrawEditBar ctl={ctlRef.current} />
+        {focusTrade && focusTrade.chartable && !replayOn && (
+          <div className="mc-focus">
+            <span>🕯️ {focusTrade.side === 'long' ? 'Long' : focusTrade.side === 'short' ? 'Short' : 'Trade'} {focusTrade.quantity ?? ''} {focusTrade.symbol}</span>
+            {focusTrade.pnl !== null && (
+              <span className={focusTrade.pnl >= 0 ? 'mc-up' : 'mc-down'}>{fmtUsd(focusTrade.pnl)}</span>
+            )}
+            <span className="mc-dim">{fmtWall(focusTrade.entry, s.clock)} {s.clock} · {focusTrade.account_name}</span>
+            <button className="mc-btn mc-small" title="Scroll back to this trade"
+              onClick={() => goTo(focusTrade.exit ? Math.round((focusTrade.entry + focusTrade.exit) / 2) : focusTrade.entry)}>Show</button>
+            <button className="mc-btn mc-small" onClick={clearFocus} title="Remove the trade markers">✕</button>
+          </div>
+        )}
         {replayPick && guideX !== null && <div className="mc-guide" style={{ left: guideX }} />}
         {replayPick && <div className="mc-pick-hint">Click the candle to start from — everything after it is hidden. Esc to cancel.</div>}
         {replayOn && replay && (
@@ -835,6 +915,7 @@ export default function MarketChart({ token }: { token: string }) {
           </form>
         )}
         </div>
+        {s.notesOpen && <DayNotes token={token} chartDate={chartDate} onClose={() => update({ notesOpen: false })} />}
       </div>
 
       <div className="mc-bottom">

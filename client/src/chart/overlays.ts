@@ -344,23 +344,37 @@ function bracket(): OverlayTemplate<Drawing> {
   };
 }
 
-interface TradeData { side: 'long' | 'short'; pnl: number; r: number; }
+// Entry/exit of a closed trade (replay trades, or a journal trade opened on the chart).
+// Optional stop/target are drawn as short dashed lines across the trade.
+interface TradeData { side: 'long' | 'short' | null; pnl: number | null; r: number | null; stop?: number | null; target?: number | null; }
 function tradeMarker(): OverlayTemplate<Drawing> {
   return {
     name: 'jc_trade', totalStep: 3,
     needDefaultPointFigure: false, needDefaultXAxisFigure: false, needDefaultYAxisFigure: false,
-    createPointFigures: ({ overlay, coordinates }) => {
+    createPointFigures: ({ overlay, coordinates, yAxis }) => {
       const t = overlay.extendData as unknown as TradeData;
       if (coordinates.length < 2 || !t) return [];
       const [a, b] = coordinates;
-      const col = t.pnl >= 0 ? UP : DOWN;
-      return [
+      const pnl = t.pnl ?? 0;
+      const col = t.pnl === null ? BLUE : pnl >= 0 ? UP : DOWN;
+      const figs: Fig[] = [];
+      const x0 = Math.min(a.x, b.x) - 6, x1 = Math.max(a.x, b.x, x0 + 40) + 6;
+      for (const [v, c, name] of [[t.stop, DOWN, 'SL'], [t.target, UP, 'TP']] as const) {
+        if (typeof v !== 'number' || !yAxis) continue;
+        const y = yAxis.convertToPixel(v);
+        figs.push({ type: 'line', ignoreEvent: true, attrs: { coordinates: [{ x: x0, y }, { x: x1, y }] }, styles: { color: c, size: 1, style: 'dashed', dashedValue: [4, 3] } });
+        figs.push({ type: 'text', ignoreEvent: true, attrs: { x: x1 + 3, y, text: `${name} ${fmtPrice(v)}`, align: 'left', baseline: 'middle' },
+          styles: { color: c, size: 10, family: FONT, backgroundColor: 'transparent', borderColor: 'transparent', paddingLeft: 0, paddingRight: 0, paddingTop: 0, paddingBottom: 0 } });
+      }
+      const up = t.side === 'short' ? pnl < 0 : pnl >= 0; // put the label on the side price moved to
+      figs.push(
         { type: 'line', ignoreEvent: true, attrs: { coordinates: [a, b] }, styles: { color: col, size: 1, style: 'dashed', dashedValue: [3, 3] } },
         { type: 'circle', ignoreEvent: true, attrs: { x: a.x, y: a.y, r: 4 }, styles: { style: 'fill', color: BLUE } },
         { type: 'circle', ignoreEvent: true, attrs: { x: b.x, y: b.y, r: 4 }, styles: { style: 'fill', color: col } },
-        label(b.x, b.y + (t.side === 'long' ? (t.pnl >= 0 ? -14 : 14) : (t.pnl >= 0 ? 14 : -14)),
-          `${signed(t.r, 1)}R ${fmtUsd(t.pnl)}`, rgba(col, 0.92)),
-      ];
+      );
+      const text = [t.r !== null ? `${signed(t.r, 1)}R` : '', t.pnl !== null ? fmtUsd(t.pnl) : ''].filter(Boolean).join(' ');
+      if (text) figs.push(label(b.x, b.y + (up ? -14 : 14), text, rgba(col, 0.92)));
+      return figs;
     },
   };
 }

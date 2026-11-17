@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { canOpenOnChart, openOnChart } from '../utils/chartLink';
 import axios from 'axios';
 import { money, num } from '../utils/format';
 import { useOptions, values } from '../utils/options';
@@ -177,7 +178,12 @@ export default function DataTable({ token, account_id, accountName, attempt }: P
             <tbody>
               {filtered.map(t => (
                 <tr key={t.id}>
-                  <td className="nowrap">{new Date(t.entry_time).toLocaleString()}</td>
+                  <td className="nowrap">
+                    {canOpenOnChart(t.symbol) && (
+                      <button className="dt-chart-btn" title="Open on the market chart" onClick={() => openOnChart(t.id)}>🕯️</button>
+                    )}
+                    {new Date(t.entry_time).toLocaleString()}
+                  </td>
                   <td className="strong">{t.symbol}</td>
                   <td className="r">{t.quantity}</td>
                   <td className="r">{t.entry_price != null ? num(t.entry_price).toFixed(2) : ''}</td>

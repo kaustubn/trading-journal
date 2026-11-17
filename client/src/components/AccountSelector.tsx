@@ -6,7 +6,19 @@ interface Account {
   broker: string;
   account_number: string;
   account_name: string;
+  timezone?: string | null;
 }
+
+// Clock the account's trade times are recorded in (used to place journal trades on the market chart)
+const TIMEZONES: { value: string | null; label: string }[] = [
+  { value: null, label: 'New York (ET) — default' },
+  { value: 'BC', label: 'BC (UTC-7, no DST since Mar 2026)' },
+  { value: 'America/Vancouver', label: 'Vancouver (Pacific)' },
+  { value: 'America/Chicago', label: 'Chicago (CT)' },
+  { value: 'Europe/London', label: 'London' },
+  { value: 'Asia/Kolkata', label: 'India (IST)' },
+  { value: 'UTC', label: 'UTC' },
+];
 
 interface AccountSelectorProps {
   accounts: Account[];
@@ -15,6 +27,7 @@ interface AccountSelectorProps {
   onAddClick: () => void;
   onDeleteAccount?: (id: number, name: string) => void;
   onRenameAccount?: (id: number, name: string) => void;
+  onSetTimezone?: (id: number, timezone: string | null) => void;
 }
 
 export default function AccountSelector({
@@ -24,8 +37,12 @@ export default function AccountSelector({
   onAddClick,
   onDeleteAccount,
   onRenameAccount,
+  onSetTimezone,
 }: AccountSelectorProps) {
   const [menu, setMenu] = useState<{ id: number; name: string; x: number; y: number } | null>(null);
+  const [tzOpen, setTzOpen] = useState(false);
+  useEffect(() => { if (!menu) setTzOpen(false); }, [menu]);
+  const menuTz = menu ? (accounts.find(a => a.id === menu.id)?.timezone ?? null) : null;
 
   useEffect(() => {
     if (!menu) return;
@@ -65,6 +82,16 @@ export default function AccountSelector({
           <button className="acct-ctx-item" onClick={() => { onRenameAccount?.(menu.id, menu.name); setMenu(null); }}>
             ✏️ Rename
           </button>
+          {onSetTimezone && (
+            <button className="acct-ctx-item" onClick={() => setTzOpen(!tzOpen)} title="Clock this account's trade times are recorded in">
+              🕐 Time zone {tzOpen ? '▾' : '▸'}
+            </button>
+          )}
+          {tzOpen && TIMEZONES.map(z => (
+            <button key={z.label} className="acct-ctx-item acct-ctx-sub" onClick={() => { onSetTimezone?.(menu.id, z.value); setMenu(null); }}>
+              {(menuTz || null) === z.value ? '✓ ' : ' '}{z.label}
+            </button>
+          ))}
           <button className="acct-ctx-item danger" onClick={() => { onDeleteAccount?.(menu.id, menu.name); setMenu(null); }}>
             🗑 Delete account
           </button>

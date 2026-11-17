@@ -174,3 +174,8 @@
   background: rgba(255,255,255,.12); color: #fff; border: none; font-size: 24px; cursor: pointer; line-height: 1;
 }
 .td-lightbox-close:hover { background: rgba(255,255,255,.25); }
+.td-chart-btn {
+  margin: -4px 0 12px; background: rgba(99,102,241,.14); color: #c7d2fe; border: 1px solid rgba(99,102,241,.35);
+  border-radius: 8px; padding: 6px 12px; font-size: 13px; font-weight: 600; cursor: pointer;
+}
+.td-chart-btn:hover { background: rgba(99,102,241,.24); }

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { canOpenOnChart, openOnChart } from '../utils/chartLink';
 import axios from 'axios';
 import OptionPicker from './OptionPicker';
 import '../styles/TradeDetail.css';
@@ -136,6 +137,9 @@ export default function TradeDetail({ trade, onClose, onSaved }: TradeDetailProp
         <button className="close-btn" onClick={onClose}>×</button>
 
         <h2>{trade.symbol}</h2>
+        {canOpenOnChart(trade.symbol) && (
+          <button className="td-chart-btn" onClick={() => { onClose(); openOnChart(trade.id); }}>🕯️ Open on chart</button>
+        )}
 
         <div className="trade-info">
           <div className="info-group">

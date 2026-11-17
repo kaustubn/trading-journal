@@ -207,6 +207,41 @@ router.put('/accounts/:id/currency', async (req: Request, res: Response) => {
   }
 });
 
+// Clock zones an account's trade times can be recorded in (NULL = New York)
+export const ACCOUNT_TIMEZONES: { value: string; label: string }[] = [
+  { value: 'America/New_York', label: 'New York (ET)' },
+  { value: 'America/Chicago', label: 'Chicago (CT)' },
+  { value: 'BC', label: 'BC (UTC-7, no DST since Mar 2026)' },
+  { value: 'America/Vancouver', label: 'Vancouver (Pacific)' },
+  { value: 'Europe/London', label: 'London' },
+  { value: 'Asia/Kolkata', label: 'India (IST)' },
+  { value: 'UTC', label: 'UTC' },
+];
+
+// Set the clock zone an account's trade times are recorded in
+router.put('/accounts/:id/timezone', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const user_id = req.userId;
+    const raw = req.body?.timezone;
+    let timezone: string | null;
+    if (raw === null || raw === undefined || raw === '') {
+      timezone = null;
+    } else if (typeof raw === 'string' && ACCOUNT_TIMEZONES.some(z => z.value === raw)) {
+      timezone = raw;
+    } else {
+      return res.status(400).json({ error: 'Unsupported timezone' });
+    }
+    const own = await pool.query('SELECT id FROM accounts WHERE id = $1 AND user_id = $2', [id, user_id]);
+    if (own.rows.length === 0) return res.status(404).json({ error: 'Account not found' });
+    await pool.query('UPDATE accounts SET timezone = $1 WHERE id = $2', [timezone, id]);
+    res.json({ ok: true, timezone });
+  } catch (error: any) {
+    console.error('Set timezone error:', error);
+    res.status(500).json({ error: 'Failed to set timezone' });
+  }
+});
+
 // Set estimated cost/charges per round-trip trade (for true net P&L)
 router.put('/accounts/:id/cost', async (req: Request, res: Response) => {
   try {
