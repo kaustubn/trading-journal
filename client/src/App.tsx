@@ -423,10 +423,12 @@ export default function App() {
 
       <main className={`main${view === 'marketchart' ? ' main-wide' : ''}`}>
         <div className={`sidebar${navCollapsed ? ' collapsed' : ''}`}>
-          <button className="sidebar-toggle" onClick={toggleNav}
-            title={navCollapsed ? 'Show the sidebar' : 'Hide the sidebar'} aria-label={navCollapsed ? 'Show the sidebar' : 'Hide the sidebar'}>
-            {navCollapsed ? '›' : '‹'}
-          </button>
+          <div className="sidebar-rail">
+            <button className="sidebar-toggle" onClick={toggleNav}
+              title={navCollapsed ? 'Show the sidebar' : 'Hide the sidebar'} aria-label={navCollapsed ? 'Show the sidebar' : 'Hide the sidebar'}>
+              {navCollapsed ? '›' : '‹'}
+            </button>
+          </div>
           {navCollapsed && (() => {
             const a = accounts.find(x => x.id === selectedAccount);
             const name = a?.account_name || a?.account_number || '';

@@ -84,13 +84,15 @@ const floorTo = (t: number, step: number, origin = 0) => Math.floor((t - origin)
  * (9:30am ET for RTH), daily stamped at noon ET of the session date.
  */
 export function barTime(t: number, tf: number, rth: boolean): number {
-  if (tf < 60) return floorTo(t, tf * MIN);
+  if (tf < 60 && 60 % tf === 0) return floorTo(t, tf * MIN);
   if (tf === 60) return rth ? floorTo(t, HOUR, 30 * MIN) : floorTo(t, HOUR);
   const off = etOffset(t);
   const local = t + off;
-  if (tf === 240) {
-    const anchor = rth ? 9.5 * HOUR : 2 * HOUR;
-    return floorTo(local, 4 * HOUR, anchor) - off;
+  if (tf < 1440) {
+    // Other intraday timeframes (7m, 45m, 2h, 4h…) count from the session open each
+    // day — 6pm ET, or 9:30am ET for RTH — like TradingView.
+    const origin = rth ? Math.floor(local / DAY) * DAY + 9.5 * HOUR : Math.floor((local + 6 * HOUR) / DAY) * DAY - 6 * HOUR;
+    return floorTo(local, tf * MIN, origin) - off;
   }
   // Daily: full session runs 6pm -> 5pm ET and is dated by the day it ends on
   const day = Math.floor((local + (rth ? 0 : 6 * HOUR)) / DAY);

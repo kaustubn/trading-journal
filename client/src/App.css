@@ -264,8 +264,10 @@ body {
 
 /* ---- Collapsible sidebar ---- */
 .sidebar { position: relative; transition: width .18s ease; }
+/* The arrow rides a rail down the sidebar's right edge and stays in the middle of the screen */
+.sidebar-rail { position: absolute; top: 0; bottom: 0; right: -17px; width: 22px; z-index: 6; pointer-events: none; }
 .sidebar-toggle {
-  position: absolute; top: 2px; right: -17px; z-index: 6;
+  position: sticky; top: calc(50vh - 11px); pointer-events: auto;
   width: 22px; height: 22px; padding: 0; border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
   background: #1e2129; border: 1px solid #363b49; color: #c7d2fe;
@@ -289,7 +291,8 @@ body {
 .sidebar-acct:hover { background: #24283a; }
 @media (max-width: 860px) {
   .sidebar.collapsed { width: 100%; }
-  .sidebar-toggle { right: 4px; top: 4px; }
+  .sidebar-rail { right: 4px; bottom: auto; height: 30px; }
+  .sidebar-toggle { position: static; margin-top: 4px; }
   .sidebar.collapsed .nav-menu { flex-direction: row; flex-wrap: wrap; border-top: none; padding-top: 0; }
   .sidebar.collapsed .nav-section { display: flex; gap: 2px; border-bottom: none; margin: 0; }
   .sidebar.collapsed .nav-item { width: 40px; }

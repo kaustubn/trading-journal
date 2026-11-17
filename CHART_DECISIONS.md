@@ -66,3 +66,9 @@ Main session runs on Fable 5.2 and keeps the hard parts. Mechanical, well-specif
 - Prop simulator: replays the trades as a challenge from every start day (up to 400), rules pre-filled from the account's prop fields (fallback 50k / 3k target / 2k EOD trailing). Intraday trailing uses closed-trade P&L only.
 - Monte Carlo: reshuffles trade order 500–5000 times: max drawdown median / 95th pct, chance of hitting the challenge drawdown, losing streaks, 20 sample curves.
 - Test (headless, live DB): Backtesting account 8117 trades → 25% pass / 75% fail at 50k/3k/2k EOD. Coach gate showed 4 breaks, widen modal, trade saved with tag + notes; test trade 44184 and attempt 78 deleted.
+
+## Any timeframe (2026-11-17)
+- Any whole minutes 1–1439 (2m, 7m, 45m, 90m…), hours (2h, 6h, 12h) and D. Set with the "+" button (Show, or Show + add button; right-click a custom button to remove it), "Custom…" in a window's timeframe menu, or by typing e.g. 45 / 2h then Enter on the chart. Custom buttons are saved in chart settings (`customTfs`, max 10).
+- Timeframes that divide the hour keep UTC-aligned buckets. Others count from each session's open (6pm ET, or 9:30am ET for RTH), like TradingView; e.g. 45m bars run 18:00, 18:45, … and restart the next evening. Hour multiples are built from the hourly table, the rest from 1-minute bars.
+- Server (`binSession` in store.ts) and chart (`barTime`) were checked to agree on every bar for 2/7/45/90/120/360/720/240/5/60m, full session and RTH, across the March DST change.
+- Weekly/monthly are not offered: replay builds the forming candle from buffered 1-minute bars and keeps only ~1 day of them.

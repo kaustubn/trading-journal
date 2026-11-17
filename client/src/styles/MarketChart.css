@@ -469,3 +469,5 @@
 @media (max-width: 1100px) { .mc-coach { width: 270px; } }
 .mc-coach-stop .mc-row { flex-wrap: wrap; justify-content: flex-end; }
 .mc-ticket { max-width: calc(100% - 16px); }
+.mc-panel-tf { left: 200px; width: 330px; }
+@media (max-width: 700px) { .mc-panel-tf { left: 8px; right: 8px; width: auto; } }

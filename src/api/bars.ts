@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { verifyToken } from '../middleware/auth';
 import { requireAdmin } from '../middleware/admin';
-import { SYMBOLS, TIMEFRAMES, Timeframe, getBars, getMeta, getLevels } from '../bars/store';
+import { SYMBOLS, Timeframe, validTimeframe, getBars, getMeta, getLevels } from '../bars/store';
 import { parseBarsCsv, insertBars, updateFromDatabento, maybeAutoUpdate, updateStatus, liveTick } from '../bars/ingest';
 
 const router = Router();
@@ -13,7 +13,7 @@ const DEFAULT_BARS = 1500;
 function parseTf(raw: unknown): Timeframe | null {
   const s = String(raw ?? '5').trim().toUpperCase();
   const n = s === 'D' || s === '1D' ? 1440 : Number(s);
-  return (TIMEFRAMES as readonly number[]).includes(n) ? (n as Timeframe) : null;
+  return validTimeframe(n) ? n : null;
 }
 
 function parseTime(raw: unknown): Date | undefined | null {
@@ -42,7 +42,7 @@ router.get('/', async (req: Request, res: Response) => {
     const s = parseSymbol(req, res);
     if (!s) return;
     const tf = parseTf(req.query.tf);
-    if (!tf) return res.status(400).json({ error: 'tf must be one of 1, 3, 5, 15, 30, 60, 240, D' });
+    if (!tf) return res.status(400).json({ error: 'tf must be whole minutes from 1 to 1439, or D' });
     const from = parseTime(req.query.from), to = parseTime(req.query.to), after = parseTime(req.query.after);
     if (from === null || to === null || after === null) {
       return res.status(400).json({ error: 'from/to/after must be ISO dates or epoch ms' });

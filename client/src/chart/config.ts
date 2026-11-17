@@ -12,21 +12,24 @@ export const TFS = [
   { m: 1, label: '1m' }, { m: 3, label: '3m' }, { m: 5, label: '5m' }, { m: 15, label: '15m' },
   { m: 30, label: '30m' }, { m: 60, label: '1h' }, { m: 240, label: '4h' }, { m: 1440, label: 'D' },
 ];
-export const tfLabel = (m: number) => TFS.find(t => t.m === m)?.label ?? `${m}m`;
+/** Any whole number of minutes below a day (2, 7, 45, 90, 120…), or the daily chart. */
+export const validTf = (m: unknown): m is number =>
+  typeof m === 'number' && Number.isInteger(m) && ((m >= 1 && m < 1440) || m === 1440);
+export const tfLabel = (m: number) => (m === 1440 ? 'D' : m % 60 === 0 ? `${m / 60}h` : `${m}m`);
 export function periodOf(m: number): Period {
   if (m >= 1440) return { type: 'day', span: 1 };
-  if (m >= 60) return { type: 'hour', span: m / 60 };
+  if (m % 60 === 0) return { type: 'hour', span: m / 60 };
   return { type: 'minute', span: m };
 }
-/** "5" -> 5, "60" / "1H" -> 60, "D" / "1D" -> 1440. Null when it is not a timeframe we have. */
+/** "45" / "45m" -> 45, "2h" / "1.5h" -> 120 / 90, "D" / "1D" -> 1440. Null when it is not a valid timeframe. */
 export function parseTfInput(text: string): number | null {
-  const t = text.trim().toUpperCase();
+  const t = text.trim().toUpperCase().replace(/\s+/g, '');
   let m: number | null = null;
   if (/^\d+$/.test(t)) m = Number(t);
-  else if (/^\d+M$/.test(t)) m = Number(t.slice(0, -1));
-  else if (/^\d+H$/.test(t)) m = Number(t.slice(0, -1)) * 60;
+  else if (/^\d+M(IN)?$/.test(t)) m = parseInt(t, 10);
+  else if (/^\d+(\.\d+)?H$/.test(t)) m = Math.round(parseFloat(t) * 60 * 1000) / 1000;
   else if (/^1?D$/.test(t)) m = 1440;
-  return m !== null && TFS.some(x => x.m === m) ? m : null;
+  return validTf(m) ? m : null;
 }
 /** Last minute of the candle that starts at `key` (daily: 5pm ET close, 4pm for RTH). */
 export function barEnd(key: number, tf: number, rth: boolean): number {
@@ -100,6 +103,7 @@ export interface Settings {
   active: number;          // window that the top bar, keys and replay steps act on
   syncCrosshair: boolean;
   live: boolean;           // poll for new bars every minute
+  customTfs: number[];     // extra timeframe buttons the trader added (minutes)
   coach: CoachRules;       // practice rules the coach holds you to
 }
 const DEFAULT_PANES: PaneCfg[] = [{ tf: 5, src: 'journal' }, { tf: 1, src: 'journal' }, { tf: 15, src: 'journal' }, { tf: 60, src: 'journal' }];
@@ -113,6 +117,7 @@ export const DEFAULTS: Settings = {
     return acc;
   }, {} as Settings['indicators']),
   layout: '1', panes: DEFAULT_PANES, active: 0, syncCrosshair: true, live: true,
+  customTfs: [],
   coach: DEFAULT_RULES,
 };
 export const layoutCount = (m: LayoutMode) => LAYOUTS.find(l => l.mode === m)?.count ?? 1;
@@ -140,15 +145,18 @@ export function mergeSettings(saved: any): Settings {
   if (LAYOUTS.some(l => l.mode === saved.layout)) s.layout = saved.layout;
   if (Array.isArray(saved.panes)) {
     saved.panes.slice(0, 4).forEach((p: any, i: number) => {
-      if (TFS.some(t => t.m === p?.tf)) s.panes[i].tf = p.tf;
+      if (validTf(p?.tf)) s.panes[i].tf = p.tf;
       if (p?.src === 'journal' || p?.src === 'tv') s.panes[i].src = p.src;
     });
-  } else if (TFS.some(t => t.m === saved.tf)) {
+  } else if (validTf(saved.tf)) {
     s.panes[0].tf = saved.tf; // settings saved before multi-chart had a single `tf`
   }
   if (Number.isInteger(saved.active) && saved.active >= 0 && saved.active < 4) s.active = saved.active;
   if (s.active >= layoutCount(s.layout)) s.active = 0;
   s.coach = mergeRules(saved.coach);
+  if (Array.isArray(saved.customTfs)) {
+    s.customTfs = [...new Set<number>(saved.customTfs.filter(validTf))].filter(m => !TFS.some(t => t.m === m)).sort((a, b) => a - b).slice(0, 10);
+  }
   return s;
 }
 

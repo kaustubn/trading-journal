@@ -33,7 +33,9 @@ export default function MarketChart({ token, focus }: { token: string; focus?: {
   const [error, setErrorState] = useState('');
   const [busyPanes, setBusyPanes] = useState<Record<number, boolean>>({});
   const [meta, setMeta] = useState<Meta | null>(null);
-  const [panel, setPanel] = useState<null | 'ind' | 'levels' | 'goto' | 'replay' | 'data' | 'layout'>(null);
+  const [panel, setPanel] = useState<null | 'ind' | 'levels' | 'goto' | 'replay' | 'data' | 'layout' | 'tf'>(null);
+  const [tfPane, setTfPane] = useState(0);         // chart the custom-interval box applies to
+  const [tfText, setTfText] = useState('');
   const [tfKeys, setTfKeys] = useState('');        // digits typed to switch timeframe
   const [target, setTarget] = useState<number | null>(null); // viewing a past date instead of the latest bars
   const [now, setNow] = useState(Date.now());
@@ -140,6 +142,22 @@ export default function MarketChart({ token, focus }: { token: string; focus?: {
   }, []);
   const setPane = (i: number, patch: Partial<{ tf: number; src: PaneSource }>) =>
     update(cur => ({ ...cur, panes: cur.panes.map((p, j) => (j === i ? { ...p, ...patch } : p)) }));
+  const openTfBox = (i: number) => { setTfPane(i); setTfText(''); setPanel('tf'); };
+  const applyTf = (pin: boolean) => {
+    const m = parseTfInput(tfText);
+    if (m === null) return;
+    setPane(tfPane, { tf: m });
+    if (pin && !TFS.some(t => t.m === m)) {
+      update(cur => (cur.customTfs.includes(m) ? cur : { ...cur, customTfs: [...cur.customTfs, m].sort((a, b) => a - b).slice(0, 10) }));
+    }
+    setPanel(null);
+  };
+  const unpinTf = (m: number) => update(cur => ({ ...cur, customTfs: cur.customTfs.filter(x => x !== m) }));
+  const tfChoices = (cur: number) => {
+    const list = [...TFS.map(t => t.m), ...s.customTfs];
+    if (!list.includes(cur)) list.push(cur);
+    return [...new Set(list)].sort((a, b) => a - b);
+  };
   const setActive = useCallback((i: number) => {
     if (sRef.current.active !== i) update({ active: i });
   }, [update]);
@@ -507,6 +525,13 @@ export default function MarketChart({ token, focus }: { token: string; focus?: {
           <button key={t.m} className={`mc-btn mc-tf${activeTf === t.m ? ' on' : ''}`} onClick={() => setPane(activeIdx, { tf: t.m })}
             title={`${t.label} for the active chart — or type ${t.m === 1440 ? 'D' : t.m} and press Enter`}>{t.label}</button>
         ))}
+        {[...s.customTfs, ...(TFS.some(t => t.m === activeTf) || s.customTfs.includes(activeTf) ? [] : [activeTf])].map(m => (
+          <button key={`c${m}`} className={`mc-btn mc-tf${activeTf === m ? ' on' : ''}`} onClick={() => setPane(activeIdx, { tf: m })}
+            onContextMenu={e => { e.preventDefault(); if (s.customTfs.includes(m)) unpinTf(m); }}
+            title={s.customTfs.includes(m) ? `${tfLabel(m)} — your button (right-click to remove)` : `${tfLabel(m)} (custom) — add it as a button with +`}>{tfLabel(m)}</button>
+        ))}
+        <button className={`mc-btn mc-tf${panel === 'tf' ? ' open' : ''}`} onClick={() => (panel === 'tf' ? setPanel(null) : openTfBox(activeIdx))}
+          title="Any interval: 2m, 7m, 45m, 90m, 2h, 6h… (or type the number on the chart and press Enter)">+</button>
         <span className="mc-sep" />
         <button className={`mc-btn${panel === 'layout' ? ' open' : ''}`} onClick={() => setPanel(panel === 'layout' ? null : 'layout')}
           title="Chart layout: 1 to 4 charts">
@@ -555,8 +580,9 @@ export default function MarketChart({ token, focus }: { token: string; focus?: {
                 <div className="mc-cell-head">
                   {count > 1 && <span className="mc-cell-num" title={`Chart ${i + 1} (Alt+${i + 1})`}>{i + 1}</span>}
                   <select className="mc-input mc-cell-tf" value={p.tf} title="Timeframe of this chart"
-                    onChange={e => setPane(i, { tf: Number(e.target.value) })}>
-                    {TFS.map(t => <option key={t.m} value={t.m}>{t.label}</option>)}
+                    onChange={e => { const v = Number(e.target.value); if (v > 0) setPane(i, { tf: v }); else { setActive(i); openTfBox(i); } }}>
+                    {tfChoices(p.tf).map(m => <option key={m} value={m}>{tfLabel(m)}</option>)}
+                    <option value={0}>Custom…</option>
                   </select>
                   <div className="mc-seg" title="Journal data (NQ futures: replay, drawings) or TradingView live (Nasdaq-100 CFD — moves with NQ, different price level)">
                     <button className={p.src === 'journal' ? 'on' : ''} onClick={() => setPane(i, { src: 'journal' })}>Journal</button>
@@ -612,11 +638,31 @@ export default function MarketChart({ token, focus }: { token: string; focus?: {
               <div className="mc-tfpop-title">Change interval{count > 1 ? ` · chart ${activeIdx + 1}` : ''}</div>
               <div className="mc-tfpop-keys">{tfKeys}</div>
               <div className={`mc-tfpop-hint${typed === null ? ' bad' : ''}`}>
-                {typed !== null ? `${tfLabel(typed)} — press Enter` : 'Not available'}
+                {typed !== null ? `${tfLabel(typed)} — press Enter` : '1–1439 minutes, 1h–23h, or D'}
               </div>
             </div>
           )}
 
+          {panel === 'tf' && (() => {
+            const m = parseTfInput(tfText);
+            return (
+              <form className="mc-panel mc-panel-tf" onSubmit={e => { e.preventDefault(); applyTf(false); }} onMouseDown={e => e.stopPropagation()}>
+                <div className="mc-panel-title">Custom interval{count > 1 ? ` · chart ${tfPane + 1}` : ''}</div>
+                <input className="mc-input mc-wide" autoFocus placeholder="e.g. 2m, 45, 90m, 2h, 6h, D" value={tfText}
+                  onChange={e => setTfText(e.target.value)} onKeyDown={e => { e.stopPropagation(); if (e.key === 'Escape') setPanel(null); }} />
+                <div className={`mc-hint${tfText && m === null ? ' mc-bad' : ''}`}>
+                  {!tfText ? 'Minutes (1–1439), hours (1h–23h) or D. Bars count from the 6pm ET session open, like TradingView.'
+                    : m === null ? 'Not a valid interval.' : `${tfLabel(m)} candles`}
+                </div>
+                <div className="mc-row mc-row-end">
+                  <button type="button" className="mc-btn" onClick={() => setPanel(null)}>Cancel</button>
+                  <button type="button" className="mc-btn" disabled={m === null || TFS.some(t => t.m === m)} onClick={() => applyTf(true)}
+                    title="Show it and keep it as a button in the top bar">Show + add button</button>
+                  <button type="submit" className="mc-btn mc-primary" disabled={m === null}>Show</button>
+                </div>
+              </form>
+            );
+          })()}
           {panel === 'layout' && (
             <div className="mc-panel mc-panel-layout">
               <div className="mc-panel-title">Layout</div>

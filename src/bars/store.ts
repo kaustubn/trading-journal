@@ -9,8 +9,9 @@ import pool from '../db';
 // Tables are created in src/db/index.ts (initializeDB).
 
 export const SYMBOLS: Record<string, number> = { NQ: 1 };
-export const TIMEFRAMES = [1, 3, 5, 15, 30, 60, 240, 1440] as const;
-export type Timeframe = (typeof TIMEFRAMES)[number];
+export const TIMEFRAMES = [1, 3, 5, 15, 30, 60, 240, 1440] as const; // the buttons; any minutes < 1440 work
+export type Timeframe = number;
+export const validTimeframe = (n: number) => Number.isInteger(n) && ((n >= 1 && n < 1440) || n === 1440);
 
 const ET = 'America/New_York';
 const local = (col: string) => `(${col} AT TIME ZONE '${ET}')`;
@@ -23,6 +24,13 @@ const ORIGIN_30 = "TIMESTAMPTZ '2000-01-01 00:30:00+00'"; // RTH hours run 9:30,
 const bucket4h = (anchor: string) => (col: string) =>
   `(date_bin('4 hours', ${local(col)}, TIMESTAMP '2000-01-01 ${anchor}') AT TIME ZONE '${ET}')`;
 const binMinutes = (tf: number) => (col: string) => `date_bin('${tf} minutes', ${col}, ${ORIGIN})`;
+// Any other timeframe counts from each session's open (6pm ET, or 9:30am ET for RTH), like TradingView.
+const binSession = (tf: number, rth: boolean) => (col: string) => {
+  const origin = rth
+    ? `date_trunc('day', ${local(col)}) + interval '9 hours 30 minutes'`
+    : `date_trunc('day', ${local(col)} + interval '6 hours') - interval '6 hours'`;
+  return `(date_bin('${tf} minutes', ${local(col)}, ${origin}) AT TIME ZONE '${ET}')`;
+};
 // CME session day: 6pm ET -> 5pm ET, dated by the day it ends on.
 const SESSION_DATE = (col: string) => `(${local(col)} + interval '6 hours')::date`;
 // Daily bars are stamped at noon ET of their date, so the date label reads the
@@ -106,7 +114,9 @@ function source(tf: Timeframe, rth: boolean) {
   if (tf === 60) return { table: 'bars_agg', cond: `AND tf = ${rth ? 61 : 60}`, bucket: null };
   if (tf === 1440) return { table: 'bars_agg', cond: `AND tf = ${rth ? 1441 : 1440}`, bucket: null };
   if (tf === 240) return { table: 'bars_agg', cond: `AND tf = ${rth ? 61 : 60}`, bucket: bucket4h(rth ? '09:30' : '02:00') };
-  return { table: 'bars_1m', cond: rthCond, bucket: binMinutes(tf) };
+  if (tf % 60 === 0) return { table: 'bars_agg', cond: `AND tf = ${rth ? 61 : 60}`, bucket: binSession(tf, rth) };
+  if (60 % tf === 0) return { table: 'bars_1m', cond: rthCond, bucket: binMinutes(tf) };
+  return { table: 'bars_1m', cond: rthCond, bucket: binSession(tf, rth) };
 }
 
 /**
