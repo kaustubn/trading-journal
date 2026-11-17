@@ -32,6 +32,7 @@ import notesRouter from './api/notes';
 import diagnosisRouter from './api/diagnosis';
 import disciplineRouter from './api/discipline';
 import barsRouter from './api/bars';
+import chartSettingsRouter from './api/chartSettings';
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -53,6 +54,7 @@ app.use(express.static(publicPath));
 app.use('/api/auth', authRouter);
 app.use('/api/admin', adminRouter);
 app.use('/api/bars', barsRouter); // own auth (admin only); keep above the '/api' mounts
+app.use('/api/chart/settings', chartSettingsRouter);
 app.use('/api', tradingViewRouter);
 app.use('/api', verifyToken, tradesRouter);
 app.use('/api', verifyToken, accountsRouter);

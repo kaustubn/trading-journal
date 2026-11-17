@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { verifyToken } from '../middleware/auth';
 import { requireAdmin } from '../middleware/admin';
-import { SYMBOLS, TIMEFRAMES, Timeframe, getBars, getMeta } from '../bars/store';
+import { SYMBOLS, TIMEFRAMES, Timeframe, getBars, getMeta, getLevels } from '../bars/store';
 
 const router = Router();
 router.use(verifyToken, requireAdmin);
@@ -22,31 +22,48 @@ function parseTime(raw: unknown): Date | undefined | null {
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
-// GET /api/bars?symbol=NQ&tf=5&from=<iso|ms>&to=<iso|ms>&limit=1500
-// Returns the latest `limit` bars in [from, to), oldest first, as compact rows
-// [timeMs, open, high, low, close, volume]. To page back, call again with
-// `to` = the time of the oldest bar received; `more` is false at the start of the data.
+function parseSymbol(req: Request, res: Response): { symbol: string; sym: number } | null {
+  const symbol = String(req.query.symbol || 'NQ').toUpperCase();
+  const sym = SYMBOLS[symbol];
+  if (!sym) { res.status(400).json({ error: `Unknown symbol ${symbol}` }); return null; }
+  return { symbol, sym };
+}
+
+// GET /api/bars?symbol=NQ&tf=5&from=&to=&after=&limit=1500&rth=1
+// Bars come back oldest first as compact rows [timeMs, open, high, low, close, volume].
+//   default  : the latest `limit` bars in [from, to)
+//   after=<t>: the earliest `limit` bars starting after t (forward paging)
+// Times are ISO dates or epoch ms. `rth=1` keeps regular trading hours only (9:30am-4pm ET).
+// To page back, call again with `to` = the time of the oldest bar received.
+// `older` / `newer` say whether more data exists on each side.
 router.get('/', async (req: Request, res: Response) => {
   try {
-    const symbol = String(req.query.symbol || 'NQ').toUpperCase();
-    const sym = SYMBOLS[symbol];
-    if (!sym) return res.status(400).json({ error: `Unknown symbol ${symbol}` });
+    const s = parseSymbol(req, res);
+    if (!s) return;
     const tf = parseTf(req.query.tf);
     if (!tf) return res.status(400).json({ error: 'tf must be one of 1, 3, 5, 15, 30, 60, 240, D' });
-    const from = parseTime(req.query.from);
-    const to = parseTime(req.query.to);
-    if (from === null || to === null) return res.status(400).json({ error: 'from/to must be ISO dates or epoch ms' });
+    const from = parseTime(req.query.from), to = parseTime(req.query.to), after = parseTime(req.query.after);
+    if (from === null || to === null || after === null) {
+      return res.status(400).json({ error: 'from/to/after must be ISO dates or epoch ms' });
+    }
     const limit = Math.min(MAX_BARS, Math.max(1, Number(req.query.limit) || DEFAULT_BARS));
+    const rth = req.query.rth === '1' || req.query.rth === 'true';
 
     const [bars, meta] = await Promise.all([
-      getBars({ sym, tf, from, to, limit }),
-      getMeta(symbol, sym),
+      getBars({ sym: s.sym, tf, from, to, after, limit, rth }),
+      getMeta(s.symbol, s.sym),
     ]);
-    // Older data exists if the oldest bar returned starts after the first stored bar.
-    // (A daily bar is stamped at noon of its session, i.e. after that session's first bar.)
-    const more = bars.length > 0 && meta.first !== null &&
-      bars[0][0] - (tf === 1440 ? 18 * 3600000 : 0) > meta.first;
-    res.json({ symbol, tf: tf === 1440 ? 'D' : tf, bars, more });
+    // A bar's time is its bucket start; a daily bar is stamped at noon of its day,
+    // i.e. up to 18h after the session's first bar and 5h before its last.
+    // An empty page means that side is exhausted (data gaps are far shorter than a page).
+    let older = false, newer = false;
+    if (bars.length && meta.first !== null && meta.last !== null) {
+      const firstStart = bars[0][0] - (tf === 1440 ? 18 * 3600000 : 0);
+      const lastEnd = bars[bars.length - 1][0] + (tf === 1440 ? 5 * 3600000 : tf * 60000);
+      older = firstStart > meta.first;
+      newer = lastEnd <= meta.last;
+    }
+    res.json({ symbol: s.symbol, tf: tf === 1440 ? 'D' : tf, rth, bars, older, newer });
   } catch (e: any) {
     console.error('[bars]', e.message);
     res.status(500).json({ error: 'Failed to load bars' });
@@ -56,13 +73,27 @@ router.get('/', async (req: Request, res: Response) => {
 // GET /api/bars/meta?symbol=NQ — data range, row count, contract roll dates
 router.get('/meta', async (req: Request, res: Response) => {
   try {
-    const symbol = String(req.query.symbol || 'NQ').toUpperCase();
-    const sym = SYMBOLS[symbol];
-    if (!sym) return res.status(400).json({ error: `Unknown symbol ${symbol}` });
-    res.json(await getMeta(symbol, sym));
+    const s = parseSymbol(req, res);
+    if (!s) return;
+    res.json(await getMeta(s.symbol, s.sym));
   } catch (e: any) {
     console.error('[bars/meta]', e.message);
     res.status(500).json({ error: 'Failed to load bar info' });
+  }
+});
+
+// GET /api/bars/levels?symbol=NQ&at=<time> — previous-day high/low/close, overnight
+// high/low and opens for the session containing `at`, using only bars up to `at`.
+router.get('/levels', async (req: Request, res: Response) => {
+  try {
+    const s = parseSymbol(req, res);
+    if (!s) return;
+    const at = parseTime(req.query.at);
+    if (!at) return res.status(400).json({ error: 'at must be an ISO date or epoch ms' });
+    res.json({ levels: await getLevels(s.sym, at) });
+  } catch (e: any) {
+    console.error('[bars/levels]', e.message);
+    res.status(500).json({ error: 'Failed to load levels' });
   }
 });
 

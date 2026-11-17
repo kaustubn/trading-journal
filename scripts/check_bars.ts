@@ -5,7 +5,7 @@
 import dotenv from 'dotenv';
 dotenv.config();
 import pool from '../src/db';
-import { getBars, getMeta, rebuildAgg, BarRow, Timeframe } from '../src/bars/store';
+import { getBars, getMeta, getLevels, rebuildAgg, BarRow, Timeframe } from '../src/bars/store';
 
 const SYM = 1;
 let failed = 0;
@@ -32,7 +32,7 @@ async function main() {
   if (process.argv.includes('--rebuild')) {
     const t = Date.now();
     const r = await rebuildAgg(SYM);
-    console.log(`Rebuilt: ${r.hourly} hourly, ${r.daily} daily bars in ${((Date.now() - t) / 1000).toFixed(1)}s\n`);
+    console.log(`Rebuilt ${JSON.stringify(r)} in ${((Date.now() - t) / 1000).toFixed(1)}s\n`);
   }
 
   const meta = await getMeta('NQ', SYM);
@@ -69,6 +69,49 @@ async function main() {
   const a = await getBars({ sym: SYM, tf: 15, to: new Date('2024-03-05T21:07Z'), limit: 5000 });
   const firstFull = await getBars({ sym: SYM, tf: 1, from: new Date(a[0][0]), to: new Date(a[0][0] + 15 * 60000), limit: 100 });
   check('oldest bar of an open-ended query is a whole bucket', { o: a[0][1], v: a[0][5] }, { o: firstFull[0][1], v: firstFull.reduce((s, x) => s + x[5], 0) });
+
+  // Regular trading hours only (9:30am-4pm ET)
+  const rthCounts: Record<string, number> = {};
+  const rthBy: Record<number, BarRow[]> = {};
+  for (const tf of [1, 5, 30, 60, 240, 1440] as Timeframe[]) {
+    rthBy[tf] = await getBars({ sym: SYM, tf, rth: true, from: new Date('2024-03-05T05:00Z'), to: new Date('2024-03-06T05:00Z'), limit: 5000 });
+    rthCounts[tf] = rthBy[tf].length;
+  }
+  check('RTH bars per day by timeframe', rthCounts, { 1: 390, 5: 78, 30: 13, 60: 7, 240: 2, 1440: 1 });
+  for (const tf of [5, 30, 60, 240, 1440] as Timeframe[]) {
+    check(`RTH tf ${tf}: day OHLCV equals the 1m NY session`, ohlc(rthBy[tf]), ohlc(ny));
+  }
+  const etHM = (ms: number) => new Intl.DateTimeFormat('en-GB', { timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit' }).format(ms);
+  check('RTH 1h bars start 9:30 ... 15:30 ET', rthBy[60].map(b => etHM(b[0])), ['09:30', '10:30', '11:30', '12:30', '13:30', '14:30', '15:30']);
+  check('RTH 4h bars start 9:30 and 13:30 ET', rthBy[240].map(b => etHM(b[0])), ['09:30', '13:30']);
+  const rthSummer = await getBars({ sym: SYM, tf: 60, rth: true, from: new Date('2024-07-10T04:00Z'), to: new Date('2024-07-11T04:00Z'), limit: 50 });
+  check('RTH 1h bars start 9:30 ET in summer (DST)', [etHM(rthSummer[0][0]), rthSummer.length], ['09:30', 7]);
+
+  // Forward paging
+  const fwd = await getBars({ sym: SYM, tf: 5, after: new Date('2024-03-05T14:25Z'), limit: 3 });
+  check('after= returns the next bars, oldest first', fwd.map(b => new Date(b[0]).toISOString().slice(11, 16)), ['14:30', '14:35', '14:40']);
+  const fwd4 = await getBars({ sym: SYM, tf: 240, after: new Date(byTf[240][0][0]), limit: 2 });
+  check('after= on 4h skips the bar it starts from', fwd4.map(b => b[0]), [byTf[240][1][0], byTf[240][2][0]]);
+  const fwdD = await getBars({ sym: SYM, tf: 1440, after: new Date(byTf[1440][0][0]), limit: 1 });
+  check('after= on daily gives the next session', etDate(fwdD[0][0]), '2024-03-06');
+  const fwdFull = await getBars({ sym: SYM, tf: 15, after: new Date('2024-03-05T14:25Z'), limit: 5000 });
+  const lastB = fwdFull[fwdFull.length - 1];
+  const lastMin = await getBars({ sym: SYM, tf: 1, from: new Date(lastB[0]), to: new Date(lastB[0] + 15 * 60000), limit: 100 });
+  check('newest bar of a forward page is a whole bucket', lastB[5], lastMin.reduce((s, x) => s + x[5], 0));
+
+  // Key levels, using only bars up to the given time
+  const prevDay = await getBars({ sym: SYM, tf: 1440, to: new Date(byTf[1440][0][0]), limit: 1 });
+  const overnight = ohlc(await getBars({ sym: SYM, tf: 1, from, to: new Date('2024-03-05T14:30Z'), limit: 5000 }))!;
+  const lv = (await getLevels(SYM, new Date('2024-03-05T15:00Z')))!;
+  check('levels at 10:00 ET', lv, {
+    session: '2024-03-05', start: from.getTime(), nyStart: Date.parse('2024-03-05T14:30Z'), end: to.getTime(),
+    prev: { date: '2024-03-04', h: prevDay[0][2], l: prevDay[0][3], c: prevDay[0][4] },
+    open: byTf[1][0][1], nyOpen: 18133.75, overnight: { h: overnight.h, l: overnight.l },
+  });
+  const early2 = (await getLevels(SYM, new Date('2024-03-05T02:00Z')))!;
+  const soFar = ohlc(await getBars({ sym: SYM, tf: 1, from, to: new Date('2024-03-05T02:01Z'), limit: 5000 }))!;
+  check('levels at 9pm ET the evening before show nothing from the future',
+    { ny: early2.nyOpen, on: early2.overnight }, { ny: null, on: { h: soFar.h, l: soFar.l } });
 
   // Scroll back to the start of the data on each timeframe that pages quickly
   for (const tf of [1440, 240, 60] as Timeframe[]) {

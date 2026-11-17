@@ -444,6 +444,15 @@ export async function initializeDB() {
       );
     `);
 
+    // Per-user chart settings (opaque JSON blob; see src/api/chartSettings.ts)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS chart_settings (
+        user_id INT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+        settings JSONB NOT NULL DEFAULT '{}'::jsonb,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
     console.log('Database initialized successfully');
   } finally {
     client.release();

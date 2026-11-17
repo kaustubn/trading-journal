@@ -33,4 +33,5 @@ Main session runs on Fable 5.2 and keeps the hard parts. Mechanical, well-specif
 
 ## Status
 - 2026-11-16 — Section 2 done. `bars_1m` holds 1,770,120 bars (155 MB; database 186 MB of 500). Hourly + daily bars precomputed in `bars_agg`. `GET /api/bars` and `/api/bars/meta` are admin only (`users.role = 'admin'`, set on Kay's user). Checks: `npx ts-node scripts/check_bars.ts` (all pass). Import script written by Sonnet, the rest by Fable.
-- Next: Phase 1 (chart page). The ETH/RTH toggle needs an `rth` option on `/api/bars` (RTH bars anchor at 9:30 ET).
+- 2026-11-16 — Phase 1 done. Market Chart page (admin only) with KLineChart 10.1.0: timeframes + type-a-number, go to date, scroll back, ET/BC clock, dark/light, log + auto scale, session shading, ETH/RTH, levels (PDH/PDL/PDC, ONH/ONL, opens, round 100s), roll markers, indicators EMA/SMA/VWAP/BOLL/VOL/RSI/ATR/MACD with editable inputs. Settings saved per user (`chart_settings`). Server: RTH bars (tf 61/1441 in bars_agg), forward paging (`after=`), `/api/bars/levels`. Browser-tested locally against Neon. Settings endpoint by Sonnet, stylesheet by Haiku, rest by Fable/Opus.
+- Next: Phase 2 (drawing tools + measure). Known gaps: level labels overlap when two levels are within a few points; the chart is desktop-first.

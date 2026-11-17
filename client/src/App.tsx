@@ -7,6 +7,7 @@ import TradeList from './components/TradeList';
 import Ideas from './components/Ideas';
 import Analytics from './components/Analytics';
 import Charts from './components/Charts';
+import MarketChart from './components/MarketChart';
 import StrategyBuilder from './components/StrategyBuilder';
 import Insights from './components/Insights';
 import RiskManagement from './components/RiskManagement';
@@ -79,6 +80,7 @@ export default function App() {
   const [token, setToken] = useState<string | null>(localStorage.getItem('token'));
   const [userId, setUserId] = useState<number | null>(null);
   const [plan, setPlan] = useState<'free' | 'pro'>('pro'); // optimistic; corrected from /me
+  const [isAdmin, setIsAdmin] = useState(false); // owner-only pages (market chart)
   const [month, setMonth] = useState(new Date().getMonth() + 1);
   const [year, setYear] = useState(new Date().getFullYear());
   const [accounts, setAccounts] = useState<Account[]>([]);
@@ -102,6 +104,7 @@ export default function App() {
         { key: 'dashboard', label: 'Dashboard', icon: '📅' },
         { key: 'challenges', label: 'Challenges', icon: '🏆' },
         { key: 'premarket', label: 'Pre-Market', icon: '📝' },
+        ...(isAdmin ? [{ key: 'marketchart', label: 'Market Chart', icon: '🕯️' }] : []),
       ]
     },
     {
@@ -189,6 +192,7 @@ export default function App() {
       });
       setUserId(response.data.user.id);
       setPlan(response.data.user.plan === 'pro' ? 'pro' : 'free');
+      setIsAdmin(!!response.data.user.is_admin);
     } catch (error) {
       console.error('Token invalid:', error);
       setToken(null);
@@ -382,7 +386,7 @@ export default function App() {
         accountName={accounts.find(a => a.id === selectedAccount)?.account_name}
       />
 
-      <main className="main">
+      <main className={`main${view === 'marketchart' ? ' main-wide' : ''}`}>
         <div className="sidebar">
           <AccountSelector
             accounts={accounts}
@@ -546,6 +550,9 @@ export default function App() {
                 onChanged={() => { fetchAttempts(); fetchDailySummaries(); }}
               />
             </ErrorBoundary>
+          )}
+          {token && isAdmin && view === 'marketchart' && (
+            <ErrorBoundary name="Market Chart"><MarketChart token={token} /></ErrorBoundary>
           )}
           {token && view === 'premarket' && (
             <ErrorBoundary name="Pre-Market"><PreMarket token={token} /></ErrorBoundary>
