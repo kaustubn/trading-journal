@@ -2,7 +2,7 @@ import { Router, Request, Response } from 'express';
 import { verifyToken } from '../middleware/auth';
 import { requireAdmin } from '../middleware/admin';
 import { SYMBOLS, TIMEFRAMES, Timeframe, getBars, getMeta, getLevels } from '../bars/store';
-import { parseBarsCsv, insertBars, updateFromDatabento, maybeAutoUpdate, updateStatus } from '../bars/ingest';
+import { parseBarsCsv, insertBars, updateFromDatabento, maybeAutoUpdate, updateStatus, liveTick } from '../bars/ingest';
 
 const router = Router();
 router.use(verifyToken, requireAdmin);
@@ -109,6 +109,17 @@ router.get('/update', (_req: Request, res: Response) => {
 router.post('/update', async (_req: Request, res: Response) => {
   const r = await updateFromDatabento();
   res.status(r.ok ? 200 : 502).json(r);
+});
+
+// GET /api/bars/live — polled about once a minute by the open chart: fetches new bars
+// from Databento when the last attempt was 50+ s ago, and reports how current the data is.
+router.get('/live', async (_req: Request, res: Response) => {
+  try {
+    res.json(await liveTick());
+  } catch (e: any) {
+    console.error('[bars/live]', e.message);
+    res.status(500).json({ error: 'Live update failed' });
+  }
 });
 
 // POST /api/bars/upload { csv } — add bars from a CSV (ts_utc,open,high,low,close,volume,symbol,

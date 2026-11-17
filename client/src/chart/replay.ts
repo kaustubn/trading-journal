@@ -1,6 +1,8 @@
 // Bar replay: hides everything after a chosen moment and reveals the market one
-// 1-minute bar at a time. Candles of the chart's timeframe are rebuilt from the
-// 1-minute bars as they form, so a 5m or 1h candle grows exactly as it did live.
+// 1-minute bar at a time. One ReplayEngine (the clock, the 1-minute data, the
+// position and the trades) drives every chart window; each window has a ReplayView
+// that rebuilds candles of ITS timeframe from the same minutes, so a 1m, 5m and 15m
+// chart all grow together, exactly as they did live.
 // Orders fill on the 1-minute bars: market orders at the close of the current
 // minute, stops and targets on later minutes (stop first when both are touched).
 import type { Chart, KLineData, OverlayCreate } from 'klinecharts';
@@ -35,9 +37,11 @@ export interface OrderInput {
 
 export interface ReplayHooks {
   fetch1m: (afterMs: number, limit: number) => Promise<KLineData[]>;
-  view: () => { tf: number; rth: boolean };
-  push: (bar: KLineData) => void;        // add or update the newest candle on the chart
-  reset: () => void;                     // rebuild the chart around the cursor
+  rth: () => boolean;                    // regular-trading-hours view (shared by all windows)
+  stepTf: () => number;                  // timeframe a 'bar' step completes (the active window's)
+  onReset: () => void;                   // every window rebuilds its chart around the cursor
+  onMinute: (k: KLineData) => void;      // a revealed, shown minute: every window grows its candle
+  onOverlays: () => void;                // position or trades changed: every window redraws them
   onChange: () => void;
   onClosed: (t: ClosedTrade) => void;    // log it to the journal
 }
@@ -86,17 +90,18 @@ export class ReplayEngine {
   private buf: KLineData[] = [];   // 1-minute bars, full session, sorted
   private bufMore = true;          // the server may have bars after the buffer
   private idx = -1;                // index of the cursor bar in buf
-  private cur: KLineData | null = null; // the forming candle on the chart
   private timer: number | undefined;
 
-  constructor(private chart: Chart, private hooks: ReplayHooks) {}
+  constructor(private hooks: ReplayHooks) {}
 
   get price(): number | null { return this.idx >= 0 ? this.buf[this.idx].close : null; }
   get openPnl(): number { return this.position && this.price !== null ? pnlOf(this.position, this.price) : 0; }
 
+  // Daily candles start up to ~24h before their last minute; keep that much history buffered
   private span(tf: number) { return (tf >= 1440 ? 26 * HOUR : tf * MIN) + MIN; }
-  private shows(t: number) { return !this.hooks.view().rth || rthMinute(t); }
-  private key(t: number) { const v = this.hooks.view(); return barTime(t, v.tf, v.rth); }
+  private maxSpan() { return 26 * HOUR + MIN; }     // any window may be on the daily chart
+  shows(t: number) { return !this.hooks.rth() || rthMinute(t); }
+  private key(t: number, tf: number) { return barTime(t, tf, this.hooks.rth()); }
 
   /** Load 1-minute bars so the buffer covers [from, from + CHUNK minutes of trading]. */
   private async loadFrom(from: number) {
@@ -109,8 +114,8 @@ export class ReplayEngine {
     const more = await this.hooks.fetch1m(this.buf[this.buf.length - 1].timestamp, CHUNK);
     this.bufMore = more.length >= CHUNK;
     if (!more.length) return false;
-    // keep the buffer bounded: drop bars well before the cursor's candle
-    const keepFrom = this.cursor - this.span(this.hooks.view().tf) - 3 * 24 * HOUR;
+    // keep the buffer bounded: drop bars well before the cursor's candles
+    const keepFrom = this.cursor - this.maxSpan() - 3 * 24 * HOUR;
     const drop = this.buf.findIndex(k => k.timestamp >= keepFrom);
     if (drop > 0) { this.buf = this.buf.slice(drop); this.idx -= drop; }
     this.buf = this.buf.concat(more);
@@ -123,9 +128,8 @@ export class ReplayEngine {
     return lo - 1;
   }
   private async placeCursor(t: number): Promise<boolean> {
-    const tf = this.hooks.view().tf;
-    if (!this.buf.length || t - this.span(tf) < this.buf[0].timestamp || t > this.buf[this.buf.length - 1].timestamp) {
-      await this.loadFrom(t - this.span(tf) - 6 * HOUR);
+    if (!this.buf.length || t - this.maxSpan() < this.buf[0].timestamp || t > this.buf[this.buf.length - 1].timestamp) {
+      await this.loadFrom(t - this.maxSpan() - 6 * HOUR);
     }
     let i = this.indexAt(t);
     while (i >= 0 && !this.shows(this.buf[i].timestamp)) i--;
@@ -135,7 +139,7 @@ export class ReplayEngine {
     return true;
   }
 
-  /** Start (or restart) replay so that the bar at time `t` is the last one shown. */
+  /** Start (or restart) replay so that the minute at time `t` is the last one shown. */
   async start(t: number) {
     this.pause();
     this.busy = true; this.message = ''; this.ended = false;
@@ -144,7 +148,7 @@ export class ReplayEngine {
       const ok = await this.placeCursor(t);
       if (!ok) { this.message = 'No price data at that point — pick another bar.'; return; }
       this.active = true;
-      this.hooks.reset();
+      this.hooks.onReset();
     } catch {
       this.message = 'Could not load price data for replay. Check your connection.';
     } finally {
@@ -153,22 +157,22 @@ export class ReplayEngine {
     }
   }
 
-  /** History ends where the cursor's candle begins; that candle is built here from 1m bars. */
-  historyEnd(): number { return this.key(this.cursor); }
-  formingCandle(): KLineData | null {
-    const key = this.key(this.cursor);
+  /** For a window on timeframe `tf`: history ends where the cursor's candle begins… */
+  historyEnd(tf: number): number { return this.key(this.cursor, tf); }
+  /** …and that candle is built here from the revealed 1-minute bars. */
+  formingCandle(tf: number): KLineData | null {
+    const key = this.key(this.cursor, tf);
     let c = null as KLineData | null; // cast: keeps TS from narrowing it to null inside the loop
     for (let i = this.indexAt(this.cursor); i >= 0; i--) {
       const k = this.buf[i];
       if (!this.shows(k.timestamp)) continue;
-      if (this.key(k.timestamp) !== key) break;
+      if (this.key(k.timestamp, tf) !== key) break;
       // walking backwards: each earlier minute supplies the open
       const prev: KLineData | null = c;
       c = prev
         ? { ...prev, open: k.open, high: Math.max(prev.high, k.high), low: Math.min(prev.low, k.low), volume: (prev.volume ?? 0) + (k.volume ?? 0) }
         : { timestamp: key, open: k.open, high: k.high, low: k.low, close: k.close, volume: k.volume ?? 0 };
     }
-    this.cur = c;
     return c;
   }
 
@@ -179,10 +183,11 @@ export class ReplayEngine {
     return -1;
   }
 
-  /** Reveal one minute (1m mode) or finish the next candle (bar mode). */
+  /** Reveal one minute (1m mode) or finish the next candle of the active window (bar mode). */
   async stepForward(): Promise<boolean> {
     if (!this.active || this.busy) return false;
     this.busy = true;
+    const tf = this.hooks.stepTf();
     try {
       let target: number | null = null; // key of the candle being completed
       for (;;) {
@@ -191,7 +196,7 @@ export class ReplayEngine {
         const k = this.buf[n];
         const shown = this.shows(k.timestamp);
         if (shown) {
-          const key = this.key(k.timestamp);
+          const key = this.key(k.timestamp, tf);
           if (target === null) target = key;
           else if (key !== target) break;  // the next minute starts another candle: stop here
         }
@@ -215,28 +220,22 @@ export class ReplayEngine {
       const f = fillOn(p, k);
       if (f) this.closePosition(f.price, k.timestamp + MIN, f.reason);
     }
-    if (!this.shows(k.timestamp)) return;
-    const key = this.key(k.timestamp);
-    if (this.cur && this.cur.timestamp === key) {
-      this.cur = { ...this.cur, high: Math.max(this.cur.high, k.high), low: Math.min(this.cur.low, k.low), close: k.close, volume: (this.cur.volume ?? 0) + (k.volume ?? 0) };
-    } else {
-      this.cur = { timestamp: key, open: k.open, high: k.high, low: k.low, close: k.close, volume: k.volume ?? 0 };
-    }
-    this.hooks.push(this.cur);
-    if (this.position) this.syncBracket();
+    if (this.shows(k.timestamp)) this.hooks.onMinute(k);
+    if (this.position) this.hooks.onOverlays(); // live P&L on the bracket
   }
 
-  /** Step back one minute or one candle. Not allowed past an open position's entry. */
+  /** Step back one minute or one candle of the active window. Not allowed past an open position's entry. */
   async stepBack() {
     if (!this.active || this.busy) return;
+    const tf = this.hooks.stepTf();
     let i = this.idx - 1;
     if (this.stepMode === '1m') {
       while (i >= 0 && !this.shows(this.buf[i].timestamp)) i--;
     } else {
-      const key = this.key(this.cursor);
-      while (i >= 0 && (!this.shows(this.buf[i].timestamp) || this.key(this.buf[i].timestamp) === key)) i--;
+      const key = this.key(this.cursor, tf);
+      while (i >= 0 && (!this.shows(this.buf[i].timestamp) || this.key(this.buf[i].timestamp, tf) === key)) i--;
     }
-    const t = i >= 0 ? this.buf[i].timestamp : this.cursor - this.span(this.hooks.view().tf) - MIN;
+    const t = i >= 0 ? this.buf[i].timestamp : this.cursor - this.span(tf) - MIN;
     if (this.position && t < this.position.entryMinute) {
       this.message = 'Close the open position before stepping back past its entry.';
       this.hooks.onChange();
@@ -248,7 +247,7 @@ export class ReplayEngine {
       const ok = await this.placeCursor(t);
       if (!ok) { this.message = 'This is the start of the data.'; return; }
       this.ended = false; this.message = '';
-      this.hooks.reset();
+      this.hooks.onReset();
     } finally {
       this.busy = false;
       this.hooks.onChange();
@@ -273,12 +272,10 @@ export class ReplayEngine {
     this.hooks.onChange();
   }
 
-  /** After the chart rebuilt itself (timeframe, RTH, step back): put the overlays back. */
-  afterReset() { this.syncBracket(); }
-
   // ---------- trading ----------
   open(o: OrderInput): string | null {
-    if (!this.active || this.position) return 'A position is already open.';
+    if (!this.active) return 'Replay is not running.';
+    if (this.position) return 'A position is already open.';
     const price = this.price;
     if (price === null) return 'No price yet.';
     const dir = o.side === 'long' ? 1 : -1;
@@ -293,7 +290,7 @@ export class ReplayEngine {
       stop, target, setup: o.setup, notes: o.notes,
     };
     this.message = '';
-    this.syncBracket();
+    this.hooks.onOverlays();
     this.hooks.onChange();
     return null;
   }
@@ -306,7 +303,7 @@ export class ReplayEngine {
     stop = toTick(stop); target = toTick(target);
     if ((p.entry - stop) * dir > 0) p.stop = stop;
     if ((target - p.entry) * dir > 0) p.target = target;
-    this.syncBracket();
+    this.hooks.onOverlays();
     this.hooks.onChange();
   }
 
@@ -321,11 +318,10 @@ export class ReplayEngine {
     this.position = null;
     const t: ClosedTrade = {
       ...p, id: newTradeId(), exit, exitTime, reason,
-      pnl: pnlOf(p, exit), r: rOf(p, exit), tf: this.hooks.view().tf, saved: 'pending',
+      pnl: pnlOf(p, exit), r: rOf(p, exit), tf: this.hooks.stepTf(), saved: 'pending',
     };
     this.trades = [...this.trades, t];
-    this.syncBracket();
-    this.drawTrades();
+    this.hooks.onOverlays();
     this.hooks.onClosed(t);
   }
 
@@ -339,42 +335,81 @@ export class ReplayEngine {
     this.pause();
     if (this.position) this.closeAtMarket('end');
     this.active = false;
-    this.chart.removeOverlay({ groupId: 'replay' });
-    this.cur = null;
+    this.hooks.onOverlays();
     this.hooks.onChange();
   }
+}
 
-  // ---------- overlays ----------
-  private syncBracket() {
-    const p = this.position;
-    if (!p) { this.chart.removeOverlay({ id: BRACKET_ID }); return; }
-    const v = this.hooks.view();
-    const t = barTime(p.entryMinute, v.tf, v.rth);
-    const spec: OverlayCreate = {
-      id: BRACKET_ID, name: 'jc_bracket', groupId: 'replay', paneId: PANE,
-      points: [{ timestamp: t, value: p.entry }, { timestamp: t, value: p.stop }, { timestamp: t, value: p.target }],
-      extendData: { side: p.side, qty: p.qty, contract: p.contract, entry: p.entry, stop: p.stop, target: p.target, pnl: this.openPnl },
-      onPressedMoveEnd: ({ overlay }) => {
-        const [e, s, tg] = overlay.points;
-        if (e.value === p.entry && typeof s.value === 'number' && typeof tg.value === 'number') this.moveBracket(s.value, tg.value);
-        else this.syncBracket(); // dragging the entry line is not allowed: snap back
-      },
-    };
-    if (this.chart.getOverlays({ id: BRACKET_ID }).length) this.chart.overrideOverlay(spec);
-    else this.chart.createOverlay(spec);
+/**
+ * One chart window's side of replay: grows that window's newest candle from the
+ * revealed minutes, and draws the open position's bracket and the closed trades.
+ */
+export class ReplayView {
+  private cur: KLineData | null = null;
+
+  constructor(
+    private chart: Chart,
+    private engine: ReplayEngine,
+    private view: () => { tf: number; rth: boolean },
+    private push: (k: KLineData) => void,
+  ) {}
+
+  /** The candle the cursor is in, for this window's timeframe (used when the chart reloads). */
+  formingCandle(): KLineData | null {
+    this.cur = this.engine.formingCandle(this.view().tf);
+    return this.cur;
   }
 
-  /** Entry/exit markers for this session's closed trades (redrawn after a timeframe change). */
-  drawTrades() {
-    const v = this.hooks.view();
-    this.chart.removeOverlay({ groupId: 'replay', name: 'jc_trade' });
-    for (const t of this.trades) {
-      this.chart.createOverlay({
-        name: 'jc_trade', groupId: 'replay', paneId: PANE, lock: true,
-        points: [{ timestamp: barTime(t.entryMinute, v.tf, v.rth), value: t.entry }, { timestamp: barTime(t.exitTime - MIN, v.tf, v.rth), value: t.exit }],
-        extendData: { side: t.side, pnl: t.pnl, r: t.r },
-      });
+  onMinute(k: KLineData) {
+    const { tf, rth } = this.view();
+    const key = barTime(k.timestamp, tf, rth);
+    if (this.cur && this.cur.timestamp === key) {
+      this.cur = { ...this.cur, high: Math.max(this.cur.high, k.high), low: Math.min(this.cur.low, k.low), close: k.close, volume: (this.cur.volume ?? 0) + (k.volume ?? 0) };
+    } else {
+      this.cur = { timestamp: key, open: k.open, high: k.high, low: k.low, close: k.close, volume: k.volume ?? 0 };
     }
+    this.push(this.cur);
+  }
+
+  /** Bracket of the open position and markers of this session's closed trades. */
+  drawOverlays() {
+    const eng = this.engine;
+    if (!eng.active) { this.chart.removeOverlay({ groupId: 'replay' }); this.cur = null; return; }
+    const { tf, rth } = this.view();
+    const p = eng.position;
+    if (!p) this.chart.removeOverlay({ id: BRACKET_ID });
+    else {
+      const t = barTime(p.entryMinute, tf, rth);
+      const spec: OverlayCreate = {
+        id: BRACKET_ID, name: 'jc_bracket', groupId: 'replay', paneId: PANE,
+        points: [{ timestamp: t, value: p.entry }, { timestamp: t, value: p.stop }, { timestamp: t, value: p.target }],
+        extendData: { side: p.side, qty: p.qty, contract: p.contract, entry: p.entry, stop: p.stop, target: p.target, pnl: eng.openPnl },
+        onPressedMoveEnd: ({ overlay }) => {
+          const [e, s, tg] = overlay.points;
+          if (e.value === p.entry && typeof s.value === 'number' && typeof tg.value === 'number') eng.moveBracket(s.value, tg.value);
+          else this.drawOverlays(); // dragging the entry line is not allowed: snap back
+        },
+      };
+      if (this.chart.getOverlays({ id: BRACKET_ID }).length) this.chart.overrideOverlay(spec);
+      else this.chart.createOverlay(spec);
+    }
+    const shown = this.chart.getOverlays({ groupId: 'replay', name: 'jc_trade' }).length;
+    if (shown !== eng.trades.length || !eng.trades.length) {
+      this.chart.removeOverlay({ groupId: 'replay', name: 'jc_trade' });
+      for (const tr of eng.trades) {
+        this.chart.createOverlay({
+          name: 'jc_trade', groupId: 'replay', paneId: PANE, lock: true,
+          points: [{ timestamp: barTime(tr.entryMinute, tf, rth), value: tr.entry }, { timestamp: barTime(tr.exitTime - MIN, tf, rth), value: tr.exit }],
+          extendData: { side: tr.side, pnl: tr.pnl, r: tr.r },
+        });
+      }
+    }
+  }
+
+  /** Timeframe changed: the trade markers must be re-placed on the new candles. */
+  redrawTrades() {
+    this.chart.removeOverlay({ groupId: 'replay', name: 'jc_trade' });
+    this.drawOverlays();
   }
 }
 

@@ -124,10 +124,12 @@ const MAX_SPAN = 45 * 24 * 3600 * 1000; // one request covers at most 45 days
 
 export interface UpdateResult {
   ok: boolean; message: string; inserted?: number; from?: string; to?: string; at: string;
+  availEnd?: string; // how far Databento says its ohlcv-1m data goes (ISO)
 }
 let running: Promise<UpdateResult> | null = null;
 let lastAttempt = 0;
 let lastResult: UpdateResult | null = null;
+let lastAvailEnd: number | null = null;
 
 export function updateStatus() {
   return { configured: !!process.env.DATABENTO_API_KEY, lastAttempt: lastAttempt || null, lastResult };
@@ -179,7 +181,7 @@ async function runUpdate(): Promise<UpdateResult> {
   const start = new Date(lastTs.getTime() + MIN);
   let end = new Date(Math.floor(Math.min(availEnd.getTime(), Date.now()) / MIN) * MIN);
   if (end.getTime() - start.getTime() < MIN) {
-    return { ok: true, message: `Up to date (Databento has data to ${availEnd.toISOString().slice(0, 16)}Z).`, inserted: 0, at };
+    return { ok: true, message: `Up to date (Databento has data to ${availEnd.toISOString().slice(0, 16)}Z).`, inserted: 0, at, availEnd: availEnd.toISOString() };
   }
   if (end.getTime() - start.getTime() > MAX_SPAN) end = new Date(start.getTime() + MAX_SPAN);
 
@@ -198,7 +200,7 @@ async function runUpdate(): Promise<UpdateResult> {
   const r = await insertBars(parsed.bars, 1);
   const more = end.getTime() < Math.min(availEnd.getTime(), Date.now()) - MIN ? ' More remains — run the update again.' : '';
   return {
-    ok: true, inserted: r.inserted, from: start.toISOString(), to: end.toISOString(), at,
+    ok: true, inserted: r.inserted, from: start.toISOString(), to: end.toISOString(), at, availEnd: availEnd.toISOString(),
     message: `Added ${r.inserted.toLocaleString('en-US')} bars (${start.toISOString().slice(0, 16)}Z → ${end.toISOString().slice(0, 16)}Z)` +
       (parsed.bad ? `, ${parsed.bad} unreadable rows skipped` : '') + '.' + more,
   };
@@ -213,7 +215,7 @@ export function updateFromDatabento(): Promise<UpdateResult> {
   lastAttempt = Date.now();
   running = runUpdate()
     .catch((e: any): UpdateResult => ({ ok: false, message: e?.message || 'Update failed', at: new Date().toISOString() }))
-    .then(r => { lastResult = r; console.log('[bars/update]', r.message); return r; })
+    .then(r => { lastResult = r; if (r.ok && r.availEnd) lastAvailEnd = Date.parse(r.availEnd); console.log('[bars/update]', r.message); return r; })
     .finally(() => { running = null; });
   return running;
 }
@@ -223,4 +225,33 @@ export function maybeAutoUpdate() {
   if (!process.env.DATABENTO_API_KEY || running) return;
   if (Date.now() - lastAttempt < 30 * MIN) return;
   void updateFromDatabento();
+}
+
+/**
+ * Called by the open chart about once a minute: pull new bars if the last attempt was
+ * 50+ seconds ago (sharing the single-flight lock), and report how current the data is.
+ */
+export async function liveTick(): Promise<{
+  configured: boolean; last: number | null; availEnd: number | null; delayMin: number | null; updated: boolean; message?: string;
+}> {
+  const readLast = async (): Promise<number | null> => {
+    const r = await pool.query('SELECT MAX(ts) AS ts FROM bars_1m WHERE sym = 1');
+    return r.rows[0]?.ts ? new Date(r.rows[0].ts).getTime() : null;
+  };
+  if (!process.env.DATABENTO_API_KEY) {
+    return { configured: false, last: await readLast(), availEnd: null, delayMin: null, updated: false };
+  }
+  let updated = false;
+  if (running) {
+    await running;
+  } else if (Date.now() - lastAttempt >= 50 * 1000) {
+    const r = await updateFromDatabento();
+    updated = r.ok && (r.inserted || 0) > 0;
+  }
+  const last = await readLast();
+  return {
+    configured: true, last, availEnd: lastAvailEnd,
+    delayMin: lastAvailEnd ? Math.max(0, Math.round((Date.now() - lastAvailEnd) / 60000)) : null,
+    updated, message: lastResult?.message,
+  };
 }
