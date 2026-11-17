@@ -32,7 +32,7 @@ export const DEFAULT_RULES: CoachRules = {
   cooldownMin: 10,
   requireSetup: true,
   noWidenStop: true,
-  ai: 'ask',
+  ai: 'off',
 };
 
 const hhmm = /^([01]\d|2[0-3]):[0-5]\d$/;
