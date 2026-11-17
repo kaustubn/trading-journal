@@ -303,7 +303,67 @@ const templates: OverlayTemplate<Drawing>[] = [
   positionTemplate('long'),
   positionTemplate('short'),
   measure,
+  bracket(),
+  tradeMarker(),
 ];
+
+// ---------- replay: open position bracket and closed-trade markers ----------
+interface BracketData { side: 'long' | 'short'; qty: number; contract: 'NQ' | 'MNQ'; entry: number; stop: number; target: number; pnl: number; }
+
+// points: [0] entry  [1] stop  [2] target — all on the entry bar; drag the stop/target handles to move them
+function bracket(): OverlayTemplate<Drawing> {
+  return {
+    name: 'jc_bracket', totalStep: 4,
+    needDefaultPointFigure: true, needDefaultXAxisFigure: false, needDefaultYAxisFigure: true,
+    createPointFigures: ({ overlay, coordinates, bounding }) => {
+      const b = overlay.extendData as unknown as BracketData;
+      if (coordinates.length < 3 || !b) return [];
+      const [ce, cs, ct] = coordinates;
+      const x0 = Math.min(ce.x, bounding.width - 40), w = bounding.width - x0;
+      const dir = b.side === 'long' ? 1 : -1, pv = POINT_VALUE[b.contract] * b.qty;
+      const zone = (y1: number, y2: number, color: string): Fig =>
+        ({ type: 'rect', ignoreEvent: true, attrs: { x: x0, y: Math.min(y1, y2), width: w, height: Math.abs(y2 - y1) }, styles: { style: 'fill', color } });
+      const hline = (y: number, color: string, dashed = false): Fig =>
+        ({ type: 'line', attrs: { coordinates: [{ x: x0, y }, { x: bounding.width, y }] }, styles: { color, size: 1, style: dashed ? 'dashed' : 'solid', dashedValue: [4, 3] } });
+      const xr = bounding.width - 6;
+      return [
+        zone(ce.y, ct.y, rgba(UP, 0.08)),
+        zone(ce.y, cs.y, rgba(DOWN, 0.08)),
+        hline(ct.y, UP), hline(cs.y, DOWN), hline(ce.y, '#9598a1', true),
+        label(xr, ct.y - 9, `TP ${fmtPrice(b.target)} · ${fmtUsd((b.target - b.entry) * dir * pv)}`, rgba(UP, 0.95), 'right'),
+        label(xr, cs.y + 9, `SL ${fmtPrice(b.stop)} · ${fmtUsd((b.stop - b.entry) * dir * pv)}`, rgba(DOWN, 0.95), 'right'),
+        label(xr, ce.y, `${b.side === 'long' ? 'Long' : 'Short'} ${b.qty} ${b.contract} @ ${fmtPrice(b.entry)} · ${fmtUsd(b.pnl)}`,
+          b.pnl >= 0 ? rgba(UP, 0.95) : rgba(DOWN, 0.95), 'right'),
+      ];
+    },
+    // stop and target stay on the entry bar; only their price moves
+    performEventPressedMove: ({ points }) => {
+      if (points.length < 3) return;
+      for (const p of [points[1], points[2]]) { p.timestamp = points[0].timestamp; p.dataIndex = points[0].dataIndex; }
+    },
+  };
+}
+
+interface TradeData { side: 'long' | 'short'; pnl: number; r: number; }
+function tradeMarker(): OverlayTemplate<Drawing> {
+  return {
+    name: 'jc_trade', totalStep: 3,
+    needDefaultPointFigure: false, needDefaultXAxisFigure: false, needDefaultYAxisFigure: false,
+    createPointFigures: ({ overlay, coordinates }) => {
+      const t = overlay.extendData as unknown as TradeData;
+      if (coordinates.length < 2 || !t) return [];
+      const [a, b] = coordinates;
+      const col = t.pnl >= 0 ? UP : DOWN;
+      return [
+        { type: 'line', ignoreEvent: true, attrs: { coordinates: [a, b] }, styles: { color: col, size: 1, style: 'dashed', dashedValue: [3, 3] } },
+        { type: 'circle', ignoreEvent: true, attrs: { x: a.x, y: a.y, r: 4 }, styles: { style: 'fill', color: BLUE } },
+        { type: 'circle', ignoreEvent: true, attrs: { x: b.x, y: b.y, r: 4 }, styles: { style: 'fill', color: col } },
+        label(b.x, b.y + (t.side === 'long' ? (t.pnl >= 0 ? -14 : 14) : (t.pnl >= 0 ? 14 : -14)),
+          `${signed(t.r, 1)}R ${fmtUsd(t.pnl)}`, rgba(col, 0.92)),
+      ];
+    },
+  };
+}
 
 let registered = false;
 export function registerDrawingOverlays() {

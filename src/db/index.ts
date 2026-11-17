@@ -464,6 +464,9 @@ export async function initializeDB() {
       );
     `);
 
+    // IANA zone the account's trade times are recorded in; NULL means New York
+    await client.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS timezone VARCHAR(40);`);
+
     console.log('Database initialized successfully');
   } finally {
     client.release();

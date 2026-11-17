@@ -9,6 +9,8 @@ import { registerDrawingOverlays } from '../chart/overlays';
 import { DrawingController, DrawView, Magnet } from '../chart/drawingController';
 import { Drawing, Tool, validDrawing } from '../chart/drawings';
 import { DrawToolbar, DrawEditBar } from './DrawingTools';
+import { ReplayEngine, ClosedTrade } from '../chart/replay';
+import ReplayBar from './ReplayBar';
 import '../styles/MarketChart.css';
 
 // Drawing shortcuts (TradingView's), matched on the physical key
@@ -110,6 +112,12 @@ const toK = (b: BarsResp['bars'][number]): KLineData =>
   ({ timestamp: b[0], open: b[1], high: b[2], low: b[3], close: b[4], volume: b[5] });
 
 const PANE = 'candle_pane';
+/** Last minute of the candle that starts at `key` (daily: 5pm ET close, 4pm for RTH). */
+function barEnd(key: number, tf: number, rth: boolean): number {
+  const MIN = 60000;
+  if (tf >= 1440) return key + (rth ? 4 : 5) * 3600000 - MIN;
+  return key + tf * MIN - MIN;
+}
 const viewOf = (s: Settings): DrawView =>
   ({ tf: s.tf, rth: s.rth, magnet: s.magnet, hidden: s.drawHidden, lockAll: s.drawLocked });
 
@@ -132,7 +140,7 @@ export default function MarketChart({ token }: { token: string }) {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [meta, setMeta] = useState<Meta | null>(null);
-  const [panel, setPanel] = useState<null | 'ind' | 'levels' | 'goto'>(null);
+  const [panel, setPanel] = useState<null | 'ind' | 'levels' | 'goto' | 'replay'>(null);
   const [tfKeys, setTfKeys] = useState('');        // digits typed to switch timeframe
   const [target, setTarget] = useState<number | null>(null); // viewing a past date instead of the latest bars
   const [now, setNow] = useState(Date.now());
@@ -148,6 +156,20 @@ export default function MarketChart({ token }: { token: string }) {
   const ctlRef = useRef<DrawingController | null>(null);
   const measureArmedRef = useRef(false);
   measureArmedRef.current = measureArmed;
+
+  // bar replay
+  const replayRef = useRef<ReplayEngine | null>(null);
+  const barCbRef = useRef<((k: KLineData) => void) | null>(null);
+  const [replayPick, setReplayPick] = useState(false);   // waiting for a click on the start candle
+  const replayPickRef = useRef(false);
+  replayPickRef.current = replayPick;
+  const [guideX, setGuideX] = useState<number | null>(null);
+  const [accounts, setAccounts] = useState<{ id: number; account_name: string }[]>([]);
+  const [replayAcct, setReplayAcct] = useState<number | null>(null);
+  const replayAcctRef = useRef<number | null>(null);
+  replayAcctRef.current = replayAcct;
+  const saveTradeRef = useRef<(t: ClosedTrade) => void>(() => {});
+  const startReplayRef = useRef<(t: number) => void>(() => {});
   const chartRef = useRef<Chart | null>(null);
   const sRef = useRef<Settings>(DEFAULTS);
   const appliedRef = useRef<Settings | null>(null);
@@ -196,7 +218,9 @@ export default function MarketChart({ token }: { token: string }) {
         return;
       }
       const idx = Math.max(0, Math.min(data.length, chart.getVisibleRange().to) - 1);
-      const at = data[idx].timestamp + (st.tf - 1) * 60000; // last minute of the right-most bar
+      let at = data[idx].timestamp + (st.tf - 1) * 60000; // last minute of the right-most bar
+      const eng = replayRef.current;
+      if (eng?.active) at = Math.min(at, eng.cursor);    // replay: nothing after the revealed minute
       const cur = levelsRef.current;
       // After the 9:30 open every level of a session is fixed, so nothing new to fetch
       if (cur && levelsAt.current !== null && at >= cur.nyStart && at < cur.end + 3600000 && levelsAt.current >= cur.nyStart) return;
@@ -223,6 +247,26 @@ export default function MarketChart({ token }: { token: string }) {
     try {
       let bars: BarsResp['bars'] = [];
       let more: DataLoadMore = false;
+      const eng = replayRef.current;
+      if (eng?.active) {
+        // Replay: history up to the candle the cursor is in; that candle is built from 1m bars,
+        // and nothing newer is ever loaded.
+        if (type === 'backward') { callback([], { backward: false }); return; }
+        if (type === 'init') {
+          const r = await get({ to: eng.historyEnd(), limit: 1500 });
+          if (seq !== loadSeq.current) return;
+          const ks = r.bars.map(toK);
+          const forming = eng.formingCandle();
+          if (forming) ks.push(forming);
+          callback(ks, { forward: r.older, backward: false });
+          setError('');
+          eng.afterReset();
+          eng.drawTrades();
+          levelsAt.current = null;
+          refreshLevels();
+          return;
+        }
+      }
       const tgt = targetRef.current;
       if (type === 'init' && tgt) {
         // Bars from the target on, then the bars before the first of those: both pages
@@ -318,7 +362,12 @@ export default function MarketChart({ token }: { token: string }) {
     pushBg();
     syncIndicators(chart, st);
     if (st.log) chart.overrideYAxis({ paneId: PANE, name: 'logarithm' });
-    chart.setDataLoader({ getBars: loadBars });
+    chart.setDataLoader({
+      getBars: loadBars,
+      // used by replay to grow the newest candle minute by minute
+      subscribeBar: ({ callback }) => { barCbRef.current = callback; },
+      unsubscribeBar: () => { barCbRef.current = null; },
+    });
     chart.subscribeAction('onVisibleRangeChange', refreshLevels);
     const ro = new ResizeObserver(() => chart.resize());
     ro.observe(box);
@@ -343,7 +392,20 @@ export default function MarketChart({ token }: { token: string }) {
       .then(r => { if (ctlRef.current === ctl) ctl.load((r.data.drawings || []).filter(validDrawing)); })
       .catch(() => { if (ctlRef.current === ctl) setError('Your drawings could not be loaded. Reload the page to try again.'); });
 
+    const eng = new ReplayEngine(chart, {
+      fetch1m: (after, limit) => axios.get<BarsResp>('/api/bars', { ...auth(), params: { symbol: 'NQ', tf: 1, after, limit } })
+        .then(r => r.data.bars.map(toK)),
+      view: () => ({ tf: sRef.current.tf, rth: sRef.current.rth }),
+      push: k => barCbRef.current?.(k),
+      reset: () => chart.resetData(),
+      onChange: () => redraw(n => n + 1),
+      onClosed: t => saveTradeRef.current(t),
+    });
+    replayRef.current = eng;
+
     return () => {
+      eng.pause();
+      replayRef.current = null;
       flush();
       ctlRef.current = null;
       ro.disconnect();
@@ -365,7 +427,7 @@ export default function MarketChart({ token }: { token: string }) {
         const data = chart.getDataList();
         const vr = chart.getVisibleRange();
         const atEnd = !data.length || vr.to >= data.length;
-        if (!atEnd && !(targetRef.current && targetRef.current.align === 'center' && vr.to >= data.length)) {
+        if (!atEnd && !replayRef.current?.active && !(targetRef.current && targetRef.current.align === 'center' && vr.to >= data.length)) {
           targetRef.current = { ts: data[Math.max(0, vr.to - 1)].timestamp, align: 'right' };
           setTarget(targetRef.current.ts);
         }
@@ -411,10 +473,68 @@ export default function MarketChart({ token }: { token: string }) {
     if (!Number.isNaN(ts)) goTo(ts);
   };
   const openGoTo = () => {
+    if (replayRef.current?.active) return; // replay moves with its own controls
     const base = target ?? metaRef.current?.last ?? Date.now();
     const w = fmtWall(base, sRef.current.clock);
     setGoDate(w.slice(0, 10));
     setPanel('goto');
+  };
+
+  // ----- bar replay -----
+  const loadAccounts = async () => {
+    try {
+      const r = await axios.get('/api/accounts', auth());
+      const list: { id: number; account_name: string }[] = r.data?.data || [];
+      setAccounts(list);
+      const bt = list.find(a => /^backtesting$/i.test(a.account_name.trim())) ?? list.find(a => /backtest/i.test(a.account_name));
+      setReplayAcct(cur => cur ?? bt?.id ?? null);
+    } catch { /* the bar shows "Save to…" and trades are marked not saved */ }
+  };
+  const startReplay = async (t: number) => {
+    const eng = replayRef.current;
+    if (!eng) return;
+    setReplayPick(false); setGuideX(null); setPanel(null);
+    targetRef.current = null; setTarget(null);
+    ctlRef.current?.cancel(); ctlRef.current?.clearMeasure(); setMeasureArmed(false);
+    if (!accounts.length) loadAccounts();
+    chartRef.current?.setHotkey({ enabled: false }); // arrow keys step the replay instead of scrolling
+    await eng.start(t);
+    if (!eng.active) chartRef.current?.setHotkey({ enabled: true });
+  };
+  const exitReplay = () => {
+    const eng = replayRef.current;
+    if (!eng) return;
+    eng.exit();
+    chartRef.current?.setHotkey({ enabled: true });
+    chartRef.current?.resetData();
+  };
+  /** A random weekday at 9:00am ET — half an hour before the New York open. */
+  const randomReplay = () => {
+    const m = metaRef.current;
+    if (!m?.first || !m?.last) return;
+    const DAY = 86400000;
+    for (let i = 0; i < 50; i++) {
+      const day = fmtWall(m.first + 3 * DAY + Math.random() * (m.last - m.first - 5 * DAY), 'ET').slice(0, 10);
+      const wd = new Date(`${day}T12:00:00Z`).getUTCDay();
+      if (wd === 0 || wd === 6) continue;
+      startReplay(wallToUtc(day, '09:00', 'ET'));
+      return;
+    }
+  };
+  startReplayRef.current = startReplay;
+  saveTradeRef.current = (t: ClosedTrade) => {
+    const eng = replayRef.current;
+    const account = replayAcctRef.current;
+    if (!account) { eng?.markSaved(t.id, 'failed', 'Choose the journal account to save replay trades to.'); return; }
+    eng?.markSaved(t.id, 'pending');
+    axios.post('/api/replay/trades', {
+      account_id: account, client_id: t.id, symbol: t.contract, side: t.side, quantity: t.qty,
+      entry_price: t.entry, exit_price: t.exit, stop_loss: t.stop, target: t.target,
+      entry_time: new Date(t.entryTime).toISOString(), exit_time: new Date(t.exitTime).toISOString(),
+      exit_reason: t.reason, timeframe: tfLabel(t.tf), setup_tag: t.setup || undefined, notes: t.notes || undefined,
+    }, auth())
+      .then(() => replayRef.current?.markSaved(t.id, 'saved'))
+      .catch(err => replayRef.current?.markSaved(t.id, 'failed', err?.response?.data?.error || 'Could not reach the server.'));
   };
 
   // ----- keyboard: type a number + Enter to change timeframe, Alt+G to go to a date -----
@@ -444,6 +564,14 @@ export default function MarketChart({ token }: { token: string }) {
           return;
         }
         if ((e.key === 'Delete' || e.key === 'Backspace') && ctl.selected) { e.preventDefault(); ctl.remove(ctl.selected); return; }
+      }
+      if (!cur && replayPickRef.current && e.key === 'Escape') { setReplayPick(false); setGuideX(null); return; }
+      const eng = replayRef.current;
+      if (!cur && eng?.active) {
+        if (e.key === 'ArrowRight') { e.preventDefault(); if (!eng.playing) eng.stepForward(); return; }
+        if (e.key === 'ArrowLeft') { e.preventDefault(); if (!eng.playing) eng.stepBack(); return; }
+        // Space on a focused button already clicks it
+        if (e.key === ' ' && el?.tagName !== 'BUTTON') { e.preventDefault(); if (eng.playing) eng.pause(); else eng.play(); return; }
       }
       if (/^\d$/.test(e.key)) { setKeys((cur + e.key).slice(0, 4)); e.preventDefault(); }
       else if (/^[dhm]$/i.test(e.key) && /^\d*$/.test(cur) && (cur || /d/i.test(e.key))) { setKeys(cur + e.key.toUpperCase()); e.preventDefault(); }
@@ -511,6 +639,15 @@ export default function MarketChart({ token }: { token: string }) {
     const onDown = (e: MouseEvent) => {
       const ctl = ctlRef.current;
       if (!ctl || e.button !== 0) return;
+      if (replayPickRef.current) {
+        // Replay start: the clicked candle becomes the last one shown
+        const p = pointAt(e);
+        if (!p || typeof p.timestamp !== 'number') return;
+        e.stopPropagation(); e.preventDefault();
+        const { tf, rth } = sRef.current;
+        startReplayRef.current(barEnd(p.timestamp, tf, rth));
+        return;
+      }
       if (follow) {
         // second click of click-move-click
         follow = false;
@@ -531,8 +668,15 @@ export default function MarketChart({ token }: { token: string }) {
       window.addEventListener('mousemove', onMove, true);
       window.addEventListener('mouseup', onUp, true);
     };
+    // vertical guide line while choosing where replay starts
+    const onGuide = (e: MouseEvent) => {
+      if (!replayPickRef.current) return;
+      const r = stage.getBoundingClientRect();
+      setGuideX(e.clientX - r.left);
+    };
     stage.addEventListener('mousedown', onDown, true);
-    return () => { stage.removeEventListener('mousedown', onDown, true); stop(); };
+    stage.addEventListener('mousemove', onGuide);
+    return () => { stage.removeEventListener('mousedown', onDown, true); stage.removeEventListener('mousemove', onGuide); stop(); };
   }, [ready, fatal]);
 
   // Auto-fit the price scale again after it was dragged (same as double-clicking it)
@@ -558,6 +702,8 @@ export default function MarketChart({ token }: { token: string }) {
   if (fatal) return <div className="mc-fatal">{fatal}</div>;
 
   const typed = tfKeys ? parseTfInput(tfKeys) : null;
+  const replay = replayRef.current;
+  const replayOn = !!replay?.active;
   const activeInds = IND_KEYS.filter(k => s.indicators[k].on).length;
 
   return (
@@ -585,8 +731,11 @@ export default function MarketChart({ token }: { token: string }) {
         <button className="mc-btn" disabled={!ctlRef.current?.canUndo} onClick={() => ctlRef.current?.undo()} title="Undo (Ctrl+Z)">↶</button>
         <button className="mc-btn" disabled={!ctlRef.current?.canRedo} onClick={() => ctlRef.current?.redo()} title="Redo (Ctrl+Y)">↷</button>
         <span className="mc-sep" />
-        <button className="mc-btn" onClick={openGoTo} title="Go to a date and time (Alt+G)">Go to…</button>
-        {target !== null && <button className="mc-btn mc-accent" onClick={goLatest} title="Back to the most recent bars">Latest »</button>}
+        <button className={`mc-btn${replayOn || replayPick || panel === 'replay' ? ' on' : ''}`} disabled={replayOn}
+          onClick={() => { setReplayPick(false); setGuideX(null); setPanel(panel === 'replay' ? null : 'replay'); }}
+          title="Bar replay: hide the future and trade it bar by bar">⏪ Replay</button>
+        <button className="mc-btn" disabled={replayOn} onClick={openGoTo} title="Go to a date and time (Alt+G)">Go to…</button>
+        {target !== null && !replayOn && <button className="mc-btn mc-accent" onClick={goLatest} title="Back to the most recent bars">Latest »</button>}
         <button className="mc-btn" onClick={() => update({ theme: s.theme === 'dark' ? 'light' : 'dark' })}
           title={s.theme === 'dark' ? 'Switch to light chart' : 'Switch to dark chart'}>{s.theme === 'dark' ? '☀' : '☾'}</button>
         <button className="mc-btn" onClick={toggleFull} title={full ? 'Exit full screen' : 'Full screen'}>{full ? '🗗' : '⛶'}</button>
@@ -600,6 +749,12 @@ export default function MarketChart({ token }: { token: string }) {
         <div ref={stageRef} className={`mc-stage${measureArmed ? ' mc-measuring' : ''}`}>
         <div ref={boxRef} className="mc-chart" />
         <DrawEditBar ctl={ctlRef.current} />
+        {replayPick && guideX !== null && <div className="mc-guide" style={{ left: guideX }} />}
+        {replayPick && <div className="mc-pick-hint">Click the candle to start from — everything after it is hidden. Esc to cancel.</div>}
+        {replayOn && replay && (
+          <ReplayBar engine={replay} clock={s.clock} accounts={accounts} accountId={replayAcct}
+            onAccount={setReplayAcct} onRetry={t => saveTradeRef.current(t)} onExit={exitReplay} />
+        )}
         {busy && <div className="mc-busy">Loading…</div>}
         {error && <div className="mc-error">{error}</div>}
 
@@ -656,6 +811,14 @@ export default function MarketChart({ token }: { token: string }) {
           </div>
         )}
 
+        {panel === 'replay' && (
+          <div className="mc-panel mc-panel-replay">
+            <div className="mc-panel-title">Bar replay</div>
+            <button className="mc-btn mc-wide-btn" onClick={() => { setPanel(null); setReplayPick(true); }}>Select a candle on the chart</button>
+            <button className="mc-btn mc-wide-btn" onClick={randomReplay}>Random date (9:00am ET)</button>
+            <div className="mc-hint">Then step with → / ←, play with Space, and Buy / Sell from the replay bar. Closed trades are saved to the journal account you choose there.</div>
+          </div>
+        )}
         {panel === 'goto' && (
           <form className="mc-panel mc-panel-goto" onSubmit={submitGoTo}>
             <div className="mc-panel-title">Go to ({s.clock} time)</div>
