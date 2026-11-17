@@ -452,6 +452,8 @@ export default function MarketChart({ token, focus }: { token: string; focus?: {
     replayRef.current = eng;
 
     return () => {
+      // leaving the page mid-replay: an open position is closed at the current price and logged
+      if (eng.active && eng.position) eng.closeAtMarket('end');
       eng.pause();
       replayRef.current = null;
       flush();

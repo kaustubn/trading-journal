@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import '../styles/Analytics.css';
+import { money } from '../utils/format';
 
 interface Stats {
   total_trades: number;
@@ -113,7 +114,7 @@ export default function Analytics({ token, account_id }: AnalyticsProps) {
           <div className="stat-card">
             <div className="stat-label">Total P&L</div>
             <div className={`stat-value ${parseFloat(stats.total_pnl) > 0 ? 'positive' : 'negative'}`}>
-              ₹{stats.total_pnl}
+              {money(stats.total_pnl)}
             </div>
           </div>
 
@@ -125,28 +126,28 @@ export default function Analytics({ token, account_id }: AnalyticsProps) {
           <div className="stat-card">
             <div className="stat-label">Avg P&L</div>
             <div className={`stat-value ${parseFloat(stats.avg_pnl) > 0 ? 'positive' : 'negative'}`}>
-              ₹{stats.avg_pnl}
+              {money(stats.avg_pnl)}
             </div>
           </div>
 
           <div className="stat-card">
             <div className="stat-label">Best Trade</div>
-            <div className="stat-value positive">₹{stats.best_trade}</div>
+            <div className="stat-value positive">{money(stats.best_trade)}</div>
           </div>
 
           <div className="stat-card">
             <div className="stat-label">Worst Trade</div>
-            <div className="stat-value negative">₹{stats.worst_trade}</div>
+            <div className="stat-value negative">{money(stats.worst_trade)}</div>
           </div>
 
           <div className="stat-card">
             <div className="stat-label">Avg Win</div>
-            <div className="stat-value positive">₹{stats.avg_win}</div>
+            <div className="stat-value positive">{money(stats.avg_win)}</div>
           </div>
 
           <div className="stat-card">
             <div className="stat-label">Avg Loss</div>
-            <div className="stat-value negative">₹{stats.avg_loss}</div>
+            <div className="stat-value negative">{money(stats.avg_loss)}</div>
           </div>
         </div>
       )}
@@ -173,7 +174,7 @@ export default function Analytics({ token, account_id }: AnalyticsProps) {
                   <td className="loss">{row.losses}</td>
                   <td>{row.win_rate}</td>
                   <td className={parseFloat(row.pnl) > 0 ? 'positive' : 'negative'}>
-                    ₹{row.pnl}
+                    {money(row.pnl)}
                   </td>
                 </tr>
               ))}
@@ -204,7 +205,7 @@ export default function Analytics({ token, account_id }: AnalyticsProps) {
                   <td className="loss">{row.losses}</td>
                   <td>{row.win_rate}</td>
                   <td className={parseFloat(row.pnl) > 0 ? 'positive' : 'negative'}>
-                    ₹{row.pnl}
+                    {money(row.pnl)}
                   </td>
                 </tr>
               ))}

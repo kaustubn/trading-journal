@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import '../styles/Charts.css';
+import { money } from '../utils/format';
 
 interface ChartData {
   label: string;
@@ -141,7 +142,7 @@ function SimpleBarChart({ data }: { data: ChartData[] }) {
             <div key={idx} className="bar-item">
               <div className={`bar ${isPositive ? 'positive' : 'negative'}`}
                    style={{ height: `${percentage}%` }}
-                   title={`${item.label}: ₹${item.value.toFixed(2)}`}>
+                   title={`${item.label}: ${money(item.value)}`}>
               </div>
               <div className="bar-label">{item.label.slice(5)}</div>
             </div>
@@ -149,7 +150,7 @@ function SimpleBarChart({ data }: { data: ChartData[] }) {
         })}
       </div>
       <div className="chart-info">
-        <span className="total">Total: ₹{data.reduce((sum, d) => sum + d.value, 0).toFixed(2)}</span>
+        <span className="total">Total: {money(data.reduce((sum, d) => sum + d.value, 0))}</span>
       </div>
     </div>
   );
@@ -166,7 +167,7 @@ function DrawdownChart({ data }: { data: ChartData[] }) {
           const percentage = minDrawdown !== 0 ? (item.value / minDrawdown) * 100 : 0;
 
           return (
-            <div key={idx} className="drawdown-item" title={`${item.label}: ₹${item.value.toFixed(2)}`}>
+            <div key={idx} className="drawdown-item" title={`${item.label}: ${money(item.value)}`}>
               <div className="drawdown-bar" style={{ height: `${percentage}%` }}></div>
               <div className="drawdown-label">{item.label.slice(5)}</div>
             </div>
@@ -174,7 +175,7 @@ function DrawdownChart({ data }: { data: ChartData[] }) {
         })}
       </div>
       <div className="chart-info">
-        <span className="max-drawdown">Max Drawdown: ₹{minDrawdown.toFixed(2)}</span>
+        <span className="max-drawdown">Max Drawdown: {money(minDrawdown)}</span>
       </div>
     </div>
   );

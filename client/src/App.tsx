@@ -431,7 +431,7 @@ export default function App() {
                   <button
                     key={item.key}
                     className={`nav-item ${view === item.key ? 'active' : ''}`}
-                    onClick={() => setView(item.key)}
+                    onClick={() => { setView(item.key); if (item.key === 'marketchart') setChartFocus(null); }}
                   >
                     <span className="nav-icon">{item.icon}</span>
                     <span className="nav-label">{item.label}</span>
