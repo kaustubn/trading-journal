@@ -261,3 +261,37 @@ body {
 .plan-pill.free { background: transparent; border-color: #6c5ce7; color: #a99cff; cursor: pointer; }
 .plan-pill.free:hover { background: rgba(108,92,231,.15); }
 .nav-lock { margin-left: auto; font-size: 11px; opacity: .8; }
+
+/* ---- Collapsible sidebar ---- */
+.sidebar { position: relative; transition: width .18s ease; }
+.sidebar-toggle {
+  position: absolute; top: 2px; right: -17px; z-index: 6;
+  width: 22px; height: 22px; padding: 0; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  background: #1e2129; border: 1px solid #363b49; color: #c7d2fe;
+  font-size: 15px; line-height: 1; cursor: pointer;
+  box-shadow: 0 2px 6px rgba(0,0,0,.35);
+}
+.sidebar-toggle:hover { background: #6366f1; border-color: #6366f1; color: #fff; }
+.sidebar.collapsed { width: 52px; }
+.sidebar.collapsed .account-selector,
+.sidebar.collapsed .nav-section-title,
+.sidebar.collapsed .nav-label,
+.sidebar.collapsed .nav-lock { display: none; }
+.sidebar.collapsed .nav-menu { margin-top: 10px; }
+.sidebar.collapsed .nav-section { margin-bottom: 6px; padding-bottom: 6px; border-bottom: 1px solid #22252f; }
+.sidebar.collapsed .nav-item { justify-content: center; gap: 0; padding-left: 0; padding-right: 0; }
+.sidebar-acct {
+  width: 40px; height: 40px; margin: 0 auto; display: flex; align-items: center; justify-content: center;
+  border-radius: 10px; border: 1px solid rgba(99,102,241,.55); background: #1a1d2b;
+  color: #c7d2fe; font-size: 13px; font-weight: 700; cursor: pointer;
+}
+.sidebar-acct:hover { background: #24283a; }
+@media (max-width: 860px) {
+  .sidebar.collapsed { width: 100%; }
+  .sidebar-toggle { right: 4px; top: 4px; }
+  .sidebar.collapsed .nav-menu { flex-direction: row; flex-wrap: wrap; border-top: none; padding-top: 0; }
+  .sidebar.collapsed .nav-section { display: flex; gap: 2px; border-bottom: none; margin: 0; }
+  .sidebar.collapsed .nav-item { width: 40px; }
+  .sidebar-acct { margin: 0; }
+}

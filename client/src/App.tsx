@@ -107,6 +107,14 @@ export default function App() {
   const [showAddTradeModal, setShowAddTradeModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
   const [view, setView] = useState<string>('dashboard');
+  // Left sidebar: full, or a slim icon strip (remembered in this browser)
+  const [navCollapsed, setNavCollapsed] = useState<boolean>(() => {
+    try { return localStorage.getItem('jc.navCollapsed') === '1'; } catch { return false; }
+  });
+  const toggleNav = () => setNavCollapsed(c => {
+    try { localStorage.setItem('jc.navCollapsed', c ? '0' : '1'); } catch { /* storage unavailable */ }
+    return !c;
+  });
   const [range, setRange] = useState<{ from: string | null; to: string | null; label: string }>({ from: null, to: null, label: 'All time' });
   const [overtrading, setOvertrading] = useState<any>(null);
   const [attempts, setAttempts] = useState<AttemptLite[]>([]);
@@ -412,7 +420,20 @@ export default function App() {
       />
 
       <main className={`main${view === 'marketchart' ? ' main-wide' : ''}`}>
-        <div className="sidebar">
+        <div className={`sidebar${navCollapsed ? ' collapsed' : ''}`}>
+          <button className="sidebar-toggle" onClick={toggleNav}
+            title={navCollapsed ? 'Show the sidebar' : 'Hide the sidebar'} aria-label={navCollapsed ? 'Show the sidebar' : 'Hide the sidebar'}>
+            {navCollapsed ? '›' : '‹'}
+          </button>
+          {navCollapsed && (() => {
+            const a = accounts.find(x => x.id === selectedAccount);
+            const name = a?.account_name || a?.account_number || '';
+            return a ? (
+              <button className="sidebar-acct" onClick={toggleNav} title={`${name} — click to change account`}>
+                {name.split(/s+/).filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase() || '?'}
+              </button>
+            ) : null;
+          })()}
           <AccountSelector
             accounts={accounts}
             selectedAccount={selectedAccount}
@@ -431,6 +452,7 @@ export default function App() {
                   <button
                     key={item.key}
                     className={`nav-item ${view === item.key ? 'active' : ''}`}
+                    title={navCollapsed ? item.label : undefined}
                     onClick={() => { setView(item.key); if (item.key === 'marketchart') setChartFocus(null); }}
                   >
                     <span className="nav-icon">{item.icon}</span>
