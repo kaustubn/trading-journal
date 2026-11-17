@@ -373,3 +373,9 @@
 .app .mc-root .mc-textarea:focus { outline: none; border-color: var(--mc-accent); }
 .mc-link { border: none; background: none; color: var(--mc-accent); cursor: pointer; padding: 0; font: inherit; font-size: 11px; }
 @media (max-width: 1100px) { .mc-notes { width: 250px; } }
+
+/* ---------- Price data panel ---------- */
+.mc-panel-data { right: 8px; width: 340px; }
+.mc-data-section { margin-top: 10px; display: flex; flex-direction: column; gap: 5px; }
+.mc-disabled { opacity: .5; pointer-events: none; }
+.mc-bottom .mc-btn.mc-dim { color: var(--mc-dim); }

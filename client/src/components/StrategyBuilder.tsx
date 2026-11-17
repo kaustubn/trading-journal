@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import '../styles/StrategyBuilder.css';
+import { money } from '../utils/format';
 
 interface Rule {
   id: string;
@@ -294,7 +295,7 @@ export default function StrategyBuilder({ token, account_id }: StrategyBuilderPr
             <div className="result-item">
               <span>Total P&L</span>
               <strong style={{ color: backtestResult.total_pnl >= 0 ? '#22c55e' : '#ef4444' }}>
-                ₹{backtestResult.total_pnl.toFixed(2)}
+                {money(backtestResult.total_pnl)}
               </strong>
             </div>
             <div className="result-item">

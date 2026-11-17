@@ -6,6 +6,7 @@ import { registerChartIndicators, BgData, LevelsData } from '../chart/indicators
 import { chartStyles, Theme } from '../chart/theme';
 import { Clock, TZ, wallToUtc, fmtWall, utcLabel, sessionDay } from '../chart/time';
 import DayNotes from './DayNotes';
+import DataPanel from './DataPanel';
 import { barTime as snapBar } from '../chart/drawings';
 import { registerDrawingOverlays } from '../chart/overlays';
 import { DrawingController, DrawView, Magnet } from '../chart/drawingController';
@@ -149,7 +150,7 @@ export default function MarketChart({ token, focus }: { token: string; focus?: {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [meta, setMeta] = useState<Meta | null>(null);
-  const [panel, setPanel] = useState<null | 'ind' | 'levels' | 'goto' | 'replay'>(null);
+  const [panel, setPanel] = useState<null | 'ind' | 'levels' | 'goto' | 'replay' | 'data'>(null);
   const [tfKeys, setTfKeys] = useState('');        // digits typed to switch timeframe
   const [target, setTarget] = useState<number | null>(null); // viewing a past date instead of the latest bars
   const [now, setNow] = useState(Date.now());
@@ -179,6 +180,7 @@ export default function MarketChart({ token, focus }: { token: string; focus?: {
   replayAcctRef.current = replayAcct;
   const saveTradeRef = useRef<(t: ClosedTrade) => void>(() => {});
   const startReplayRef = useRef<(t: number) => void>(() => {});
+  const dataChangedRef = useRef<() => void>(() => {});
 
   // journal link: trading day for the notes panel, and a trade opened from the journal
   const [chartDate, setChartDate] = useState<string | null>(null);
@@ -381,6 +383,14 @@ export default function MarketChart({ token, focus }: { token: string; focus?: {
         metaRef.current = b.data;
         setS(merged);
         setMeta(b.data);
+        // Opening the chart starts a background Databento update on the server; pick up its bars
+        window.setTimeout(() => {
+          if (dead) return;
+          axios.get('/api/bars/update', auth()).then(r => {
+            const last = r.data?.lastResult;
+            if (!dead && last?.ok && /^Added [1-9]/.test(last.message || '')) dataChangedRef.current();
+          }).catch(() => { /* status is optional */ });
+        }, 20000);
       } catch (e: any) {
         if (dead) return;
         setFatal(e?.response?.status === 403
@@ -517,6 +527,12 @@ export default function MarketChart({ token, focus }: { token: string; focus?: {
     setTarget(null);
     chartRef.current?.resetData();
   };
+  /** New bars were stored (update or upload): refresh the data range and, when showing the latest bars, the chart. */
+  const dataChanged = () => {
+    axios.get<Meta>('/api/bars/meta', auth()).then(r => { metaRef.current = r.data; setMeta(r.data); pushBg(); }).catch(() => {});
+    if (!replayRef.current?.active && !targetRef.current) chartRef.current?.resetData();
+  };
+  dataChangedRef.current = dataChanged;
   const submitGoTo = (e: React.FormEvent) => {
     e.preventDefault();
     const ts = wallToUtc(goDate, goTime, s.clock);
@@ -893,6 +909,9 @@ export default function MarketChart({ token, focus }: { token: string; focus?: {
           </div>
         )}
 
+        {panel === 'data' && (
+          <DataPanel token={token} meta={meta} clock={s.clock} onChanged={dataChanged} onClose={() => setPanel(null)} />
+        )}
         {panel === 'replay' && (
           <div className="mc-panel mc-panel-replay">
             <div className="mc-panel-title">Bar replay</div>
@@ -922,9 +941,10 @@ export default function MarketChart({ token, focus }: { token: string; focus?: {
 
       <div className="mc-bottom">
         {meta?.first && meta?.last ? (
-          <span className="mc-dim" title="Range of price data stored in the journal">
-            Data {fmtWall(meta.first, s.clock).slice(0, 10)} → {fmtWall(meta.last, s.clock)} {s.clock}
-          </span>
+          <button className={`mc-btn mc-small mc-dim${panel === 'data' ? ' open' : ''}`} onClick={() => setPanel(panel === 'data' ? null : 'data')}
+            title="Price data: range stored, Databento update, CSV upload">
+            Data {fmtWall(meta.first, s.clock).slice(0, 10)} → {fmtWall(meta.last, s.clock)} {s.clock} ▾
+          </button>
         ) : null}
         <span className="mc-grow" />
         <span className="mc-dim">{fmtWall(now, s.clock, true).slice(11)} ({utcLabel(now, s.clock)})</span>

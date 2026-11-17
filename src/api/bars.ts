@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { verifyToken } from '../middleware/auth';
 import { requireAdmin } from '../middleware/admin';
 import { SYMBOLS, TIMEFRAMES, Timeframe, getBars, getMeta, getLevels } from '../bars/store';
+import { parseBarsCsv, insertBars, updateFromDatabento, maybeAutoUpdate, updateStatus } from '../bars/ingest';
 
 const router = Router();
 router.use(verifyToken, requireAdmin);
@@ -70,11 +71,13 @@ router.get('/', async (req: Request, res: Response) => {
   }
 });
 
-// GET /api/bars/meta?symbol=NQ — data range, row count, contract roll dates
+// GET /api/bars/meta?symbol=NQ — data range, row count, contract roll dates.
+// Opening the chart also starts a background Databento update (at most every 30 min).
 router.get('/meta', async (req: Request, res: Response) => {
   try {
     const s = parseSymbol(req, res);
     if (!s) return;
+    maybeAutoUpdate();
     res.json(await getMeta(s.symbol, s.sym));
   } catch (e: any) {
     console.error('[bars/meta]', e.message);
@@ -94,6 +97,40 @@ router.get('/levels', async (req: Request, res: Response) => {
   } catch (e: any) {
     console.error('[bars/levels]', e.message);
     res.status(500).json({ error: 'Failed to load levels' });
+  }
+});
+
+// GET /api/bars/update — is Databento set up, and how did the last update go
+router.get('/update', (_req: Request, res: Response) => {
+  res.json(updateStatus());
+});
+
+// POST /api/bars/update — fetch the minutes after the last stored bar from Databento now
+router.post('/update', async (_req: Request, res: Response) => {
+  const r = await updateFromDatabento();
+  res.status(r.ok ? 200 : 502).json(r);
+});
+
+// POST /api/bars/upload { csv } — add bars from a CSV (ts_utc,open,high,low,close,volume,symbol,
+// or Databento's ohlcv-1m CSV). Minutes already stored are left unchanged.
+router.post('/upload', async (req: Request, res: Response) => {
+  try {
+    const csv = req.body?.csv;
+    if (typeof csv !== 'string' || !csv.trim()) return res.status(400).json({ error: 'Send the file contents as { csv: "..." }' });
+    let parsed;
+    try { parsed = parseBarsCsv(csv); } catch (e: any) { return res.status(400).json({ error: e.message }); }
+    if (!parsed.bars.length) {
+      return res.status(400).json({ error: 'No valid bars found in the file.', bad: parsed.bad, firstBad: parsed.firstBad });
+    }
+    const r = await insertBars(parsed.bars, SYMBOLS.NQ);
+    res.json({
+      rows: parsed.bars.length, inserted: r.inserted, alreadyStored: parsed.bars.length - r.inserted,
+      bad: parsed.bad, firstBad: parsed.firstBad, skippedSpreads: parsed.skipped,
+      first: r.first, last: r.last,
+    });
+  } catch (e: any) {
+    console.error('[bars/upload]', e.message);
+    res.status(500).json({ error: 'Failed to store the uploaded bars' });
   }
 });
 
