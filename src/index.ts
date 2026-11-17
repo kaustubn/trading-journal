@@ -32,6 +32,7 @@ import notesRouter from './api/notes';
 import diagnosisRouter from './api/diagnosis';
 import disciplineRouter from './api/discipline';
 import barsRouter from './api/bars';
+import coachReplayRouter from './api/coachReplay';
 import chartSettingsRouter from './api/chartSettings';
 import chartDrawingsRouter from './api/chartDrawings';
 import replayRouter from './api/replay';
@@ -57,6 +58,7 @@ app.use(express.static(publicPath));
 app.use('/api/auth', authRouter);
 app.use('/api/admin', adminRouter);
 app.use('/api/bars', barsRouter); // own auth (admin only); keep above the '/api' mounts
+app.use('/api/coach/replay', coachReplayRouter); // own auth (admin only)
 app.use('/api/chart/settings', chartSettingsRouter);
 app.use('/api/chart/drawings', chartDrawingsRouter);
 app.use('/api/replay', replayRouter);

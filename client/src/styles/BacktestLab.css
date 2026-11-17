@@ -1,0 +1,53 @@
+/* Backtest Lab — uses the app's dark design tokens (theme.css) */
+.bl { margin: 16px 0; display: flex; flex-direction: column; gap: 14px; color: var(--text); }
+.bl h2 { font-size: 20px; margin: 0 0 2px; }
+.bl h3 { font-size: 14px; margin: 4px 0 8px; color: var(--text); }
+.bl-dim { color: var(--text-dim); font-size: 12px; margin: 0 0 8px; }
+.bl-bad { color: var(--red); }
+.bl-up { color: var(--green); }
+.bl-down { color: var(--red); }
+.bl-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; flex-wrap: wrap; }
+.bl-filters { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; margin-bottom: 8px; }
+.bl-field { display: flex; flex-direction: column; gap: 4px; font-size: 11px; color: var(--text-dim); text-transform: uppercase; letter-spacing: .04em; }
+.bl-field select, .bl-field input {
+  background: var(--card); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius-sm);
+  padding: 6px 8px; font-size: 13px; min-width: 110px; text-transform: none; letter-spacing: 0;
+}
+.bl-check { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-dim); align-self: center; }
+.bl-card { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 18px; }
+.bl-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px; margin-bottom: 10px; }
+.bl-tile { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px 12px; }
+.bl-tile-label { font-size: 11px; color: var(--text-dim); text-transform: uppercase; letter-spacing: .04em; margin-bottom: 4px; }
+.bl-tile-v { font-size: 17px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.bl-rules { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; margin-bottom: 10px; }
+.bl-rules .bl-field input, .bl-rules .bl-field select { min-width: 0; width: 100%; }
+.bl-chart { position: relative; margin-bottom: 8px; }
+.bl-chart svg { width: 100%; height: auto; display: block; overflow: visible; }
+.bl-grid { stroke: var(--border); stroke-width: 1; }
+.bl-axis0 { stroke: var(--border-2); stroke-width: 1.5; }
+.bl-tick { fill: var(--text-mute); font-size: 11px; }
+.bl-line { fill: none; stroke-width: 2; stroke-linejoin: round; }
+.bl-line.bl-equity { stroke: var(--brand-2); }
+.bl-line.bl-dd { stroke: var(--red); }
+.bl-area.bl-equity { fill: rgba(129, 140, 248, .12); }
+.bl-area.bl-dd { fill: rgba(239, 68, 68, .12); }
+.bl-dot { stroke: var(--panel); stroke-width: 2; }
+.bl-dot.bl-equity { fill: var(--brand-2); }
+.bl-dot.bl-dd { fill: var(--red); }
+.bl-cross { stroke: var(--text-mute); stroke-width: 1; stroke-dasharray: 3 3; }
+.bl-fan { fill: none; stroke: var(--brand-2); stroke-opacity: .35; stroke-width: 1.25; }
+.bl-tip {
+  position: absolute; top: 4px; transform: translateX(-50%); pointer-events: none; background: var(--card-2);
+  border: 1px solid var(--border-2); border-radius: var(--radius-sm); padding: 6px 9px; font-size: 12px; white-space: nowrap;
+  box-shadow: var(--shadow); font-variant-numeric: tabular-nums;
+}
+.bl-tip .bl-dim { margin: 0; }
+.bl-bar { display: flex; gap: 2px; height: 26px; border-radius: 6px; overflow: hidden; margin: 6px 0 12px; font-size: 12px; font-weight: 600; }
+.bl-bar > div { display: flex; align-items: center; padding: 0 8px; color: #fff; min-width: 34px; white-space: nowrap; }
+.bl-bar-pass { background: var(--green-dim); }
+.bl-bar-fail { background: var(--red-dim); }
+.bl-bar-open { background: var(--border-2); color: var(--text) !important; }
+.bl-table { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
+.bl-table th { text-align: left; color: var(--text-dim); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; padding: 6px 8px; border-bottom: 1px solid var(--border); }
+.bl-table td { padding: 6px 8px; border-bottom: 1px solid var(--border); }
+@media (max-width: 640px) { .bl-card { padding: 12px; } .bl-tile-v { font-size: 15px; } }

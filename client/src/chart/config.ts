@@ -3,6 +3,7 @@ import type { Chart, KLineData, Period } from 'klinecharts';
 import type { Clock } from './time';
 import type { Theme } from './theme';
 import type { DrawView, Magnet } from './drawingController';
+import { CoachRules, DEFAULT_RULES, mergeRules } from './coach';
 
 export const PANE = 'candle_pane';
 
@@ -99,6 +100,7 @@ export interface Settings {
   active: number;          // window that the top bar, keys and replay steps act on
   syncCrosshair: boolean;
   live: boolean;           // poll for new bars every minute
+  coach: CoachRules;       // practice rules the coach holds you to
 }
 const DEFAULT_PANES: PaneCfg[] = [{ tf: 5, src: 'journal' }, { tf: 1, src: 'journal' }, { tf: 15, src: 'journal' }, { tf: 60, src: 'journal' }];
 export const DEFAULTS: Settings = {
@@ -111,6 +113,7 @@ export const DEFAULTS: Settings = {
     return acc;
   }, {} as Settings['indicators']),
   layout: '1', panes: DEFAULT_PANES, active: 0, syncCrosshair: true, live: true,
+  coach: DEFAULT_RULES,
 };
 export const layoutCount = (m: LayoutMode) => LAYOUTS.find(l => l.mode === m)?.count ?? 1;
 
@@ -145,6 +148,7 @@ export function mergeSettings(saved: any): Settings {
   }
   if (Number.isInteger(saved.active) && saved.active >= 0 && saved.active < 4) s.active = saved.active;
   if (s.active >= layoutCount(s.layout)) s.active = 0;
+  s.coach = mergeRules(saved.coach);
   return s;
 }
 

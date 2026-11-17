@@ -36,6 +36,7 @@ import DataTable from './components/DataTable';
 import AttemptBar, { AttemptLite } from './components/AttemptBar';
 import UpgradeWall from './components/UpgradeWall';
 import ErrorBoundary from './components/ErrorBoundary';
+import BacktestLab from './components/BacktestLab';
 import { setChartLinkEnabled, OPEN_CHART_EVENT } from './utils/chartLink';
 import './App.css';
 
@@ -145,6 +146,7 @@ export default function App() {
     {
       title: 'Planning', items: [
         { key: 'checklist', label: 'Checklist', icon: '✅' },
+        { key: 'backtestlab', label: 'Backtest Lab', icon: '🧪' },
         { key: 'strategy', label: 'Strategy Builder', icon: '⚗️' },
         { key: 'risk', label: 'Risk Management', icon: '🛡️' },
       ]
@@ -613,6 +615,9 @@ export default function App() {
           )}
           {token && selectedAccount && view === 'insights' && (
             <ErrorBoundary name="Insights"><Insights token={token} account_id={selectedAccount} /></ErrorBoundary>
+          )}
+          {token && selectedAccount && view === 'backtestlab' && (
+            <ErrorBoundary name="Backtest Lab"><BacktestLab token={token} account_id={selectedAccount} attempt={selectedAttempt} /></ErrorBoundary>
           )}
           {token && selectedAccount && view === 'strategy' && (
             <ErrorBoundary name="Strategy Builder"><StrategyBuilder token={token} account_id={selectedAccount} /></ErrorBoundary>

@@ -1,8 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { ReplayEngine, OrderInput, Side, ClosedTrade, rOf } from '../chart/replay';
 import { Contract, fmtPrice, fmtUsd, signed } from '../chart/drawings';
 import { Clock, fmtWall } from '../chart/time';
 import { useOptions, values } from '../utils/options';
+import type { CoachRules } from '../chart/coach';
+import type { Verdict } from './CoachPanel';
 
 const SPEEDS = [0.5, 1, 2, 3, 5, 10];
 const REASON: Record<ClosedTrade['reason'], string> = { target: 'target', stop: 'stop', manual: 'closed', end: 'replay ended' };
@@ -16,7 +18,18 @@ interface Props {
   onAccount: (id: number) => void;
   onRetry: (t: ClosedTrade) => void;
   onExit: () => void;
+  coach: CoachHooks;
 }
+export interface CoachHooks {
+  rules: CoachRules;
+  check: (o: OrderInput) => string[];                                       // instant rule checks
+  review: (o: OrderInput, breaks: string[]) => Promise<{ verdict: Verdict; text: string } | null>; // Claude (null = unavailable)
+  note: (from: 'rule' | 'claude' | 'error', text: string, verdict?: Verdict) => void;
+}
+type Stage =
+  | { kind: 'breaks'; o: OrderInput; breaks: string[] }
+  | { kind: 'ai'; o: OrderInput; breaks: string[] }
+  | { kind: 'verdict'; o: OrderInput; breaks: string[]; verdict: Verdict | null; text: string };
 
 // Order ticket defaults are a per-browser convenience
 const DEF_KEY = 'mc.replay.order';
@@ -37,15 +50,22 @@ function loadDefaults(): Defaults {
   return d;
 }
 
-export default function ReplayBar({ engine: e, clock, accounts, accountId, onAccount, onRetry, onExit }: Props) {
+export default function ReplayBar({ engine: e, clock, accounts, accountId, onAccount, onRetry, onExit, coach }: Props) {
   const [ticket, setTicket] = useState<Side | null>(null);
   const [form, setForm] = useState(() => ({ ...loadDefaults(), notes: '' }));
   const [err, setErr] = useState('');
   const [showTrades, setShowTrades] = useState(false);
+  const [stage, setStageState] = useState<Stage | null>(null);
+  const stageSeq = useRef(0);   // a Claude review that comes back after Cancel is ignored
+  const setStage = (st: Stage | null) => { stageSeq.current++; setStageState(st); };
   const opts = useOptions();
   const setups = values(opts, 'setup');
 
-  useEffect(() => { if (e.position) setTicket(null); }, [e.position]);
+  useEffect(() => { if (e.position) { setTicket(null); setStage(null); } }, [e.position]);
+  const openTicket = (side: Side) => {
+    e.pause(); // think with the chart still
+    setTicket(ticket === side ? null : side); setStage(null); setShowTrades(false); setErr('');
+  };
 
   const p = e.position;
   const price = e.price;
@@ -54,18 +74,38 @@ export default function ReplayBar({ engine: e, clock, accounts, accountId, onAcc
   const failed = e.trades.filter(t => t.saved === 'failed');
   const num = (v: string) => (v.trim() === '' ? NaN : Number(v));
 
-  const submit = (ev: React.FormEvent) => {
-    ev.preventDefault();
-    if (!ticket) return;
-    const o: OrderInput = { ...form, side: ticket };
-    if (!Number.isInteger(o.qty) || o.qty < 1 || o.qty > 100) { setErr('Quantity must be 1–100.'); return; }
-    const msg = e.open(o);
-    if (msg) { setErr(msg); return; }
+  const place = (o: OrderInput, breaks: string[]) => {
+    const msg = e.open(o, breaks);
+    if (msg) { setErr(msg); setStage(null); return; }
     setErr('');
     setTicket(null);
+    setStage(null);
+    if (breaks.length) coach.note('rule', `Took it with ${breaks.length} rule break${breaks.length === 1 ? '' : 's'}, logged with the trade (tag "Rule break"):\n• ${breaks.join('\n• ')}`);
     try { const { notes: _n, ...keep } = form; localStorage.setItem(DEF_KEY, JSON.stringify(keep)); } catch { /* ignore */ }
     setForm(f => ({ ...f, notes: '' }));
   };
+  const runReview = (o: OrderInput, breaks: string[]) => {
+    setStage({ kind: 'ai', o, breaks });
+    const seq = stageSeq.current;
+    coach.review(o, breaks).then(res => {
+      if (seq !== stageSeq.current) return;
+      if (res && res.verdict === 'GO') { place(o, breaks); return; }
+      setStageState({ kind: 'verdict', o, breaks, verdict: res?.verdict ?? null, text: res?.text ?? 'Claude could not review this one (see the coach panel).' });
+    });
+  };
+  const aiOnTrades = coach.rules.enabled && coach.rules.ai === 'trades';
+  const submit = (ev: React.FormEvent) => {
+    ev.preventDefault();
+    if (!ticket || stage) return;
+    const o: OrderInput = { ...form, side: ticket };
+    if (!Number.isInteger(o.qty) || o.qty < 1 || o.qty > 100) { setErr('Quantity must be 1–100.'); return; }
+    if (!(o.stopPts > 0) || !(o.target > 0)) { setErr('Stop and target must be above 0.'); return; }
+    const breaks = coach.check(o);
+    if (breaks.length && coach.rules.pauseOnBreak) { e.pause(); setStage({ kind: 'breaks', o, breaks }); return; }
+    if (aiOnTrades) { runReview(o, breaks); return; }
+    place(o, breaks);
+  };
+  const cancelStage = () => { setStage(null); };
 
   const reward = form.targetUnit === 'R' ? form.stopPts * form.target : form.target;
   const pv = form.contract === 'NQ' ? 20 : 2;
@@ -115,12 +155,43 @@ export default function ReplayBar({ engine: e, clock, accounts, accountId, onAcc
           <input className="mc-input mc-wide" placeholder="Note (optional)" maxLength={500} value={form.notes}
             onChange={ev => setForm(f => ({ ...f, notes: ev.target.value }))} />
           {err && <div className="mc-hint mc-bad">{err}</div>}
-          <div className="mc-row mc-row-end">
+          {stage?.kind === 'breaks' && (
+            <div className="mc-coach-stop">
+              <div className="mc-coach-stop-title">⛔ Coach: this order breaks your rules</div>
+              <ul>{stage.breaks.map(b => <li key={b}>{b}</li>)}</ul>
+              <div className="mc-row mc-row-end">
+                <button type="button" className="mc-btn" onClick={cancelStage}>Fix the order</button>
+                <button type="button" className="mc-btn mc-small" onClick={() => { setStage(null); setTicket(null); coach.note('rule', 'Good call: order cancelled instead of breaking a rule.'); }}>Cancel order</button>
+                <button type="button" className="mc-btn mc-bad" onClick={() => (aiOnTrades ? runReview(stage.o, stage.breaks) : place(stage.o, stage.breaks))}>Take anyway (log rule break)</button>
+              </div>
+            </div>
+          )}
+          {stage?.kind === 'ai' && (
+            <div className="mc-coach-stop mc-coach-wait">
+              Claude is reviewing the entry…
+              <button type="button" className="mc-btn mc-small" onClick={() => place(stage.o, stage.breaks)}>Skip review</button>
+              <button type="button" className="mc-btn mc-small" onClick={cancelStage}>Back</button>
+            </div>
+          )}
+          {stage?.kind === 'verdict' && (
+            <div className={`mc-coach-stop mc-v-${(stage.verdict ?? 'info').toLowerCase()}`}>
+              <div className="mc-coach-stop-title">Claude: {stage.verdict ?? 'no review'}</div>
+              <div className="mc-coach-text">{stage.text}</div>
+              <div className="mc-row mc-row-end">
+                <button type="button" className="mc-btn" onClick={() => { setStage(null); setTicket(null); }}>Cancel order</button>
+                <button type="button" className={`mc-btn${stage.verdict === 'STOP' ? ' mc-bad' : ''}`}
+                  onClick={() => place(stage.o, stage.verdict === 'STOP' ? [...stage.breaks, "Took the trade against Claude's STOP"] : stage.breaks)}>
+                  {stage.verdict === 'STOP' ? 'Take anyway (log rule break)' : 'Place order'}
+                </button>
+              </div>
+            </div>
+          )}
+          {!stage && <div className="mc-row mc-row-end">
             <button type="button" className="mc-btn" onClick={() => { setTicket(null); setErr(''); }}>Cancel</button>
             <button type="submit" className={`mc-btn ${ticket === 'long' ? 'mc-buy' : 'mc-sell'}`}>
               {ticket === 'long' ? 'Buy' : 'Sell'} {form.qty} {form.contract}
             </button>
-          </div>
+          </div>}
         </form>
       )}
 
@@ -169,12 +240,12 @@ export default function ReplayBar({ engine: e, clock, accounts, accountId, onAcc
           </>
         ) : (
           <>
-            <button className="mc-btn mc-buy" disabled={price === null} onClick={() => { setTicket(ticket === 'long' ? null : 'long'); setShowTrades(false); setErr(''); }}>Buy</button>
-            <button className="mc-btn mc-sell" disabled={price === null} onClick={() => { setTicket(ticket === 'short' ? null : 'short'); setShowTrades(false); setErr(''); }}>Sell</button>
+            <button className="mc-btn mc-buy" disabled={price === null} onClick={() => openTicket('long')}>Buy</button>
+            <button className="mc-btn mc-sell" disabled={price === null} onClick={() => openTicket('short')}>Sell</button>
           </>
         )}
         <span className="mc-sep" />
-        <button className={`mc-btn mc-small${showTrades ? ' open' : ''}`} onClick={() => { setShowTrades(!showTrades); setTicket(null); }}
+        <button className={`mc-btn mc-small${showTrades ? ' open' : ''}`} onClick={() => { setShowTrades(!showTrades); setTicket(null); setStage(null); }}
           title="Trades taken in this replay session">
           {e.trades.length} trade{e.trades.length === 1 ? '' : 's'}{e.trades.length ? ` · ${wins}W · ${fmtUsd(total)}` : ''}
           {failed.length ? <span className="mc-bad"> · {failed.length} not saved</span> : null}

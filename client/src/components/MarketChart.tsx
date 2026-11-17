@@ -9,7 +9,12 @@ import { DrawingStore } from '../chart/drawingController';
 import { Drawing, Tool, validDrawing, fmtUsd } from '../chart/drawings';
 import { DrawToolbar, DrawEditBar } from './DrawingTools';
 import { ReplayEngine, ClosedTrade } from '../chart/replay';
-import ReplayBar from './ReplayBar';
+import ReplayBar, { CoachHooks } from './ReplayBar';
+import CoachPanel, { CoachMsg, Verdict } from './CoachPanel';
+import { checkOrder, checkAfterClose, CoachRules } from '../chart/coach';
+import { buildContext, PaneData } from '../chart/coachContext';
+import type { KLineData } from 'klinecharts';
+import type { OrderInput } from '../chart/replay';
 import {
   TFS, tfLabel, parseTfInput, INDS, IND_KEYS, IndKey, parseParams, Settings, DEFAULTS, mergeSettings,
   Meta, BarsResp, toK, FocusTrade, LAYOUTS, LayoutMode, layoutCount, PaneSource,
@@ -44,6 +49,10 @@ export default function MarketChart({ token, focus }: { token: string; focus?: {
   const [focusTrade, setFocusTrade] = useState<FocusTrade | null>(null);
   const [chartDates, setChartDates] = useState<Record<number, string>>({});
   const [live, setLive] = useState<LiveStatus | null>(null);
+  const [coachOpen, setCoachOpen] = useState(false);
+  const [coachMsgs, setCoachMsgs] = useState<CoachMsg[]>([]);
+  const [coachBusy, setCoachBusy] = useState(false);
+  const [widen, setWiden] = useState<{ prev: number } | null>(null); // stop was widened: put it back or log it
 
   const rootRef = useRef<HTMLDivElement>(null);
   const sRef = useRef<Settings>(DEFAULTS);
@@ -84,6 +93,8 @@ export default function MarketChart({ token, focus }: { token: string; focus?: {
   }), []);
 
   const saveTradeRef = useRef<(t: ClosedTrade) => void>(() => {});
+  const closedRef = useRef<(t: ClosedTrade) => void>(() => {});
+  const widenRef = useRef<(prev: number) => void>(() => {});
   const wsRef = useRef<Workspace | null>(null);
   const panesOf = () => [...(wsRef.current?.panes.values() ?? [])];
   const engine = useMemo(() => new ReplayEngine({
@@ -95,7 +106,8 @@ export default function MarketChart({ token, focus }: { token: string; focus?: {
     onMinute: k => panesOf().forEach(p => p.onMinute(k)),
     onOverlays: () => panesOf().forEach(p => p.drawReplay()),
     onChange: () => setTick(n => n + 1),
-    onClosed: t => saveTradeRef.current(t),
+    onClosed: t => { saveTradeRef.current(t); closedRef.current(t); },
+    onStopWidened: prev => widenRef.current(prev),
   }), []);
 
   if (!wsRef.current) {
@@ -282,10 +294,86 @@ export default function MarketChart({ token, focus }: { token: string; focus?: {
       entry_price: t.entry, exit_price: t.exit, stop_loss: t.stop, target: t.target,
       entry_time: new Date(t.entryTime).toISOString(), exit_time: new Date(t.exitTime).toISOString(),
       exit_reason: t.reason, timeframe: tfLabel(t.tf), setup_tag: t.setup || undefined, notes: t.notes || undefined,
+      rule_breaks: t.ruleBreaks.length ? t.ruleBreaks : undefined,
     }, auth())
       .then(() => engine.markSaved(t.id, 'saved'))
       .catch(err => engine.markSaved(t.id, 'failed', err?.response?.data?.error || 'Could not reach the server.'));
   };
+
+  // ----- Coach: your own rules checked instantly, Claude on request or on every trade -----
+  const msgSeq = useRef(0);
+  const coachNow = () => (engine.active && engine.cursor ? engine.cursor + 60000 : Date.now());
+  const note = (from: CoachMsg['from'], text: string, verdict?: Verdict) =>
+    setCoachMsgs(m => [...m.slice(-79), { id: ++msgSeq.current, at: coachNow(), from, text, verdict }]);
+  const setCoachRules = (r: CoachRules) => update(cur => ({ ...cur, coach: r }));
+  /** Candles on the open journal windows, left to right (TradingView windows are not readable). */
+  const paneData = (): PaneData[] => {
+    const cur = sRef.current;
+    return panesOf()
+      .filter(p => p.index < layoutCount(cur.layout) && cur.panes[p.index]?.src !== 'tv')
+      .sort((a, b) => a.index - b.index)
+      .map(p => ({ tf: p.tf(), bars: (p.chart.getDataList() as KLineData[]).slice(-300) }));
+  };
+  const askClaude = async (kind: 'entry' | 'exit' | 'ask', o: { question?: string; order?: OrderInput; checks?: string[]; trade?: ClosedTrade } = {}) => {
+    setCoachOpen(true);
+    setCoachBusy(true);
+    try {
+      const at = coachNow();
+      const levels = await axios.get('/api/bars/levels', { ...auth(), params: { symbol: 'NQ', at } })
+        .then(r => r.data.levels).catch(() => null);
+      const context = buildContext({
+        mode: engine.active ? 'replay' : 'live', now: at, panes: paneData(), levels, rules: sRef.current.coach,
+        engine: engine.active ? engine : null, order: o.order ?? null, ruleChecks: o.checks, trade: o.trade ?? null,
+      });
+      const r = await axios.post('/api/coach/replay', { kind, question: o.question, context }, auth());
+      const verdict = (r.data.verdict || 'INFO') as Verdict;
+      note('claude', r.data.text || '(no answer)', verdict);
+      return { verdict, text: String(r.data.text || '') };
+    } catch (err: any) {
+      note('error', err?.response?.data?.error || 'Could not reach Claude.');
+      return null;
+    } finally {
+      setCoachBusy(false);
+    }
+  };
+  const coachHooks: CoachHooks = {
+    rules: s.coach,
+    check: o => checkOrder(sRef.current.coach, o, coachNow(), engine.trades),
+    review: (o, checks) => askClaude('entry', { order: o, checks }),
+    note: (from, text, verdict) => { note(from, text, verdict); if (from !== 'claude') setCoachOpen(true); },
+  };
+  closedRef.current = (t: ClosedTrade) => {
+    const r = sRef.current.coach;
+    if (!r.enabled) return;
+    const stop = checkAfterClose(r, t.exitTime, engine.trades);
+    if (stop.length) {
+      note('rule', stop.join('\n'));
+      setCoachOpen(true);
+      if (r.pauseOnBreak) engine.pause();
+    }
+    if (r.ai === 'trades') askClaude('exit', { trade: t }).then(res => { if (res?.verdict === 'STOP') engine.pause(); });
+  };
+  widenRef.current = (prev: number) => {
+    const r = sRef.current.coach;
+    if (!r.enabled || !r.noWidenStop) return;
+    engine.pause();
+    setWiden({ prev });
+  };
+  const keepWidened = () => {
+    const p = engine.position;
+    if (p && widen) {
+      const text = `Widened the stop from ${widen.prev} to ${p.stop}`;
+      engine.addRuleBreak(text);
+      note('rule', `${text}: logged as a rule break on this trade.`);
+      setCoachOpen(true);
+    }
+    setWiden(null);
+  };
+  const revertWidened = () => {
+    if (widen) { engine.setStop(widen.prev); note('rule', `Stop put back at ${widen.prev}. Your stop is your plan.`); }
+    setWiden(null);
+  };
+  useEffect(() => { if (!engine.position && widen) setWiden(null); });
 
   // ----- 'Open on chart' from the journal -----
   const showFocus = (t: FocusTrade | null) => {
@@ -440,6 +528,10 @@ export default function MarketChart({ token, focus }: { token: string; focus?: {
         <button className="mc-btn" disabled={!store.canUndo} onClick={() => { ctl?.cancel(); store.undo(); }} title="Undo (Ctrl+Z)">↶</button>
         <button className="mc-btn" disabled={!store.canRedo} onClick={() => { ctl?.cancel(); store.redo(); }} title="Redo (Ctrl+Y)">↷</button>
         <span className="mc-sep" />
+        <button className={`mc-btn${coachOpen ? ' on' : ''}`} onClick={() => setCoachOpen(!coachOpen)}
+          title="Coach: checks your orders against your rules, pauses the replay when you break one, and lets you ask Claude about the chart">
+          Coach{coachMsgs.length ? ` · ${coachMsgs.length}` : ''}
+        </button>
         <button className={`mc-btn${replayOn || replayPick || panel === 'replay' ? ' on' : ''}`} disabled={replayOn}
           onClick={() => { setReplayPick(false); setPanel(panel === 'replay' ? null : 'replay'); }}
           title="Bar replay: hide the future and trade it bar by bar — all charts move together">⏪ Replay</button>
@@ -498,7 +590,19 @@ export default function MarketChart({ token, focus }: { token: string; focus?: {
           {replayPick && <div className="mc-pick-hint">Click the candle to start from (on any chart) — everything after it is hidden. Esc to cancel.</div>}
           {replayOn && (
             <ReplayBar engine={engine} clock={s.clock} accounts={accounts} accountId={replayAcct}
-              onAccount={setReplayAcct} onRetry={t => saveTradeRef.current(t)} onExit={exitReplay} />
+              onAccount={setReplayAcct} onRetry={t => saveTradeRef.current(t)} onExit={exitReplay} coach={coachHooks} />
+          )}
+          {widen && engine.position && (
+            <div className="mc-coach-modal" onMouseDown={ev => ev.stopPropagation()}>
+              <div className="mc-coach-stop-title">⛔ You moved your stop further away</div>
+              <div className="mc-coach-text">
+                {widen.prev} → {engine.position.stop}. Widening a stop to avoid being wrong is a rule break. The replay is paused.
+              </div>
+              <div className="mc-row mc-row-end">
+                <button className="mc-btn mc-primary" onClick={revertWidened}>Put it back</button>
+                <button className="mc-btn mc-bad" onClick={keepWidened}>Keep it (log rule break)</button>
+              </div>
+            </div>
           )}
           {busy && <div className="mc-busy">Loading…</div>}
           {error && <div className="mc-error" onClick={() => setErrorState('')} title="Click to dismiss">{error}</div>}
@@ -606,6 +710,14 @@ export default function MarketChart({ token, focus }: { token: string; focus?: {
           )}
         </div>
         {s.notesOpen && <DayNotes token={token} chartDate={chartDate} onClose={() => update({ notesOpen: false })} />}
+        {coachOpen && (
+          <CoachPanel rules={s.coach} onRules={setCoachRules} msgs={coachMsgs} busy={coachBusy} clock={s.clock}
+            onAsk={q => { note('you', q); askClaude('ask', { question: q }); }}
+            onReview={() => askClaude('ask', { question: engine.active && engine.position
+              ? 'Look at my open position on these charts. Is it still valid by my rules? What would you do with the stop and target?'
+              : 'Read these charts for me: day type, trend on each timeframe, the key levels nearby, and whether any of my setups (S1/S2/S3/ORB) is forming. What should I wait for?' })}
+            onClear={() => setCoachMsgs([])} onClose={() => setCoachOpen(false)} />
+        )}
       </div>
 
       <div className="mc-bottom">

@@ -74,6 +74,10 @@ router.post('/trades', async (req: Request, res: Response) => {
     if (setupTag === undefined) return bad('setup_tag must be a string of at most 100 characters');
     const userNotes = optString(b.notes, 2000);
     if (userNotes === undefined) return bad('notes must be a string of at most 2000 characters');
+    // Coach rules broken on this trade (practice discipline): tagged and written into the notes
+    const ruleBreaks: string[] = Array.isArray(b.rule_breaks)
+      ? b.rule_breaks.filter((x: unknown): x is string => typeof x === 'string' && x.trim() !== '').slice(0, 10).map((x: string) => x.slice(0, 160))
+      : [];
 
     const accountId: number = b.account_id;
     const symbol: string = b.symbol;
@@ -99,7 +103,8 @@ router.post('/trades', async (req: Request, res: Response) => {
     const notes =
       `Bar replay · ${sideLabel} ${quantity} ${symbol} · exit ${b.exit_reason}` +
       (timeframe ? ` · ${timeframe} chart` : '') +
-      (userNotes ? `\n${userNotes}` : '');
+      (userNotes ? `\n${userNotes}` : '') +
+      (ruleBreaks.length ? `\nRule breaks: ${ruleBreaks.join(' | ')}` : '');
 
     const brokerTradeId = `replay_${b.client_id}`;
 
@@ -130,7 +135,7 @@ router.post('/trades', async (req: Request, res: Response) => {
        RETURNING *`,
       [
         accountId, brokerTradeId, symbol, entryDate.toISOString(), exitDate.toISOString(), entry_price, exit_price,
-        quantity, pnl, setupTag, notes, ['Bar replay', sideLabel], stop_loss, target, attemptId,
+        quantity, pnl, setupTag, notes, ['Bar replay', sideLabel, ...(ruleBreaks.length ? ['Rule break'] : [])], stop_loss, target, attemptId,
         sessionFor(entryDate), timeframe, plannedRr, tz,
       ]
     );

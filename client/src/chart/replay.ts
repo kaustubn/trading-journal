@@ -24,6 +24,7 @@ export interface Position {
   entryMinute: number;               // start of the minute it filled on; exits are checked after it
   stop: number; target: number;
   setup: string; notes: string;
+  ruleBreaks: string[];              // coach rules broken on this trade (logged with it)
 }
 export interface ClosedTrade extends Position {
   id: string; exit: number; exitTime: number; reason: ExitReason; pnl: number; r: number;
@@ -44,6 +45,7 @@ export interface ReplayHooks {
   onOverlays: () => void;                // position or trades changed: every window redraws them
   onChange: () => void;
   onClosed: (t: ClosedTrade) => void;    // log it to the journal
+  onStopWidened?: (prevStop: number) => void; // the stop was dragged further from entry
 }
 
 const toTick = (v: number) => Math.round(v / TICK) * TICK;
@@ -273,7 +275,7 @@ export class ReplayEngine {
   }
 
   // ---------- trading ----------
-  open(o: OrderInput): string | null {
+  open(o: OrderInput, ruleBreaks: string[] = []): string | null {
     if (!this.active) return 'Replay is not running.';
     if (this.position) return 'A position is already open.';
     const price = this.price;
@@ -287,7 +289,7 @@ export class ReplayEngine {
     this.position = {
       side: o.side, qty: o.qty, contract: o.contract, entry: price,
       entryTime: this.cursor + MIN, entryMinute: this.cursor,
-      stop, target, setup: o.setup, notes: o.notes,
+      stop, target, setup: o.setup, notes: o.notes, ruleBreaks: [...ruleBreaks],
     };
     this.message = '';
     this.hooks.onOverlays();
@@ -301,10 +303,26 @@ export class ReplayEngine {
     if (!p) return;
     const dir = p.side === 'long' ? 1 : -1;
     stop = toTick(stop); target = toTick(target);
+    const prevStop = p.stop;
     if ((p.entry - stop) * dir > 0) p.stop = stop;
+    if (Math.abs(p.entry - p.stop) > Math.abs(p.entry - prevStop) + 1e-9) this.hooks.onStopWidened?.(prevStop);
     if ((target - p.entry) * dir > 0) p.target = target;
     this.hooks.onOverlays();
     this.hooks.onChange();
+  }
+
+  /** Put the stop back (coach: undo a widened stop). */
+  setStop(stop: number) {
+    const p = this.position;
+    if (!p) return;
+    const dir = p.side === 'long' ? 1 : -1;
+    if ((p.entry - stop) * dir > 0) p.stop = toTick(stop);
+    this.hooks.onOverlays();
+    this.hooks.onChange();
+  }
+  /** Record a rule broken while the position is open. */
+  addRuleBreak(text: string) {
+    if (this.position && !this.position.ruleBreaks.includes(text)) this.position.ruleBreaks.push(text);
   }
 
   closeAtMarket(reason: ExitReason = 'manual') {
