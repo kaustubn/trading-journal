@@ -12,13 +12,15 @@ import { ReplayEngine, ClosedTrade } from '../chart/replay';
 import ReplayBar, { CoachHooks } from './ReplayBar';
 import CoachPanel, { CoachMsg, Verdict } from './CoachPanel';
 import MentorPanel from './MentorPanel';
+import { Floating, IndicatorDialog, ChartSettingsDialog } from './ChartDialogs';
+import { Settings as Gear, Eye, EyeOff, GraduationCap, Rewind, Sun, Moon, Maximize2, Minimize2, Undo2, Redo2, Save, Trash2, Pencil, Upload } from 'lucide-react';
 import { checkOrder, checkAfterClose, CoachRules } from '../chart/coach';
 import { buildContext, PaneData } from '../chart/coachContext';
 import type { KLineData } from 'klinecharts';
 import type { OrderInput } from '../chart/replay';
 import {
   TFS, tfLabel, parseTfInput, INDS, IND_KEYS, IndKey, parseParams, Settings, DEFAULTS, mergeSettings,
-  Meta, BarsResp, toK, FocusTrade, LAYOUTS, LayoutMode, layoutCount, PaneSource, applyTvPreset, DEFAULTS as CHART_DEFAULTS,
+  Meta, BarsResp, toK, FocusTrade, LAYOUTS, LayoutMode, layoutCount, PaneSource, applyTvPreset, applyStdPreset, snapshotOf, applySnapshot,
 } from '../chart/config';
 import '../styles/MarketChart.css';
 
@@ -54,6 +56,11 @@ export default function MarketChart({ token, focus }: { token: string; focus?: {
   const [live, setLive] = useState<LiveStatus | null>(null);
   const [coachOpen, setCoachOpen] = useState(false);
   const [mentorOpen, setMentorOpen] = useState(false);
+  const [indDlg, setIndDlg] = useState<IndKey | null>(null);
+  const [chartDlg, setChartDlg] = useState(false);
+  const [layoutName, setLayoutName] = useState('');
+  const [renaming, setRenaming] = useState<number | null>(null);
+  const indActionRef = useRef<(name: string, feature: string) => void>(() => {});
   const [ftDate, setFtDate] = useState('');
   const [ftTime, setFtTime] = useState('09:25');
   const [ftSpeed, setFtSpeed] = useState(1);
@@ -133,10 +140,13 @@ export default function MarketChart({ token, focus }: { token: string; focus?: {
       setError: msg => setError(msg),
       setBusy: (i, b) => setBusyPanes(cur => (cur[i] === b ? cur : { ...cur, [i]: b })),
       onChartDate: (i, day) => setChartDates(cur => (cur[i] === day ? cur : { ...cur, [i]: day })),
+      indicatorAction: (name, feature) => indActionRef.current(name, feature),
       panes: new Map(),
     };
   }
   const ws = wsRef.current;
+  // test hook (headless checks): only when localStorage mc.debug = 1
+  try { if (localStorage.getItem('mc.debug') === '1') (window as any).__mcWs = ws; } catch { /* ignore */ }
   const startReplayRef = useRef<(t: number) => void>(() => {});
   const count = layoutCount(s.layout);
   const activeIdx = Math.min(s.active, count - 1);
@@ -292,6 +302,13 @@ export default function MarketChart({ token, focus }: { token: string; focus?: {
     if (!engine.active) panesOf().forEach(p => p.setHotkeys(true));
   };
   startReplayRef.current = startReplay;
+  indActionRef.current = (name: string, feature: string) => {
+    const k = IND_KEYS.find(x => INDS[x].name === name);
+    if (!k) return;
+    if (feature === 'eye') update(cur => ({ ...cur, indicators: { ...cur.indicators, [k]: { ...cur.indicators[k], hidden: !cur.indicators[k].hidden } } }));
+    else if (feature === 'gear') setIndDlg(k);
+    else if (feature === 'close') update(cur => ({ ...cur, indicators: { ...cur.indicators, [k]: { ...cur.indicators[k], on: false } } }));
+  };
   /** Forward test: go back to a day and trade it as it happens, second by second. */
   const startForward = async () => {
     if (!ftDate) return;
@@ -458,7 +475,7 @@ export default function MarketChart({ token, focus }: { token: string; focus?: {
       const cur = tfKeysRef.current;
       if (!cur && c) {
         if (e.key === 'Escape' && (c.active || c.hasMeasure || measureArmedRef.current || c.selected)) {
-          c.cancel(); c.clearMeasure(); setMeasureArmed(false); c.select(null);
+          c.release(); c.clearMeasure(); setMeasureArmed(false); c.select(null);
           return;
         }
         if ((e.key === 'Delete' || e.key === 'Backspace') && c.selected) { e.preventDefault(); c.remove(c.selected); return; }
@@ -558,42 +575,46 @@ export default function MarketChart({ token, focus }: { token: string; focus?: {
         </button>
         <button className={`mc-btn${s.sessions ? ' on' : ''}`} onClick={() => update({ sessions: !s.sessions })}
           title="Shade Asia (6pm–2am), London (2–9:30am) and New York (9:30am–4pm ET). Shown on 1h and below.">Sessions</button>
-        <button className={`mc-btn${s.rth ? ' on' : ''}`} onClick={() => update({ rth: !s.rth })}
-          title={s.rth ? 'Showing regular trading hours only (9:30am–4pm ET). Click for the full session.' : 'Showing the full session. Click for regular trading hours only (9:30am–4pm ET).'}>
-          {s.rth ? 'RTH' : 'ETH'}
-        </button>
+        <div className="mc-seg mc-session-seg" title="Which hours the candles show">
+          <button className={!s.rth ? 'on' : ''} onClick={() => s.rth && update({ rth: false })}
+            title="Full 23-hour session, 6pm–5pm ET (ETH): overnight + day">24h</button>
+          <button className={s.rth ? 'on' : ''} onClick={() => !s.rth && update({ rth: true })}
+            title="New York day session only, 9:30am–4pm ET (RTH)">Day 9:30–4</button>
+        </div>
         <button className={`mc-btn${panel === 'levels' ? ' open' : ''}`} onClick={() => setPanel(panel === 'levels' ? null : 'levels')}>Levels</button>
         <button className={`mc-btn${s.notesOpen ? ' on' : ''}`} onClick={() => update({ notesOpen: !s.notesOpen })}
           title="Day notes: pre-market plan and review for the trading day on the active chart">Notes</button>
         <span className="mc-grow" />
-        <button className="mc-btn" disabled={!store.canUndo} onClick={() => { ctl?.cancel(); store.undo(); }} title="Undo (Ctrl+Z)">↶</button>
-        <button className="mc-btn" disabled={!store.canRedo} onClick={() => { ctl?.cancel(); store.redo(); }} title="Redo (Ctrl+Y)">↷</button>
+        <button className="mc-btn" disabled={!store.canUndo} onClick={() => { ctl?.cancel(); store.undo(); }} title="Undo (Ctrl+Z)"><Undo2 size={15} /></button>
+        <button className="mc-btn" disabled={!store.canRedo} onClick={() => { ctl?.cancel(); store.redo(); }} title="Redo (Ctrl+Y)"><Redo2 size={15} /></button>
         <span className="mc-sep" />
         <button className={`mc-btn${mentorOpen ? ' on' : ''}`} onClick={() => { setMentorOpen(!mentorOpen); if (!mentorOpen) setCoachOpen(false); }}
-          title="Mentor: learn a mentor's book or course bar by bar, practise real setups, Pattern Sprint game">🎓 Mentor</button>
+          title="Mentor: learn a mentor's book or course bar by bar, practise real setups, Pattern Sprint game"><GraduationCap size={15} /> Mentor</button>
         <button className={`mc-btn${coachOpen ? ' on' : ''}`} onClick={() => { setCoachOpen(!coachOpen); if (!coachOpen) setMentorOpen(false); }}
           title="Coach: checks your orders against your rules, pauses the replay when you break one, and lets you ask Claude about the chart">
           Coach{coachMsgs.length ? ` · ${coachMsgs.length}` : ''}
         </button>
         <button className={`mc-btn${replayOn || replayPick || panel === 'replay' ? ' on' : ''}`} disabled={replayOn}
           onClick={() => { setReplayPick(false); setPanel(panel === 'replay' ? null : 'replay'); }}
-          title="Bar replay: hide the future and trade it bar by bar — all charts move together">⏪ Replay</button>
+          title="Bar replay: hide the future and trade it bar by bar — all charts move together"><Rewind size={15} /> Replay</button>
         <button className="mc-btn" disabled={replayOn} onClick={openGoTo} title="Go to a date and time (Alt+G)">Go to…</button>
         {target !== null && !replayOn && <button className="mc-btn mc-accent" onClick={goLatest} title="Back to the most recent bars">Latest »</button>}
         <button className="mc-btn" onClick={() => update({ theme: s.theme === 'dark' ? 'light' : 'dark' })}
-          title={s.theme === 'dark' ? 'Switch to light chart' : 'Switch to dark chart'}>{s.theme === 'dark' ? '☀' : '☾'}</button>
-        <button className="mc-btn" onClick={toggleFull} title={full ? 'Exit full screen' : 'Full screen'}>{full ? '🗗' : '⛶'}</button>
+          title={s.theme === 'dark' ? 'Switch to light chart' : 'Switch to dark chart'}>{s.theme === 'dark' ? <Sun size={15} /> : <Moon size={15} />}</button>
+        <button className={`mc-btn${chartDlg ? ' on' : ''}`} onClick={() => setChartDlg(!chartDlg)} title="Chart settings: candles, background, grid, crosshair, scales, status line"><Gear size={15} /></button>
+        <button className="mc-btn" onClick={toggleFull} title={full ? 'Exit full screen' : 'Full screen'}>{full ? <Minimize2 size={15} /> : <Maximize2 size={15} />}</button>
       </div>
 
       <div className="mc-body">
         <DrawToolbar ctl={ctl} magnet={s.magnet} hidden={s.drawHidden} lockAll={s.drawLocked}
           measureArmed={measureArmed}
           onMagnet={m => update({ magnet: m })} onHidden={v => update({ drawHidden: v })}
-          onLockAll={v => update({ drawLocked: v })} onMeasure={setMeasureArmed} />
+          onLockAll={v => update({ drawLocked: v })} onMeasure={setMeasureArmed}
+          stay={s.stayDrawing} onStay={v => update({ stayDrawing: v })} />
         <div className="mc-stage">
           <div className={`mc-grid mc-grid-${s.layout}`}>
             {ready && s.panes.slice(0, count).map((p, i) => (
-              <div key={i} className={`mc-cell${i === activeIdx ? ' active' : ''}${count > 1 ? '' : ' single'}`}
+              <div key={i} className={`mc-cell${i === activeIdx ? ' active' : ''}${count > 1 ? '' : ' single'}`} style={{ background: s.chart.bg }}
                 onMouseDown={() => setActive(i)}>
                 <div className="mc-cell-head">
                   {count > 1 && <span className="mc-cell-num" title={`Chart ${i + 1} (Alt+${i + 1})`}>{i + 1}</span>}
@@ -611,7 +632,7 @@ export default function MarketChart({ token, focus }: { token: string; focus?: {
                 </div>
                 <div className="mc-cell-body">
                   {p.src === 'tv'
-                    ? <TvPane interval={p.tf} theme={s.theme} timezone={TZ[s.clock] as 'America/New_York' | 'Etc/GMT+7'} />
+                    ? <TvPane interval={p.tf} theme={s.theme} timezone={s.clock === 'BC' ? 'America/Phoenix' : 'America/New_York'} />
                     : <ChartPane index={i} tf={p.tf} s={s} active={i === activeIdx} ws={ws} onActivate={setActive} />}
                 </div>
               </div>
@@ -630,6 +651,13 @@ export default function MarketChart({ token, focus }: { token: string; focus?: {
               <button className="mc-btn mc-small" title="Scroll back to this trade"
                 onClick={() => goTo(focusTrade.exit ? Math.round((focusTrade.entry + focusTrade.exit) / 2) : focusTrade.entry)}>Show</button>
               <button className="mc-btn mc-small" onClick={() => showFocus(null)} title="Remove the trade markers">✕</button>
+            </div>
+          )}
+          {ctl?.manualTool === 'path' && (
+            <div className="mc-pick-hint mc-path-hint">
+              Path: {ctl.pathPoints} point{ctl.pathPoints === 1 ? '' : 's'} — click to add, double-click / Enter / right-click to finish
+              <button className="mc-btn mc-small mc-primary" disabled={ctl.pathPoints < 2} onMouseDown={e => e.stopPropagation()} onClick={() => { ctl.release(); redraw(); }}>Finish</button>
+              <button className="mc-btn mc-small" onMouseDown={e => e.stopPropagation()} onClick={() => { ctl.cancel(); redraw(); }}>Cancel</button>
             </div>
           )}
           {replayPick && <div className="mc-pick-hint">Click the candle to start from (on any chart) — everything after it is hidden. Esc to cancel.</div>}
@@ -709,12 +737,32 @@ export default function MarketChart({ token, focus }: { token: string; focus?: {
                   <span className="mc-dim">levels · chart settings · tools · indicators · colours from your TradingView</span>
                 </button>
                 <button className={`mc-style-btn${s.look === 'journal' ? ' on' : ''}`}
-                  onClick={() => update(cur => ({ ...cur, look: 'journal', toolTpl: {}, indicators: { ...CHART_DEFAULTS.indicators, NQSYS: { ...CHART_DEFAULTS.indicators.NQSYS, on: false } } }))}
+                  onClick={() => update(applyStdPreset)}
                   title="TradingView's standard dark chart with green/red candles">
                   <span className="mc-style-swatch mc-swatch-journal" /><b>Standard</b>
                   <span className="mc-dim">green / red candles, grid, default tool colours</span>
                 </button>
               </div>
+              <div className="mc-panel-title mc-sub-title">My layouts</div>
+              {!s.saved.length && <div className="mc-hint">Save the current windows, timeframes, chart settings, indicators and tool templates as a layout, then switch between them here.</div>}
+              {s.saved.map((l, i) => (
+                <div key={i} className="mc-row mc-saved-row">
+                  {renaming === i ? (
+                    <input className="mc-input mc-grow" autoFocus defaultValue={l.name} maxLength={40}
+                      onKeyDown={e => { e.stopPropagation(); if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); if (e.key === 'Escape') setRenaming(null); }}
+                      onBlur={e => { const v = e.target.value.trim(); setRenaming(null); if (v) update(cur => ({ ...cur, saved: cur.saved.map((x, j) => (j === i ? { ...x, name: v } : x)) })); }} />
+                  ) : (
+                    <button className="mc-btn mc-grow mc-saved-load" onClick={() => update(cur => applySnapshot(cur, l.data))} title="Load this layout">{l.name}</button>
+                  )}
+                  <button className="mc-btn mc-small" title="Overwrite with the current chart" onClick={() => update(cur => ({ ...cur, saved: cur.saved.map((x, j) => (j === i ? { ...x, data: snapshotOf(cur) } : x)) }))}><Upload size={13} /></button>
+                  <button className="mc-btn mc-small" title="Rename" onClick={() => setRenaming(i)}><Pencil size={13} /></button>
+                  <button className="mc-btn mc-small" title="Delete this layout" onClick={() => update(cur => ({ ...cur, saved: cur.saved.filter((_, j) => j !== i) }))}><Trash2 size={13} /></button>
+                </div>
+              ))}
+              <form className="mc-row" onSubmit={e => { e.preventDefault(); const n = layoutName.trim(); if (!n) return; update(cur => ({ ...cur, saved: [...cur.saved.filter(x => x.name !== n), { name: n, data: snapshotOf(cur) }].slice(-20) })); setLayoutName(''); }}>
+                <input className="mc-input mc-grow" placeholder="New layout name" maxLength={40} value={layoutName} onChange={e => setLayoutName(e.target.value)} onKeyDown={e => e.stopPropagation()} />
+                <button type="submit" className="mc-btn mc-primary" disabled={!layoutName.trim()}><Save size={14} /> Save</button>
+              </form>
             </div>
           )}
 
@@ -723,20 +771,22 @@ export default function MarketChart({ token, focus }: { token: string; focus?: {
               <div className="mc-panel-title">Indicators <span className="mc-dim">(all charts)</span></div>
               {IND_KEYS.map(k => {
                 const def = INDS[k], cfg = s.indicators[k];
-                const text = paramText[k] ?? cfg.params.join(', ');
-                const bad = paramText[k] !== undefined && parseParams(k, paramText[k]) === null;
                 return (
-                  <div key={k} className="mc-row">
-                    <label className="mc-check">
+                  <div key={k} className="mc-ind-row">
+                    <label className="mc-check mc-ind-name">
                       <input type="checkbox" checked={cfg.on} onChange={() => toggleInd(k)} />
-                      <span>{def.label}</span>
+                      <span>{def.label}{def.max > 0 && cfg.params.length ? <span className="mc-dim"> {cfg.params.join(', ')}</span> : null}</span>
                     </label>
-                    {def.max > 0 ? (
-                      <input className={`mc-input${bad ? ' bad' : ''}`} value={text} placeholder={def.hint} title={def.hint}
-                        onChange={e => setParamText(p => ({ ...p, [k]: e.target.value }))}
-                        onBlur={() => commitParams(k)}
-                        onKeyDown={e => { if (e.key === 'Enter') commitParams(k); }} />
-                    ) : <span className="mc-hint">{def.hint}</span>}
+                    <span className="mc-ind-actions">
+                      {cfg.on && (
+                        <button className="mc-btn mc-small" title={cfg.hidden ? 'Show' : 'Hide'}
+                          onClick={() => update(cur => ({ ...cur, indicators: { ...cur.indicators, [k]: { ...cur.indicators[k], hidden: !cur.indicators[k].hidden } } }))}>
+                          {cfg.hidden ? <EyeOff size={14} /> : <Eye size={14} />}
+                        </button>
+                      )}
+                      <button className="mc-btn mc-small" title="Settings: inputs and colours" onClick={() => { setIndDlg(k); setPanel(null); }}><Gear size={14} /></button>
+                    </span>
+                    <div className="mc-ind-hint">{def.hint}</div>
                   </div>
                 );
               })}
@@ -803,6 +853,11 @@ export default function MarketChart({ token, focus }: { token: string; focus?: {
           )}
         </div>
         {s.notesOpen && <DayNotes token={token} chartDate={chartDate} onClose={() => update({ notesOpen: false })} />}
+        {indDlg && (
+          <IndicatorDialog k={indDlg} cfg={s.indicators[indDlg]} look={s.look} onClose={() => setIndDlg(null)}
+            onChange={c => update(cur => ({ ...cur, indicators: { ...cur.indicators, [indDlg]: c } }))} />
+        )}
+        {chartDlg && <ChartSettingsDialog cfg={s.chart} onChange={c => update(cur => ({ ...cur, chart: c }))} onClose={() => setChartDlg(false)} />}
         {mentorOpen && (
           <MentorPanel ws={ws} activeIdx={activeIdx} clock={s.clock}
             setPaneTf={(i, tf) => setPane(i, { tf })}

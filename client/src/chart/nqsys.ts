@@ -11,7 +11,23 @@
 import { registerIndicator, KLineData } from 'klinecharts';
 import { etMinutes, sessionDay } from './time';
 
-export interface NqSysExt { tfMin: number }
+export interface NqLine { color: string; width: number; show: boolean }
+export interface NqStyle {
+  ema: NqLine; vwap: NqLine; va: NqLine; ib: NqLine; pdh: NqLine; pdl: NqLine;
+  signals: boolean; plan: boolean; card: boolean; note: boolean;
+}
+/** Kay's TradingView settings for NQ-SYS v3 (read 2026-11-17). */
+export const NQ_STYLE_TV: NqStyle = {
+  ema: { color: 'rgba(255, 255, 255, 1)', width: 2, show: true },
+  vwap: { color: 'rgba(0, 0, 0, 1)', width: 2, show: true },
+  va: { color: 'rgba(0, 188, 212, 1)', width: 2, show: true },
+  ib: { color: 'rgba(255, 255, 255, 1)', width: 2, show: true },
+  pdh: { color: 'rgba(76, 175, 80, 1)', width: 3, show: true },
+  pdl: { color: 'rgba(233, 30, 99, 1)', width: 3, show: true },
+  signals: true, plan: true, card: true, note: false,
+};
+export interface NqSysExt { tfMin: number; style?: Partial<NqStyle> }
+const nqStyle = (e?: NqSysExt): NqStyle => ({ ...NQ_STYLE_TV, ...(e?.style ?? {}) });
 
 // ---- Pine input defaults ----
 const EMA_LEN = 21, ATR_LEN = 14, RSI_LEN = 14;
@@ -336,10 +352,10 @@ export function registerNqSys() {
   registerIndicator<NqRow, number, NqSysExt>({
     name: 'JC_NQSYS', shortName: 'NQ-SYS v3', series: 'price', precision: 2, calcParams: [],
     figures: [
-      { key: 'ema', title: 'EMA21: ', type: 'line', styles: () => ({ color: C.ema }) },
-      { key: 'vwap', title: 'VWAP: ', type: 'line', styles: () => ({ color: C.vwap }) },
-      { key: 'vah', title: 'VAH: ', type: 'line', styles: () => ({ color: C.va }) },
-      { key: 'val', title: 'VAL: ', type: 'line', styles: () => ({ color: C.va }) },
+      { key: 'ema', title: 'EMA21: ', type: 'line', styles: ({ indicator }) => ({ color: nqStyle(indicator.extendData as NqSysExt).ema.color }) },
+      { key: 'vwap', title: 'VWAP: ', type: 'line', styles: ({ indicator }) => ({ color: nqStyle(indicator.extendData as NqSysExt).vwap.color }) },
+      { key: 'vah', title: 'VAH: ', type: 'line', styles: ({ indicator }) => ({ color: nqStyle(indicator.extendData as NqSysExt).va.color }) },
+      { key: 'val', title: 'VAL: ', type: 'line', styles: ({ indicator }) => ({ color: nqStyle(indicator.extendData as NqSysExt).va.color }) },
     ],
     shouldUpdate: (prev, cur) => {
       const calc = prev.calc !== cur.calc || prev.extendData?.tfMin !== cur.extendData?.tfMin;
@@ -357,6 +373,7 @@ export function registerNqSys() {
       const X = (i: number) => xAxis.convertToPixel(i);
       const Y = (v: number) => yAxis.convertToPixel(v);
       const { width, height } = bounding;
+      const st = nqStyle(indicator.extendData as NqSysExt | undefined);
       ctx.save();
       ctx.font = FONT;
 
@@ -375,14 +392,15 @@ export function registerNqSys() {
             }
           }
         };
-        shade(b => b.inIB, C.ibBg);
-        shade(b => b.inORB, C.orbBg);
+        // IB / ORB shading switched off (Kay: no yellow / grey vertical zones on the chart)
+        void shade;
 
         // Line plots, broken where the value is na
         const lo = Math.max(0, from - 1), hi = Math.min(n, to + 1);
-        const series = (get: (b: BarInfo) => number, color: string) => {
-          ctx.strokeStyle = color;
-          ctx.lineWidth = 1;
+        const series = (get: (b: BarInfo) => number, ln: NqLine) => {
+          if (!ln.show) return;
+          ctx.strokeStyle = ln.color;
+          ctx.lineWidth = ln.width;
           ctx.setLineDash([]);
           ctx.beginPath();
           let pen = false;
@@ -395,20 +413,21 @@ export function registerNqSys() {
           }
           ctx.stroke();
         };
-        series(b => b.pdh, C.pd);
-        series(b => b.pdl, C.pd);
-        series(b => b.ibHi, C.ib);
-        series(b => b.ibLo, C.ib);
-        series(b => b.vah, C.va);
-        series(b => b.val, C.va);
-        series(b => b.vwap, C.vwap);
-        series(b => b.ema, C.ema);
+        series(b => b.pdh, st.pdh);
+        series(b => b.pdl, st.pdl);
+        series(b => b.ibHi, st.ib);
+        series(b => b.ibLo, st.ib);
+        series(b => b.vah, st.va);
+        series(b => b.val, st.va);
+        series(b => b.vwap, st.vwap);
+        series(b => b.ema, st.ema);
 
         // Signals
         const data = chart.getDataList();
         const sz = Math.max(4, Math.min(7, half + 1));
         ctx.textAlign = 'center';
         for (let i = from; i < to; i++) {
+          if (!st.signals) break;
           const b = rows[i].b;
           if (!b || !b.sig || !data[i]) continue;
           const x = X(i);
@@ -441,7 +460,7 @@ export function registerNqSys() {
 
       // Trade plan for the latest signal
       const plan = last.plan;
-      if (plan && plan.idx + DRAW_LEN >= from && plan.idx < to) {
+      if (st.plan && plan && plan.idx + DRAW_LEN >= from && plan.idx < to) {
         const x1 = X(plan.idx), x2 = X(plan.idx + DRAW_LEN);
         const hline = (v: number, color: string, dash: number[]) => {
           const y = Math.round(Y(v)) + 0.5;
@@ -472,6 +491,7 @@ export function registerNqSys() {
       }
 
       // Scorecard (top right)
+      if (st.card) {
       const card = last.card;
       const padX = 6, rowH = 18, margin = 8;
       let w0 = 0, w1 = 0;
@@ -503,7 +523,7 @@ export function registerNqSys() {
       });
 
       // Timeframe nudge
-      if (card.note) {
+      if (st.note && card.note) {
         const txt = 'Run on 5-min chart for intended behaviour';
         const nw = ctx.measureText(txt).width + 12, nh = 18;
         const nx = Math.round(width - nw - margin), ny = ty + th + 4;
@@ -513,6 +533,7 @@ export function registerNqSys() {
         ctx.fillText(txt, nx + nw / 2, ny + nh / 2);
       }
 
+      }
       ctx.restore();
       return true;
     },

@@ -28,6 +28,7 @@ export interface Workspace {
   setError: (msg: string) => void;
   setBusy: (index: number, busy: boolean) => void;
   onChartDate: (index: number, day: string) => void;
+  indicatorAction: (name: string, feature: string) => void;  // eye / gear / close in an indicator's legend
   panes: Map<number, PaneHandle>;
 }
 export interface PaneHandle {
@@ -57,12 +58,37 @@ export default function ChartPane({ index, tf, s, active, ws, onActivate }: Prop
   const tfRef = useRef(tf);
   const sRef = useRef(s);
   const appliedRef = useRef<{ s: Settings; tf: number } | null>(null);
-  const localTarget = useRef<{ ts: number; align: 'right' | 'center' } | null>(null); // keeps this window's moment on a timeframe change
+  const localTarget = useRef<{ ts: number; align: 'right' | 'center' | 'mid' } | null>(null); // keeps this window's moment on a timeframe change
   const loadSeq = useRef(0);
   const levelsRef = useRef<LevelsData | null>(null);
   const levelsAt = useRef<number | null>(null);
   const levelsTimer = useRef<number | undefined>(undefined);
   const [guideX, setGuideX] = useState<number | null>(null);
+  const [countdown, setCountdown] = useState<{ y: number; left: number; width: number; text: string; up: boolean } | null>(null);
+
+  // ----- time to the candle's close, under the last price on the right scale (like TradingView) -----
+  useEffect(() => {
+    const tick = () => {
+      const chart = chartRef.current, st = sRef.current, tfm = tfRef.current, eng = ws.engine;
+      if (!chart || tfm >= 1440 || !st.chart.countdown) { setCountdown(null); return; }
+      const data = chart.getDataList();
+      const last = data[data.length - 1];
+      const now = eng.active ? (eng.live ? eng.nowMs : null) : Date.now();
+      if (!last || now === null) { setCountdown(null); return; }
+      const end = barEnd(last.timestamp, tfm, st.rth) + 60000;
+      const rem = end - now;
+      if (rem <= 0 || rem > tfm * 60000 + 60000) { setCountdown(null); return; }
+      const px = chart.convertToPixel({ timestamp: last.timestamp, value: last.close }, { paneId: PANE }) as { y?: number };
+      const ax = chart.getSize(PANE, 'yAxis' as any) as { left: number; width: number; height: number } | null;
+      if (!ax || typeof px?.y !== 'number' || px.y < 0 || px.y > ax.height) { setCountdown(null); return; }
+      const sec = Math.ceil(rem / 1000), h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s2 = sec % 60;
+      const text = `${h ? `${h}:${String(m).padStart(2, '0')}` : String(m).padStart(2, '0')}:${String(s2).padStart(2, '0')}`;
+      setCountdown({ y: px.y + 10, left: ax.left, width: ax.width, text, up: last.close >= (data[data.length - 2]?.close ?? last.open) });
+    };
+    tick();
+    const t = window.setInterval(tick, 250);
+    return () => window.clearInterval(t);
+  }, [ws]);
   tfRef.current = tf;
   sRef.current = s;
 
@@ -75,7 +101,7 @@ export default function ChartPane({ index, tf, s, active, ws, onActivate }: Prop
     const chart = chartRef.current, st = sRef.current;
     if (!chart) return;
     const extendData: BgData = {
-      tfMin: tfRef.current, dark: st.theme === 'dark', sessions: st.sessions && !st.rth, breaks: st.look === 'tv',
+      tfMin: tfRef.current, dark: st.theme === 'dark', sessions: st.sessions && !st.rth, breaks: st.chart.breaks, breaksColor: st.chart.breaksColor,
       rolls: st.rolls ? ws.meta()?.rolls ?? [] : null,
       levels: levelsRef.current, show: st.levels,
     };
@@ -190,7 +216,22 @@ export default function ChartPane({ index, tf, s, active, ws, onActivate }: Prop
             const vr = chart.getVisibleRange();
             idx = Math.min(data.length - 1, idx + Math.round((vr.to - vr.from) * 0.35));
           }
-          chart.scrollToDataIndex(idx);
+          if (tgt.align === 'mid') {
+            // after the chart has applied the new bars: put the remembered bar in the middle
+            // (scrollToDataIndex(i) puts bar i at the right edge)
+            const ts = tgt.ts;
+            const place = () => {
+              const c2 = chartRef.current;
+              if (!c2) return;
+              const d2 = c2.getDataList();
+              let i2 = d2.findIndex(k => k.timestamp >= ts);
+              if (i2 < 0) i2 = d2.length - 1;
+              const vr = c2.getVisibleRange();
+              c2.scrollToDataIndex(Math.min(d2.length - 1, i2 + Math.floor((vr.to - vr.from) / 2)));
+            };
+            place();
+            window.setTimeout(place, 60);
+          } else chart.scrollToDataIndex(idx);
         }
         viewRef.current?.drawOverlays();
         drawFocus();
@@ -219,7 +260,8 @@ export default function ChartPane({ index, tf, s, active, ws, onActivate }: Prop
     if (!chart) { ws.setError('The chart could not start in this browser.'); return; }
     chartRef.current = chart;
     appliedRef.current = { s: st, tf: tfRef.current };
-    chart.setStyles(chartStyles(st.theme, st.look));
+    chart.setStyles(chartStyles(st.theme, st.chart));
+    chart.subscribeAction('onIndicatorTooltipFeatureClick', (d: any) => { if (d?.indicator?.name && d?.feature?.id) ws.indicatorAction(d.indicator.name, d.feature.id); });
     chart.setSymbol({ ticker: 'NQ', pricePrecision: 2, volumePrecision: 0 });
     chart.setPeriod(periodOf(tfRef.current));
     chart.createIndicator({ name: 'JC_BG', paneId: PANE }, true);
@@ -313,18 +355,25 @@ export default function ChartPane({ index, tf, s, active, ws, onActivate }: Prop
       const data = chart.getDataList();
       const vr = chart.getVisibleRange();
       const atEnd = !data.length || vr.to >= data.length;
-      if (!atEnd && !ws.engine.active) localTarget.current = { ts: data[Math.max(0, vr.to - 1)].timestamp, align: 'right' };
+      // the bar in the middle of the view stays in the middle on the new timeframe
+      const mid = data[Math.max(0, Math.min(data.length - 1, Math.round((vr.from + vr.to) / 2)))];
+      if (!atEnd && !ws.engine.active && mid) localTarget.current = { ts: mid.timestamp, align: 'mid' };
       chart.setPeriod(periodOf(tf));
     } else if (a.s.rth !== s.rth) {
+      const data = chart.getDataList();
+      const vr = chart.getVisibleRange();
+      const mid = data[Math.max(0, Math.min(data.length - 1, Math.round((vr.from + vr.to) / 2)))];
+      if (data.length && vr.to < data.length && !ws.engine.active && mid) localTarget.current = { ts: mid.timestamp, align: 'mid' };
       chart.resetData();
     }
     if (a.s.clock !== s.clock) chart.setTimezone(TZ[s.clock]);
-    if (a.s.theme !== s.theme || a.s.look !== s.look) { chart.setStyles(s.theme); chart.setStyles(chartStyles(s.theme, s.look)); }
+    if (a.s.theme !== s.theme || a.s.look !== s.look || a.s.chart !== s.chart) { chart.setStyles(s.theme); chart.setStyles(chartStyles(s.theme, s.chart)); }
     if (a.s.log !== s.log) chart.overrideYAxis({ paneId: PANE, name: s.log ? 'logarithm' : 'normal' });
-    if (a.s.indicators !== s.indicators || a.tf !== tf) syncIndicators(chart, s, tf);
+    if (a.s.indicators !== s.indicators || a.tf !== tf || a.s.look !== s.look) syncIndicators(chart, s, tf);
     pushBg();
     if (a.s.levels !== s.levels || a.tf !== tf) { levelsAt.current = null; refreshLevels(); }
     ctlRef.current?.setView(viewOf(s, tf));
+    if (ctlRef.current) ctlRef.current.stayDrawing = s.stayDrawing;
     appliedRef.current = { s, tf };
   }, [s, tf, ws, pushBg, refreshLevels]);
 
@@ -362,7 +411,14 @@ export default function ChartPane({ index, tf, s, active, ws, onActivate }: Prop
     };
     const onDown = (e: MouseEvent) => {
       const ctl = ctlRef.current;
-      if (!ctl || e.button !== 0) return;
+      if (!ctl) return;
+      if (e.button === 2) return;               // right-click: handled by onContext
+      if (e.button !== 0) return;
+      // a tool picked while another window was active follows the click to this window
+      if (!ctl.active) {
+        const other = [...ws.panes.values()].find(p => p.index !== index && p.ctl.active);
+        if (other) { const tool = other.ctl.active!; other.ctl.cancel(); ctl.start(tool); }
+      }
       onActivate(index);
       if (ws.replayPick()) {
         // Replay start: the clicked candle becomes the last one shown
@@ -413,21 +469,32 @@ export default function ChartPane({ index, tf, s, active, ws, onActivate }: Prop
       setGuideX(e.clientX - r.left);
     };
     const onLeave = () => setGuideX(null);
+    const onContext = (e: MouseEvent) => {
+      // right-click cancels the tool (a path is finished), like TradingView; no browser menu on the chart
+      e.preventDefault();
+      const ctl = ctlRef.current;
+      if (!ctl) return;
+      if (ctl.active) { e.stopPropagation(); ctl.release(); return; }
+      if (ctl.hasMeasure) { ctl.clearMeasure(); return; }
+      if (ctl.selected) ctl.select(null);
+    };
     const onDbl = (e: MouseEvent) => {
       const ctl = ctlRef.current;
       if (ctl?.manualTool === 'path') { e.stopPropagation(); e.preventDefault(); ctl.manualFinish(); }
     };
     const onKey = (e: KeyboardEvent) => {
       const ctl = ctlRef.current;
-      if (ctl?.manualTool === 'path' && e.key === 'Enter') { e.preventDefault(); ctl.manualFinish(); }
+      if (ctl?.manualTool === 'path' && e.key === 'Enter') { e.preventDefault(); ctl.release(); }
     };
     root.addEventListener('dblclick', onDbl, true);
+    root.addEventListener('contextmenu', onContext, true);
     window.addEventListener('keydown', onKey);
     root.addEventListener('mousedown', onDown, true);
     root.addEventListener('mousemove', onGuide);
     root.addEventListener('mouseleave', onLeave);
     return () => {
       root.removeEventListener('dblclick', onDbl, true);
+      root.removeEventListener('contextmenu', onContext, true);
       window.removeEventListener('keydown', onKey);
       root.removeEventListener('mousedown', onDown, true);
       root.removeEventListener('mousemove', onGuide);
@@ -440,6 +507,10 @@ export default function ChartPane({ index, tf, s, active, ws, onActivate }: Prop
     <div ref={rootRef} className={`mc-pane-chart${active ? ' active' : ''}${ws.measureArmed() ? ' mc-measuring' : ''}`}>
       <div ref={boxRef} className="mc-chart" />
       {ws.replayPick() && guideX !== null && <div className="mc-guide" style={{ left: guideX }} />}
+      {countdown && (
+        <div className={`mc-countdown${countdown.up ? ' up' : ' down'}`} style={{ top: countdown.y, left: countdown.left, width: countdown.width }}
+          title="Time left until this candle closes">{countdown.text}</div>
+      )}
     </div>
   );
 }

@@ -6,6 +6,7 @@ import type { DrawView, Magnet } from './drawingController';
 import { CoachRules, DEFAULT_RULES, mergeRules } from './coach';
 import type { Tool } from './drawings';
 import { TEMPLATES } from './templates';
+import { NQ_STYLE_TV, NqStyle } from './nqsys';
 
 export const PANE = 'candle_pane';
 
@@ -50,12 +51,95 @@ export const INDS: Record<IndKey, IndDef> = {
   SMA: { label: 'SMA', name: 'JC_SMA', main: true, def: [50, 200], hint: 'Periods, e.g. 50, 200', min: 1, max: 6 },
   VWAP: { label: 'VWAP', name: 'JC_VWAP', main: true, def: [], hint: 'Resets at the 6pm ET session open', min: 0, max: 0 },
   BOLL: { label: 'Bollinger Bands', name: 'BOLL', main: true, def: [20, 2], hint: 'Period, deviations', min: 2, max: 2 },
-  VOL: { label: 'Volume', name: 'VOL', main: false, def: [20], hint: 'Average period', min: 1, max: 1 },
+  VOL: { label: 'Volume', name: 'VOL', main: false, def: [], hint: 'Moving average period (empty = no average, like your TradingView)', min: 0, max: 1 },
   RSI: { label: 'RSI', name: 'RSI', main: false, def: [14], hint: 'Period', min: 1, max: 1 },
   ATR: { label: 'ATR', name: 'JC_ATR', main: false, def: [14], hint: 'Period', min: 1, max: 1 },
   MACD: { label: 'MACD', name: 'MACD', main: false, def: [12, 26, 9], hint: 'Fast, slow, signal', min: 3, max: 3 },
 };
 export const IND_KEYS = Object.keys(INDS) as IndKey[];
+
+/** One indicator's settings: on/off, inputs, hidden (eye), line colours, volume colours, NQ-SYS parts. */
+export interface IndCfg {
+  on: boolean; params: number[];
+  hidden?: boolean;
+  lines?: { color: string; size: number }[];
+  bars?: { up: string; down: string };
+  nq?: Partial<NqStyle>;
+}
+/** Line colours TradingView uses for each indicator's lines. */
+export const LINE_COLORS: Partial<Record<IndKey, string[]>> = {
+  EMA: ['#2962FF', '#FF9800', '#E91E63', '#00BCD4', '#9C27B0', '#4CAF50'],
+  SMA: ['#FF6D00', '#2962FF', '#E91E63', '#00BCD4', '#9C27B0', '#4CAF50'],
+  BOLL: ['#FF6D00', '#2962FF', '#2962FF'],
+  VWAP: ['#2962FF'], RSI: ['#7E57C2'], ATR: ['#B71C1C'], MACD: ['#2962FF', '#FF6D00'],
+  VOL: ['#FFEB3B'],
+};
+/** Names of the lines, for the settings dialog. */
+export function lineNames(k: IndKey, params: number[]): string[] {
+  if (k === 'EMA' || k === 'SMA') return params.map(n => `${k} ${n}`);
+  if (k === 'BOLL') return ['Basis', 'Upper', 'Lower'];
+  if (k === 'MACD') return ['MACD', 'Signal'];
+  if (k === 'VOL') return params.map(n => `Volume MA ${n}`);
+  if (k === 'RSI' || k === 'ATR' || k === 'VWAP') return [k];
+  return [];
+}
+/** Kay's TradingView volume colours (read 2026-11-17): white 65% up, black 75% down. */
+export const VOL_BARS_TV = { up: 'rgba(255, 255, 255, 0.6542)', down: 'rgba(0, 0, 0, 0.7497)' };
+export const VOL_BARS_STD = { up: 'rgba(8, 153, 129, 0.5)', down: 'rgba(242, 54, 69, 0.5)' };
+
+// ---------- chart settings (TradingView's Settings dialog) ----------
+export interface ChartCfg {
+  upBody: string; downBody: string; upBorder: string; downBorder: string; upWick: string; downWick: string;
+  body: boolean; borders: boolean; wicks: boolean; prevClose: boolean;
+  bg: string; grid: boolean; gridColor: string;
+  crossColor: string; crossWidth: number; crossStyle: 'solid' | 'dashed';
+  textColor: string; axisColor: string; fontSize: number;
+  priceLine: boolean; countdown: boolean; breaks: boolean; breaksColor: string;
+  legendOHLC: boolean; legendChange: boolean; legendVolume: boolean;
+  indTitles: boolean; indArgs: boolean; indValues: boolean;
+}
+/** Kay's TradingView chart (read 2026-11-17). */
+export const CHART_TV: ChartCfg = {
+  upBody: 'rgba(0, 188, 212, 1)', downBody: 'rgba(0, 0, 0, 1)', upBorder: 'rgba(0, 0, 0, 1)', downBorder: 'rgba(0, 0, 0, 1)',
+  upWick: 'rgba(0, 0, 0, 1)', downWick: 'rgba(0, 0, 0, 1)', body: true, borders: true, wicks: true, prevClose: true,
+  bg: '#9c9c9c', grid: false, gridColor: 'rgba(0, 0, 0, 0.08)',
+  crossColor: 'rgba(255, 255, 255, 1)', crossWidth: 2, crossStyle: 'solid',
+  textColor: 'rgba(0, 0, 0, 1)', axisColor: 'rgba(0, 0, 0, 1)', fontSize: 12,
+  priceLine: true, countdown: true, breaks: true, breaksColor: 'rgba(0, 0, 0, 0.22)',
+  legendOHLC: true, legendChange: true, legendVolume: true,
+  indTitles: true, indArgs: false, indValues: false,
+};
+/** TradingView's standard dark chart. */
+export const CHART_STD: ChartCfg = {
+  upBody: '#089981', downBody: '#f23645', upBorder: '#089981', downBorder: '#f23645', upWick: '#089981', downWick: '#f23645',
+  body: true, borders: true, wicks: true, prevClose: false,
+  bg: '#131722', grid: true, gridColor: 'rgba(42, 46, 57, 0.6)',
+  crossColor: '#9598a1', crossWidth: 1, crossStyle: 'dashed',
+  textColor: '#787b86', axisColor: '#2a2e39', fontSize: 11,
+  priceLine: true, countdown: true, breaks: false, breaksColor: 'rgba(255, 255, 255, 0.12)',
+  legendOHLC: true, legendChange: true, legendVolume: true,
+  indTitles: true, indArgs: true, indValues: true,
+};
+const COLOR_RE = /^(#[0-9a-fA-F]{3,8}|rgba?\(\s*\d+\s*,\s*\d+\s*,\s*\d+\s*(,\s*[\d.]+\s*)?\))$/;
+export const validColor = (c: unknown): c is string => typeof c === 'string' && c.length <= 40 && COLOR_RE.test(c.trim());
+function mergeChart(saved: any, base: ChartCfg): ChartCfg {
+  const c: ChartCfg = { ...base };
+  if (!saved || typeof saved !== 'object') return c;
+  for (const k of Object.keys(base) as (keyof ChartCfg)[]) {
+    const v = saved[k], d = base[k];
+    if (typeof d === 'boolean' && typeof v === 'boolean') (c as any)[k] = v;
+    else if (typeof d === 'number' && typeof v === 'number' && v >= 1 && v <= 20) (c as any)[k] = v;
+    else if (k === 'crossStyle' && (v === 'solid' || v === 'dashed')) c.crossStyle = v;
+    else if (typeof d === 'string' && k !== 'crossStyle' && validColor(v)) (c as any)[k] = v;
+  }
+  return c;
+}
+
+// ---------- saved layouts ----------
+/** What a saved layout restores: windows, timeframes, look, chart settings, indicators, tools, levels. */
+export type LayoutSnapshot = Pick<Settings, 'layout' | 'panes' | 'look' | 'theme' | 'chart' | 'indicators' | 'toolTpl' | 'levels' | 'sessions' | 'rth'>;
+export const SNAPSHOT_KEYS = ['layout', 'panes', 'look', 'theme', 'chart', 'indicators', 'toolTpl', 'levels', 'sessions', 'rth'] as const;
+export const snapshotOf = (s: Settings): LayoutSnapshot => JSON.parse(JSON.stringify(Object.fromEntries(SNAPSHOT_KEYS.map(k => [k, s[k]])))) as LayoutSnapshot;
 
 /** "9, 21" -> [9, 21]; null when the count or the values are not valid for that indicator. */
 export function parseParams(key: IndKey, text: string): number[] | null {
@@ -75,7 +159,14 @@ export function syncIndicators(chart: Chart, s: Settings, tf: number) {
     const def = INDS[key], cfg = s.indicators[key];
     const paneId = def.main ? PANE : `jc_${key}`;
     const exists = chart.getIndicators({ name: def.name }).length > 0;
-    const spec = { name: def.name, paneId, calcParams: cfg.params, extendData: { tfMin: tf } };
+    const styles: Record<string, unknown> = {};
+    const cols = LINE_COLORS[key];
+    if (cols) styles.lines = lineNames(key, cfg.params).map((_, i) => ({ color: cfg.lines?.[i]?.color ?? cols[i % cols.length], size: cfg.lines?.[i]?.size ?? 1 }));
+    if (key === 'VOL') {
+      const b = cfg.bars ?? (s.look === 'tv' ? VOL_BARS_TV : VOL_BARS_STD);
+      styles.bars = [{ upColor: b.up, downColor: b.down, noChangeColor: b.up, style: 'fill' }];
+    }
+    const spec = { name: def.name, paneId, calcParams: cfg.params, visible: !cfg.hidden, styles, extendData: { tfMin: tf, style: cfg.nq } };
     if (cfg.on && !exists) chart.createIndicator(spec, def.main);
     else if (cfg.on) chart.overrideIndicator(spec);
     else if (exists) chart.removeIndicator({ name: def.name });
@@ -99,8 +190,11 @@ export interface Settings {
   clock: Clock; theme: Theme;
   sessions: boolean; rth: boolean; log: boolean; rolls: boolean;
   levels: { pd: boolean; on: boolean; open: boolean; round: boolean };
-  indicators: Record<IndKey, { on: boolean; params: number[] }>;
+  indicators: Record<IndKey, IndCfg>;
+  chart: ChartCfg;                 // candles, background, grid, crosshair, scales, status line
+  saved: { name: string; data: LayoutSnapshot }[];  // the trader's own layouts
   magnet: Magnet; drawHidden: boolean; drawLocked: boolean;
+  stayDrawing: boolean;    // a drawing tool stays on after each drawing until right-click / Esc
   notesOpen: boolean;
   layout: LayoutMode;
   panes: PaneCfg[];        // always 4; the layout decides how many are shown
@@ -122,15 +216,17 @@ const DEFAULT_PANES: PaneCfg[] = [{ tf: 5, src: 'journal' }, { tf: 1, src: 'jour
 export const DEFAULTS: Settings = {
   clock: 'ET', theme: 'dark',
   sessions: true, rth: false, log: false, rolls: true,
-  magnet: 'off', drawHidden: false, drawLocked: false, notesOpen: false,
+  magnet: 'off', drawHidden: false, drawLocked: false, notesOpen: false, stayDrawing: true,
   levels: { pd: true, on: true, open: true, round: false },
   indicators: IND_KEYS.reduce((acc, k) => {
-    acc[k] = { on: k === 'VOL' || k === 'NQSYS', params: INDS[k].def };
+    acc[k] = { on: k === 'VOL' || k === 'NQSYS', params: INDS[k].def, ...(k === 'VOL' ? { bars: { ...VOL_BARS_TV } } : {}), ...(k === 'NQSYS' ? { nq: { ...NQ_STYLE_TV } } : {}) };
     return acc;
   }, {} as Settings['indicators']),
   layout: '1', panes: DEFAULT_PANES, active: 0, syncCrosshair: true, live: true,
   customTfs: [],
   look: 'tv',
+  chart: { ...CHART_TV },
+  saved: [],
   toolTpl: { ...TV_TOOL_TPL },
   coach: DEFAULT_RULES,
 };
@@ -142,7 +238,7 @@ export function mergeSettings(saved: any): Settings {
   if (!saved || typeof saved !== 'object') return s;
   if (saved.clock === 'ET' || saved.clock === 'BC') s.clock = saved.clock;
   if (saved.theme === 'dark' || saved.theme === 'light') s.theme = saved.theme;
-  for (const k of ['sessions', 'rth', 'log', 'rolls', 'drawHidden', 'drawLocked', 'notesOpen', 'syncCrosshair', 'live'] as const) {
+  for (const k of ['sessions', 'rth', 'log', 'rolls', 'drawHidden', 'drawLocked', 'notesOpen', 'syncCrosshair', 'live', 'stayDrawing'] as const) {
     if (typeof saved[k] === 'boolean') s[k] = saved[k];
   }
   if (saved.magnet === 'off' || saved.magnet === 'weak' || saved.magnet === 'strong') s.magnet = saved.magnet;
@@ -153,8 +249,27 @@ export function mergeSettings(saved: any): Settings {
     const i = saved.indicators?.[k];
     if (!i) continue;
     if (typeof i.on === 'boolean') s.indicators[k].on = i.on;
-    const params = Array.isArray(i.params) ? parseParams(k, i.params.join(',')) : null;
+    const params = Array.isArray(i.params) ? (i.params.length === 0 && INDS[k].min === 0 ? [] : parseParams(k, i.params.join(','))) : null;
     if (params) s.indicators[k].params = params;
+    if (typeof i.hidden === 'boolean') s.indicators[k].hidden = i.hidden;
+    if (Array.isArray(i.lines)) s.indicators[k].lines = i.lines.slice(0, 8).filter((l: any) => validColor(l?.color) && l.size >= 1 && l.size <= 4).map((l: any) => ({ color: l.color, size: l.size }));
+    if (i.bars && validColor(i.bars.up) && validColor(i.bars.down)) s.indicators[k].bars = { up: i.bars.up, down: i.bars.down };
+    if (k === 'NQSYS' && i.nq && typeof i.nq === 'object') {
+      const nq: Partial<NqStyle> = { ...NQ_STYLE_TV };
+      for (const ln of ['ema', 'vwap', 'va', 'ib', 'pdh', 'pdl'] as const) {
+        const v = i.nq[ln];
+        if (v && validColor(v.color) && v.width >= 1 && v.width <= 4) nq[ln] = { color: v.color, width: v.width, show: v.show !== false };
+      }
+      for (const f of ['signals', 'plan', 'card', 'note'] as const) if (typeof i.nq[f] === 'boolean') nq[f] = i.nq[f];
+      s.indicators[k].nq = nq;
+    }
+  }
+  s.chart = mergeChart(saved.chart, s.look === 'journal' && !saved.chart ? CHART_STD : CHART_TV);
+  if (Array.isArray(saved.saved)) {
+    s.saved = saved.saved
+      .filter((l: any) => l && typeof l.name === 'string' && l.name.trim() && l.data && typeof l.data === 'object')
+      .slice(0, 20)
+      .map((l: any) => ({ name: l.name.trim().slice(0, 40), data: l.data }));
   }
   if (LAYOUTS.some(l => l.mode === saved.layout)) s.layout = saved.layout;
   if (Array.isArray(saved.panes)) {
@@ -189,7 +304,20 @@ export const viewOf = (s: Settings, tf: number): DrawView =>
 export function applyTvPreset(cur: Settings): Settings {
   const indicators = { ...cur.indicators };
   for (const k of IND_KEYS) indicators[k] = { ...indicators[k], on: k === 'VOL' || k === 'NQSYS' };
-  return { ...cur, look: 'tv', theme: 'dark', sessions: true, indicators, toolTpl: { ...TV_TOOL_TPL } };
+  indicators.VOL = { ...indicators.VOL, params: [], bars: { ...VOL_BARS_TV }, lines: undefined };
+  indicators.NQSYS = { ...indicators.NQSYS, nq: { ...NQ_STYLE_TV } };
+  return { ...cur, look: 'tv', theme: 'dark', sessions: true, indicators, chart: { ...CHART_TV }, toolTpl: { ...TV_TOOL_TPL } };
+}
+/** TradingView's standard dark chart. */
+export function applyStdPreset(cur: Settings): Settings {
+  const indicators = { ...cur.indicators };
+  for (const k of IND_KEYS) indicators[k] = { ...indicators[k], on: k === 'VOL' };
+  indicators.VOL = { ...indicators.VOL, params: [20], bars: { ...VOL_BARS_STD }, lines: undefined };
+  return { ...cur, look: 'journal', indicators, chart: { ...CHART_STD }, toolTpl: {} };
+}
+/** Apply a saved layout's snapshot on top of the current settings. */
+export function applySnapshot(cur: Settings, data: Partial<LayoutSnapshot>): Settings {
+  return mergeSettings({ ...cur, ...data, saved: cur.saved });
 }
 
 // ---------- data ----------

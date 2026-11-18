@@ -40,7 +40,7 @@ function clearChildren(el: HTMLElement | null) {
 export default function TvPane(props: {
   interval: number;
   theme: 'dark' | 'light';
-  timezone: 'America/New_York' | 'Etc/GMT+7';
+  timezone: 'America/New_York' | 'America/Phoenix';
   symbol?: string;
 }) {
   const { interval, theme, timezone } = props;

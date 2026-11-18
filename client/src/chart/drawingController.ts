@@ -90,6 +90,10 @@ export class DrawingController {
   private draftId: string | null = null;
   // path / brush / highlighter: placed by the chart window's mouse handlers through manual*()
   private manual: { tool: Tool; draft: Drawing; pts: DPoint[]; stroking: boolean } | null = null;
+  /** Stay in drawing mode: after a drawing is placed the same tool starts again (TradingView's lock). */
+  stayDrawing = false;
+  /** Number of points placed so far on a path that is being drawn (for the hint). */
+  get pathPoints(): number { return this.manual && this.manual.tool === 'path' ? Math.max(0, this.manual.pts.length - 1) : 0; }
   private measureFrom: Partial<Point> | null = null;
   private unsubscribe: () => void;
 
@@ -214,6 +218,7 @@ export class DrawingController {
     else if (!m.pts.length) m.pts = [dp, { ...dp }];      // second point follows the mouse
     else { m.pts[m.pts.length - 1] = dp; m.pts.push({ ...dp }); }
     this.drawManual();
+    if (m.tool === 'path') this.onChange();
   }
   manualMove(p: Partial<Point>) {
     const m = this.manual;
@@ -248,8 +253,19 @@ export class DrawingController {
     this.active = null;
     if (pts.length < 2) { this.onChange(); return; }
     const d: Drawing = { ...m.draft, points: pts };
-    this.selected = d.id;
+    this.selected = this.stayDrawing ? null : d.id;
     this.store.commit([...this.store.drawings, d]);
+    if (this.stayDrawing) this.start(m.tool);
+  }
+
+  /**
+   * Right-click / Esc on the chart, like TradingView: a path with at least two points is
+   * finished; anything else being placed is dropped and the tool switches back to the cursor.
+   */
+  release() {
+    const m = this.manual;
+    if (m && m.tool === 'path' && m.pts.length >= 3) { const keep = this.stayDrawing; this.stayDrawing = false; this.manualFinish(); this.stayDrawing = keep; return; }
+    this.cancel();
   }
 
   /** Abandon a drawing that is still being placed. */
@@ -286,9 +302,10 @@ export class DrawingController {
       }
     }
     const d: Drawing = { ...draft, id: o.id, points };
-    this.selected = d.id;
+    this.selected = this.stayDrawing ? null : d.id;
     this.justCreated = d.id;
     this.store.commit([...this.store.drawings, d]);
+    if (this.stayDrawing && d.tool !== 'text') window.setTimeout(() => { if (!this.active) this.start(d.tool); }, 0);
   }
 
   /** A drawing was dragged: read its new points back, keeping full precision for untouched points. */

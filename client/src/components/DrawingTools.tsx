@@ -48,12 +48,13 @@ const MAGNET_LABEL: Record<Magnet, string> = { off: 'Magnet off', weak: 'Weak ma
 interface ToolbarProps {
   ctl: DrawingController | null;
   magnet: Magnet; hidden: boolean; lockAll: boolean; measureArmed: boolean;
+  stay: boolean; onStay: (v: boolean) => void;
   onMagnet: (m: Magnet) => void; onHidden: (v: boolean) => void; onLockAll: (v: boolean) => void;
   onMeasure: (armed: boolean) => void;
 }
 
 /** TradingView-style vertical drawing toolbar on the left of the chart. */
-export function DrawToolbar({ ctl, magnet, hidden, lockAll, measureArmed, onMagnet, onHidden, onLockAll, onMeasure }: ToolbarProps) {
+export function DrawToolbar({ ctl, magnet, hidden, lockAll, measureArmed, stay, onStay, onMagnet, onHidden, onLockAll, onMeasure }: ToolbarProps) {
   const [confirmClear, setConfirmClear] = useState(false);
   useEffect(() => {
     if (!confirmClear) return;
@@ -87,6 +88,10 @@ export function DrawToolbar({ ctl, magnet, hidden, lockAll, measureArmed, onMagn
       <button disabled={!ready} className={`mc-dbtn${measureArmed ? ' on' : ''}`} title="Measure (or Shift + drag on the chart)"
         onClick={() => { ctl?.cancel(); onMeasure(!measureArmed); }}>{ICONS.measure}</button>
       <span className="mc-dgrow" />
+      <button className={`mc-dbtn${stay ? ' on' : ''}`} title={stay ? 'Stay in drawing mode: ON — the tool stays on after each drawing; right-click or Esc to stop' : 'Stay in drawing mode: OFF — back to the cursor after each drawing'}
+        onClick={() => onStay(!stay)}>
+        <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" d="M4 20l4-1 10-10-3-3L5 16zM13 7l3 3" /><rect x="14" y="15" width="7" height="6" rx="1" fill="none" stroke="currentColor" strokeWidth="1.5" /><path fill="none" stroke="currentColor" strokeWidth="1.5" d="M15.5 15v-1.5a2 2 0 014 0V15" /></svg>
+      </button>
       <button className={`mc-dbtn${magnet !== 'off' ? ' on' : ''}`} title={`${MAGNET_LABEL[magnet]} — click for ${MAGNET_LABEL[MAGNET_NEXT[magnet]].toLowerCase()}`}
         onClick={() => onMagnet(MAGNET_NEXT[magnet])}>
         {ICONS.magnet}{magnet === 'strong' && <span className="mc-dbadge">S</span>}

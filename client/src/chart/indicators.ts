@@ -7,7 +7,7 @@
 import { registerIndicator, KLineData } from 'klinecharts';
 import { registerNqSys } from './nqsys';
 import { registerPhases } from './patterns';
-import { sessionDay, sessionOf, SessionName } from './time';
+import { sessionDay, sessionOf, SessionName, etMinutes } from './time';
 
 export interface LevelsData {
   session: string; start: number; nyStart: number; end: number;
@@ -20,7 +20,8 @@ export interface BgData {
   tfMin: number;
   dark: boolean;
   sessions: boolean;
-  breaks?: boolean;    // TradingView-style session breaks (dashed line at each 6pm ET open) instead of shading
+  breaks?: boolean;    // TradingView-style session breaks (line at each 6pm ET open) instead of shading
+  breaksColor?: string;
   rolls: { contract: string; from: number }[] | null; // null = hidden
   levels: LevelsData | null;
   show: { pd: boolean; on: boolean; open: boolean; round: boolean };
@@ -132,13 +133,24 @@ export function registerChartIndicators() {
 
       // Session breaks: a dashed line where each trading day starts (after the daily halt)
       if (ext.sessions && ext.breaks && intraday) {
-        ctx.strokeStyle = 'rgba(0, 0, 0, 0.85)';
-        ctx.lineWidth = 1;
-        ctx.setLineDash([5, 5]);
-        for (let i = Math.max(1, from); i < to; i++) {
-          if (data[i].timestamp - data[i - 1].timestamp <= 30 * 60000 + ext.tfMin * 60000) continue;
-          const xb = Math.round(x(i) - half) + 0.5;
+        // super-light vertical lines: the 6pm ET session open (after the daily halt) and,
+        // on 1h and below, the New York open (9:30) and close (16:00)
+        const line = (xb: number, color: string, dash: number[]) => {
+          ctx.strokeStyle = color; ctx.lineWidth = 1; ctx.setLineDash(dash);
           ctx.beginPath(); ctx.moveTo(xb, 0); ctx.lineTo(xb, height); ctx.stroke();
+        };
+        const dark = ext.dark;
+        for (let i = Math.max(1, from); i < to; i++) {
+          const t = data[i].timestamp;
+          if (t - data[i - 1].timestamp > 30 * 60000 + ext.tfMin * 60000) {
+            line(Math.round(x(i) - half) + 0.5, ext.breaksColor ?? 'rgba(0, 0, 0, 0.22)', []);
+            continue;
+          }
+          if (ext.tfMin <= 60) {
+            const m = etMinutes(t), mp = etMinutes(data[i - 1].timestamp);
+            const crossed = (lv: number) => (mp < lv && m >= lv) || (m >= lv && mp > m);
+            if (crossed(570) || crossed(960)) line(Math.round(x(i) - half) + 0.5, dark ? 'rgba(255, 255, 255, 0.10)' : 'rgba(0, 0, 0, 0.13)', [2, 4]);
+          }
         }
         ctx.setLineDash([]);
       }
