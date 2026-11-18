@@ -131,6 +131,23 @@ export const PLAYBOOKS: Record<string, Playbook> = {
     manage: ['Partials at T1, stop to break-even only after T1 or a clear structure break, no widening the stop.'],
     tested: 'Keep reviewing: grade each trade A / B / C and tag how you felt, so the Setups and Emotions pages can show which of your trades make money.',
   },
+  va80: {
+    key: 'va80', name: 'VA80 (80% rule)', who: 'Found by the Edge Hunter (2026-11-18) and frozen for a forward test. It is the only pattern of 18 that was positive in the old, middle AND newest years.',
+    looks: [
+      'Yesterday’s New York value area: the price band where 70% of yesterday’s 9:30–16:00 volume traded. Top = VAH, bottom = VAL, busiest price = POC (turn on the VA80 indicator: pVAH / pPOC / pVAL).',
+      'Today’s 9:30 open: above VAH or below VAL? Only then is there a VA80 setup.',
+      'The time: the signal only counts before 13:30 ET. Entries before 11:00 were the strongest in every period.',
+    ],
+    entry: [
+      'The day opens OUTSIDE yesterday’s value area (above VAH or below VAL).',
+      'Wait for the first 5-minute candle that CLOSES back inside the value area.',
+      'Enter at the open of the next minute, toward the other side: opened above → SHORT, opened below → LONG.',
+    ],
+    stop: '1 × ATR(14) of the 5-minute candles from the entry (about 30–45 pt on NQ lately). Why: the idea is "price was rejected outside and is back in value"; a full ATR against you means it was not rejected.',
+    target: '2R (twice the stop). In the study 2R beat 1R in every period (1R lost money on the newest years); the far side of the value area worked too but no better.',
+    manage: ['No breakeven move, no partials: the tested rule holds to the stop, the target, 120 minutes, or 15:55.', 'One VA80 trade per day.'],
+    tested: '5 years of NQ, costs included: oldest years +0.15R per trade (199 trades), middle years +0.18R (107), newest years it never saw +0.11R (93). About one trade every 3 days, win rate ~39%. Not proven yet (t = 2.0): it is in a frozen forward test. "Improved" versions picked on old data collapsed on new data, so the simple rule stays.',
+  },
   bbe: {
     key: 'bbe', name: 'BBE (Big Bar Engulfing)', who: 'Your BBE rule, coded by Claude (BBE Lab research scanner).',
     looks: ['Trend on 15m and 5m: last candle above a rising EMA18 = up, below a falling one = down (logged in the notes as 15m / 5m: 1 = with the trade, −1 = against, 0 = flat).'],
@@ -152,6 +169,7 @@ export function playbookFor(t: TeachTrade): Playbook | null {
   if (tag === 'S3 Sweep Reversal') return PLAYBOOKS.s3;
   if (tag === 'ORB') return PLAYBOOKS.orb;
   if (/^BBE stop [AB]/.test(tag)) return PLAYBOOKS.bbe;
+  if (/^VA80/i.test(tag)) return PLAYBOOKS.va80;
   // any other NQ trade with a stop: the general lesson against the trader's own checklist
   if (t.stop_loss != null && /(^|[^A-Z])M?NQ/i.test(t.symbol || '')) return PLAYBOOKS.own;
   return null;
@@ -400,6 +418,11 @@ export function buildSteps(pb: Playbook, f: Facts, m: Market | null, setupTag: s
     why.push(prime ? `• ${etTime(f.entryMs)} ET is inside your prime time ✔` : `• ${etTime(f.entryMs)} ET is OUTSIDE your prime time (9:30–11:30, 15:00–16:00) ✘`);
     if (m?.t15) why.push(`• 15m trend: ${trendWord(m.t15.trend, f.dir)}.`);
     if (m?.near[0]) why.push(`• Nearest level: ${m.near[0].name} ${p(m.near[0].price, 2)}, ${p(Math.abs(m.near[0].dist), 1)} pt away${Math.abs(m.near[0].dist) <= 5 ? ' ✔ (at the level)' : Math.abs(m.near[0].dist) > 20 ? ' ✘ (not at a level)' : ''}.`);
+  } else if (pb.key === 'va80') {
+    const mins = etMinutes(f.entryMs);
+    why.push(`• Entry at ${etTime(f.entryMs)} ET ${mins < 660 ? '— before 11:00, the strongest window ✔' : mins < 810 ? '— after 11:00: allowed, but weaker in the tests' : '— after 13:30: NOT a VA80 signal ✘'}.`);
+    if (m?.nyOpen != null) why.push(`• Today opened at ${p(m.nyOpen, 2)}; the trade is ${side(f.dir)} ${f.dir > 0 ? '(the open was below yesterday’s value area)' : '(the open was above yesterday’s value area)'}.`);
+    if (m?.t15) why.push(`• 15m trend: ${trendWord(m.t15.trend, f.dir)}. (With the 15m trend looked much better in a small sample — a thing to watch, not yet a rule.)`);
   } else if (pb.key === 'nqp' && m) {
     if (m.nyOpen != null) {
       const mv = f.entry - m.nyOpen;
@@ -473,6 +496,12 @@ export function buildSteps(pb: Playbook, f: Facts, m: Market | null, setupTag: s
       ? `A typical win: about ${pts(f.rewardPts)} in seconds. But the stop was ${pts(f.riskPts)}. One loss like this trade’s stop costs about ${f.rr ? Math.round(1 / f.rr) : 7} wins like this.`
       : `This is the hidden cost of a 94% win rate: one loss (${usd(f.pnl)}) erases many small wins. Always ask "how big is the average loss?", not only "how often does it win?".`);
     lesson.push('Precision bots like this live or die on fills: 2 points of slippage per trade would cut its profit by about a third. 10:00 ET is also when economic news is released.');
+  } else if (pb.key === 'va80') {
+    const mins = etMinutes(f.entryMs);
+    if (mins >= 810) lesson.push('This entry was after 13:30, so it was not a VA80 trade. The rule only works as a morning / early-afternoon idea.');
+    if (m?.atr5 && f.riskPts && Math.abs(f.riskPts / m.atr5 - 1) > 0.35) lesson.push(`The stop was ${p(f.riskPts / m.atr5, 1)}× ATR instead of 1×. Keep the tested stop: smaller gets shaken out, bigger shrinks the R you earn.`);
+    if (f.rr != null && f.rr < 1.8) lesson.push(`Target was ${p(f.rr, 2)}R. The tested rule uses 2R; 1R lost money on the newest years.`);
+    lesson.push(win ? 'A winner, but judge VA80 on 30+ trades: it wins only about 4 in 10 and earns its money from the 2R winners.' : 'A loser is normal: about 6 in 10 VA80 trades lose 1R. The edge is that the winners pay 2R. Do not change the rule after one loss.');
   } else if (pb.key === 'own') {
     const mins = etMinutes(f.entryMs);
     const prime = (mins >= 570 && mins < 690) || (mins >= 900 && mins < 960);

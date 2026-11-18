@@ -9,6 +9,7 @@ import { registerNqSys } from './nqsys';
 import { registerPhases } from './patterns';
 import { registerProfiles } from './profiles';
 import { registerFootprint } from './footprint';
+import { registerVa80 } from './va80';
 import { sessionDay, sessionOf, SessionName, etMinutes } from './time';
 
 export interface LevelsData {
@@ -57,6 +58,7 @@ export function registerChartIndicators() {
   registerPhases();
   registerProfiles();
   registerFootprint();
+  registerVa80();
 
   // Heikin Ashi candles (chart type), drawn over the hidden real candles
   registerIndicator<Row, number, { up: string; down: string; wickUp: string; wickDown: string; borderUp: string; borderDown: string }>({
