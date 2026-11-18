@@ -29,6 +29,19 @@ const ICONS: Record<Tool | 'cursor' | 'measure' | 'magnet' | 'lock' | 'eye' | 'e
   highlight: <Icon><path stroke="currentColor" strokeOpacity=".45" strokeWidth="5" strokeLinecap="round" fill="none" d="M5 15c3-3 6-2 8-4s4-3 6-3" /></Icon>,
   daterange: <Icon><path {...S} d="M5 5v14M19 5v14M7 12h10" /><path {...S} d="M14 9l3 3-3 3" /></Icon>,
   dprange: <Icon><rect {...S} x="4" y="5" width="16" height="14" rx="1" /><path {...S} d="M12 7v10M7 12h10" /></Icon>,
+  ray: <Icon><path {...S} d="M5 19L21 3" /><circle {...S} cx="5" cy="19" r="1.8" /><circle {...S} cx="12" cy="12" r="1.8" /></Icon>,
+  xline: <Icon><path {...S} d="M2 22L22 2" /><circle {...S} cx="8" cy="16" r="1.8" /><circle {...S} cx="16" cy="8" r="1.8" /></Icon>,
+  infoline: <Icon><path {...S} d="M5 19L19 7" /><rect {...S} x="9" y="3" width="10" height="5" rx="1" /></Icon>,
+  fibext: <Icon><path {...S} d="M10 5h11M10 9h11M10 14h11M10 19h11" /><path {...S} strokeDasharray="2 2" d="M3 18l4-10 3 6" /></Icon>,
+  ellipse: <Icon><ellipse {...S} cx="12" cy="12" rx="9" ry="6" /></Icon>,
+  callout: <Icon><rect {...S} x="8" y="4" width="13" height="8" rx="2" /><path {...S} d="M10 12L4 20" /></Icon>,
+  pricelabel: <Icon><path {...S} d="M4 12l4-5h12v10H8z" /></Icon>,
+  arrowup: <Icon><path fill="currentColor" d="M12 4l6 7h-4v8h-4v-8H6z" /></Icon>,
+  arrowdown: <Icon><path fill="currentColor" d="M12 20l6-7h-4V5h-4v8H6z" /></Icon>,
+  xabcd: <Icon><path {...S} d="M3 18L8 6l4 8 4-6 5 10" /><path {...S} strokeDasharray="2 2" d="M3 18l9-4" /></Icon>,
+  hs: <Icon><path {...S} d="M2 18l4-7 3 4 3-10 3 10 3-4 4 7" /><path {...S} strokeDasharray="2 2" d="M2 15h20" /></Icon>,
+  elliott: <Icon><path {...S} d="M3 18l4-8 3 4 5-10 3 6 3-3" /></Icon>,
+  abc: <Icon><path {...S} d="M4 6l6 10 4-6 6 9" /></Icon>,
   gann: <Icon><rect {...S} x="4" y="4" width="16" height="16" /><path {...S} d="M4 20L20 4M4 20L20 12M4 20L12 4" /></Icon>,
   avwap: <Icon><path {...S} d="M3 18c4-1 5-9 9-9s5 5 9 3" /><circle cx="3.5" cy="18" r="1.6" fill="currentColor" /></Icon>,
   vprofile: <Icon><path {...S} d="M4 4v16" /><path stroke="currentColor" strokeWidth="2.5" d="M5 6h5M5 9h9M5 12h14M5 15h8M5 18h4" /></Icon>,
@@ -41,9 +54,10 @@ const ICONS: Record<Tool | 'cursor' | 'measure' | 'magnet' | 'lock' | 'eye' | 'e
 };
 
 const GROUPS: Tool[][] = [
-  ['trend', 'hline', 'hray', 'vline', 'path'],
-  ['rect', 'channel', 'fib', 'gann'],
-  ['brush', 'highlight', 'text', 'arrow'],
+  ['trend', 'ray', 'xline', 'infoline', 'hline', 'hray', 'vline', 'path'],
+  ['rect', 'ellipse', 'channel', 'fib', 'fibext', 'gann'],
+  ['brush', 'highlight', 'text', 'callout', 'pricelabel', 'arrow', 'arrowup', 'arrowdown'],
+  ['xabcd', 'hs', 'elliott', 'abc'],
   ['long', 'short', 'daterange', 'dprange', 'vprofile', 'avwap'],
 ];
 const MAGNET_NEXT: Record<Magnet, Magnet> = { off: 'weak', weak: 'strong', strong: 'off' };
@@ -143,7 +157,7 @@ export function DrawEditBar({ ctl, tplOf, onTemplate, onAlert, hasAlert }: {
 
   // A new text drawing opens straight into editing
   useEffect(() => {
-    if (d && d.tool === 'text' && ctl?.justCreated === d.id) {
+    if (d && (d.tool === 'text' || d.tool === 'callout') && ctl?.justCreated === d.id) {
       ctl.justCreated = null;
       window.setTimeout(() => { textRef.current?.focus(); textRef.current?.select(); }, 0);
     }
@@ -159,7 +173,7 @@ export function DrawEditBar({ ctl, tplOf, onTemplate, onAlert, hasAlert }: {
   };
 
   const tpls = TEMPLATES[d.tool] ?? [];
-  const labelled = d.tool === 'hline' || d.tool === 'hray' || d.tool === 'trend';
+  const labelled = ['hline', 'hray', 'trend', 'ray', 'pricelabel', 'arrowup', 'arrowdown'].includes(d.tool);
   return (
     <Floating id="draw-edit" bare initial={{ x: Math.max(80, Math.round(window.innerWidth / 2 - 260)), y: 150 }} className="mc-edit-float">
     <div className="mc-edit" onMouseDown={e => e.stopPropagation()}>
@@ -205,7 +219,7 @@ export function DrawEditBar({ ctl, tplOf, onTemplate, onAlert, hasAlert }: {
           )}
         </>
       )}
-      {d.tool === 'text' && (
+      {(d.tool === 'text' || d.tool === 'callout') && (
         <input ref={textRef} className="mc-input mc-edit-text" value={text} maxLength={200} placeholder="Text"
           onChange={e => setText(e.target.value)} onBlur={commitText}
           onKeyDown={e => { if (e.key === 'Enter') { commitText(); (e.target as HTMLInputElement).blur(); } if (e.key === 'Escape') { setText(d.text ?? ''); (e.target as HTMLInputElement).blur(); } }} />

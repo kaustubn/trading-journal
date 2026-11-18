@@ -31,6 +31,13 @@ const DRAW_KEYS: Record<string, Tool> = { KeyT: 'trend', KeyH: 'hline', KeyJ: 'h
 
 interface LiveStatus { configured: boolean; delayMin: number | null; message?: string; }
 
+const DAY_KINDS: [string, string][] = [
+  ['trend', 'Trend days (strong close, full range)'], ['range', 'Range / chop days (close near open)'],
+  ['gapup', 'Gap up opens (+0.4% or more)'], ['gapdown', 'Gap down opens (−0.4% or more)'],
+  ['bigrange', 'Big range days (1.5× ATR or more)'], ['smallrange', 'Quiet days (0.6× ATR or less)'],
+  ['losing', 'My losing days (from my journal)'],
+];
+
 export default function MarketChart({ token, focus }: { token: string; focus?: { tradeId: number; nonce: number } | null }) {
   const [s, setS] = useState<Settings>(DEFAULTS);
   const [ready, setReady] = useState(false);       // saved settings + data range loaded
@@ -39,6 +46,11 @@ export default function MarketChart({ token, focus }: { token: string; focus?: {
   const [busyPanes, setBusyPanes] = useState<Record<number, boolean>>({});
   const [meta, setMeta] = useState<Meta | null>(null);
   const [panel, setPanel] = useState<null | 'ind' | 'levels' | 'goto' | 'replay' | 'data' | 'layout' | 'tf' | 'alerts'>(null);
+  // replay day finder
+  const [dfType, setDfType] = useState('trend');
+  const [dfDays, setDfDays] = useState<{ day: string; range: number; atr: number; gapPct: number; body: number; dir: 'up' | 'down'; pnl: number | null }[]>([]);
+  const [dfBusy, setDfBusy] = useState(false);
+  const [dfMsg, setDfMsg] = useState('');
   // alerts: toasts on screen, the new-alert form, and the previous price the checks compare with
   const [toasts, setToasts] = useState<{ id: string; text: string; note: string }[]>([]);
   const [alForm, setAlForm] = useState<{ price: string; cond: AlertCond; note: string; repeat: boolean }>({ price: '', cond: 'cross', note: '', repeat: false });
@@ -320,6 +332,15 @@ export default function MarketChart({ token, focus }: { token: string; focus?: {
     if (!engine.active) panesOf().forEach(p => p.setHotkeys(true));
   };
   startReplayRef.current = startReplay;
+  const findDays = async () => {
+    setDfBusy(true); setDfMsg('');
+    try {
+      const r = await axios.get('/api/bars/days', { ...auth(), params: { symbol: 'NQ', type: dfType } });
+      setDfDays(r.data.days || []);
+      setDfMsg(`${(r.data.days || []).length} days found${(r.data.days || []).length > 120 ? ' (newest 120 shown)' : ''}.`);
+    } catch { setDfDays([]); setDfMsg('Could not load the days.'); }
+    finally { setDfBusy(false); }
+  };
 
   // ----- alerts -----
   checkRef.current = (price: number, t: number, hi?: number, lo?: number) => {
@@ -963,6 +984,28 @@ export default function MarketChart({ token, focus }: { token: string; focus?: {
               <div className="mc-panel-title">Bar replay</div>
               <button className="mc-btn mc-wide-btn" onClick={() => { setPanel(null); setReplayPick(true); }}>Select a candle on a chart</button>
               <button className="mc-btn mc-wide-btn" onClick={randomReplay}>Random date (9:00am ET)</button>
+              <div className="mc-panel-title mc-sub-title">Day finder</div>
+              <div className="mc-hint">Practise the kind of day you struggle with. Replay starts at 9:25 ET.</div>
+              <div className="mc-row">
+                <select className="mc-input mc-grow" value={dfType} onChange={e => setDfType(e.target.value)}>
+                  {DAY_KINDS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+                </select>
+                <button className="mc-btn" disabled={dfBusy} onClick={findDays}>{dfBusy ? '…' : 'Find'}</button>
+                <button className="mc-btn" disabled={!dfDays.length} title="Replay a random day from the list"
+                  onClick={() => { const d = dfDays[Math.floor(Math.random() * dfDays.length)]; if (d) void startReplay(wallToUtc(d.day, '09:25', 'ET')); }}>Random</button>
+              </div>
+              {dfMsg && <div className="mc-hint">{dfMsg}</div>}
+              {dfDays.length > 0 && (
+                <div className="mc-df-list">
+                  {dfDays.slice(0, 120).map(d => (
+                    <button key={d.day} className="mc-df-row" onClick={() => void startReplay(wallToUtc(d.day, '09:25', 'ET'))} title="Replay this day from 9:25 ET">
+                      <span>{new Date(d.day + 'T12:00:00Z').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' })}</span>
+                      <span className={d.dir === 'up' ? 'mc-up' : 'mc-down'}>{d.dir === 'up' ? '▲' : '▼'} {Math.round(d.range)} pt</span>
+                      <span className="mc-dim">{d.pnl !== null ? fmtUsd(d.pnl) : dfType.startsWith('gap') ? `gap ${d.gapPct > 0 ? '+' : ''}${d.gapPct}%` : `${(d.range / d.atr).toFixed(1)}× ATR`}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
               <div className="mc-hint">All charts replay together. → / ← step one candle of the active chart (or one minute in 1m mode), Space plays. Buy / Sell from the replay bar; closed trades are saved to the journal account you choose there.</div>
               <div className="mc-panel-title mc-sub-title">● Forward test a day</div>
               <div className="mc-hint">Go back to a day and trade it as if it were live: candles move second by second, you can use market, limit and stop orders, and pause any time.</div>

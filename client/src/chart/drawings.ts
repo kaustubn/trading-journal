@@ -8,7 +8,9 @@ import { etOffset } from './time';
 export type Tool =
   | 'trend' | 'hline' | 'hray' | 'vline' | 'rect' | 'fib'
   | 'channel' | 'text' | 'arrow' | 'long' | 'short'
-  | 'path' | 'brush' | 'highlight' | 'daterange' | 'dprange' | 'gann' | 'vprofile' | 'avwap';
+  | 'path' | 'brush' | 'highlight' | 'daterange' | 'dprange' | 'gann' | 'vprofile' | 'avwap'
+  | 'ray' | 'xline' | 'infoline' | 'fibext' | 'ellipse' | 'callout' | 'pricelabel' | 'arrowup' | 'arrowdown'
+  | 'xabcd' | 'hs' | 'elliott' | 'abc';
 export type LineStyle = 'solid' | 'dashed' | 'dotted';
 export type Contract = 'NQ' | 'MNQ';
 
@@ -63,6 +65,19 @@ export const TOOLS: Record<Tool, ToolDef> = {
   gann: { label: 'Gann square', overlay: 'jc_gann', steps: 3, color: 'rgba(21, 56, 153, 0.8)', width: 2 },
   vprofile: { label: 'Fixed range volume profile', overlay: 'jc_vprofile', steps: 3, color: '#2962ff', width: 1 },
   avwap: { label: 'Anchored VWAP', hint: 'click the bar to start from', overlay: 'jc_avwap', steps: 2, color: '#ff9800', width: 2 },
+  ray: { label: 'Ray', overlay: 'jc_ray', steps: 3, color: '#2962ff', width: 2 },
+  xline: { label: 'Extended line', overlay: 'jc_xline', steps: 3, color: '#2962ff', width: 1 },
+  infoline: { label: 'Info line', hint: 'shows points, %, bars, time and angle', overlay: 'jc_infoline', steps: 3, color: '#2962ff', width: 2 },
+  fibext: { label: 'Trend-based Fib extension', hint: 'click A, B, then C', overlay: 'jc_fibext', steps: 4, color: '#787b86', width: 1 },
+  ellipse: { label: 'Ellipse', overlay: 'jc_ellipse', steps: 3, color: '#9c27b0', width: 1 },
+  callout: { label: 'Callout', hint: 'click the spot, then where the note goes', overlay: 'jc_callout', steps: 3, color: '#2962ff', width: 1 },
+  pricelabel: { label: 'Price label', overlay: 'jc_pricelabel', steps: 2, color: '#2962ff', width: 1 },
+  arrowup: { label: 'Arrow mark up', overlay: 'jc_arrowup', steps: 2, color: '#089981', width: 1 },
+  arrowdown: { label: 'Arrow mark down', overlay: 'jc_arrowdown', steps: 2, color: '#f23645', width: 1 },
+  xabcd: { label: 'XABCD pattern', hint: 'click X, A, B, C, D', overlay: 'jc_xabcd', steps: 6, color: '#2962ff', width: 2 },
+  hs: { label: 'Head and shoulders', hint: '7 clicks: start, left shoulder, neck, head, neck, right shoulder, end', overlay: 'jc_hs', steps: 8, color: '#089981', width: 2 },
+  elliott: { label: 'Elliott impulse wave (1-5)', hint: '6 clicks: 0, 1, 2, 3, 4, 5', overlay: 'jc_elliott', steps: 7, color: '#2962ff', width: 2 },
+  abc: { label: 'Elliott correction (ABC)', hint: '4 clicks: 0, A, B, C', overlay: 'jc_abc', steps: 5, color: '#ff9800', width: 2 },
 };
 export const FREEHAND: Tool[] = ['brush', 'highlight'];
 export const TOOL_KEYS = Object.keys(TOOLS) as Tool[];

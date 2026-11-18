@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { verifyToken } from '../middleware/auth';
+import pool from '../db';
 import { requireAdmin } from '../middleware/admin';
 import { SYMBOLS, Timeframe, validTimeframe, getBars, getMeta, getLevels } from '../bars/store';
 import { parseBarsCsv, insertBars, updateFromDatabento, maybeAutoUpdate, updateStatus, liveTick } from '../bars/ingest';
@@ -87,6 +88,63 @@ router.get('/meta', async (req: Request, res: Response) => {
 
 // GET /api/bars/levels?symbol=NQ&at=<time> — previous-day high/low/close, overnight
 // high/low and opens for the session containing `at`, using only bars up to `at`.
+// GET /api/bars/days?symbol=NQ&type=trend|range|gapup|gapdown|bigrange|smallrange|losing
+// Day finder for replay: New York sessions (9:30-4pm ET) of a kind, newest first.
+// Range and body come from the RTH daily bars; ATR = average range of the 14 days before.
+const DAY_TYPES = ['trend', 'range', 'gapup', 'gapdown', 'bigrange', 'smallrange', 'losing'] as const;
+router.get('/days', async (req: Request, res: Response) => {
+  try {
+    const s = parseSymbol(req, res);
+    if (!s) return;
+    const type = String(req.query.type || 'trend');
+    if (!(DAY_TYPES as readonly string[]).includes(type)) return res.status(400).json({ error: `type must be one of ${DAY_TYPES.join(', ')}` });
+    const r = await pool.query(
+      `WITH d AS (
+         SELECT (ts AT TIME ZONE 'America/New_York')::date AS day, o / 100.0 AS o, h / 100.0 AS h, l / 100.0 AS l, c / 100.0 AS c
+           FROM bars_agg WHERE sym = $1 AND tf = 1441),
+       x AS (
+         SELECT day, o, h, l, c, lag(c) OVER (ORDER BY day) AS pc,
+                avg(h - l) OVER (ORDER BY day ROWS BETWEEN 14 PRECEDING AND 1 PRECEDING) AS atr
+           FROM d)
+       SELECT day::text AS day, o, h, l, c, pc, atr FROM x WHERE pc IS NOT NULL AND atr IS NOT NULL ORDER BY day DESC`,
+      [s.sym]);
+    let losing: Map<string, number> | null = null;
+    if (type === 'losing') {
+      // the trader's own losing days (real / sim accounts; backtest accounts left out)
+      const t = await pool.query(
+        `SELECT DATE(t.entry_time)::text AS day, SUM(t.pnl) AS pnl
+           FROM trades t JOIN accounts a ON a.id = t.account_id
+          WHERE a.user_id = $1 AND t.pnl IS NOT NULL AND a.account_name NOT ILIKE '%backtest%'
+          GROUP BY 1 HAVING SUM(t.pnl) < 0`, [req.userId]);
+      losing = new Map(t.rows.map((x: any) => [x.day, Number(x.pnl)]));
+    }
+    const days = r.rows.map((x: any) => {
+      const o = Number(x.o), h = Number(x.h), l = Number(x.l), c = Number(x.c), pc = Number(x.pc), atr = Number(x.atr);
+      const range = h - l;
+      return { day: x.day, o, h, l, c, range, atr, gap: o - pc, gapPct: ((o - pc) / pc) * 100, body: range > 0 ? (c - o) / range : 0 };
+    }).filter(d => {
+      switch (type) {
+        case 'trend': return Math.abs(d.body) >= 0.6 && d.range >= 0.9 * d.atr;
+        case 'range': return Math.abs(d.body) <= 0.2 && d.range <= 1.1 * d.atr;
+        case 'gapup': return d.gapPct >= 0.4;
+        case 'gapdown': return d.gapPct <= -0.4;
+        case 'bigrange': return d.range >= 1.5 * d.atr;
+        case 'smallrange': return d.range <= 0.6 * d.atr;
+        case 'losing': return losing!.has(d.day);
+      }
+      return false;
+    }).slice(0, 400).map(d => ({
+      day: d.day, range: Math.round(d.range * 100) / 100, atr: Math.round(d.atr * 100) / 100,
+      gapPct: Math.round(d.gapPct * 100) / 100, body: Math.round(d.body * 100) / 100,
+      dir: d.c >= d.o ? 'up' : 'down', pnl: losing?.get(d.day) ?? null,
+    }));
+    res.json({ type, days });
+  } catch (e: any) {
+    console.error('[bars/days]', e.message);
+    res.status(500).json({ error: 'Failed to find days' });
+  }
+});
+
 router.get('/levels', async (req: Request, res: Response) => {
   try {
     const s = parseSymbol(req, res);

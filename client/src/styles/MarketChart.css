@@ -644,3 +644,9 @@
 .mc-toast { display: flex; gap: 8px; align-items: flex-start; background: #1e222d; color: #e0e3eb; border: 1px solid #f7a600; border-left-width: 4px;
   border-radius: 6px; padding: 8px 10px; font-size: 12.5px; box-shadow: 0 6px 18px rgba(0,0,0,.35); cursor: pointer; animation: mc-toast-in .2s ease-out; }
 @keyframes mc-toast-in { from { transform: translateY(-6px); opacity: 0; } to { transform: none; opacity: 1; } }
+
+/* replay day finder */
+.mc-df-list { max-height: 220px; overflow-y: auto; display: flex; flex-direction: column; margin-top: 4px; }
+.mc-df-row { display: grid; grid-template-columns: 1.6fr 1fr 1fr; gap: 6px; text-align: left; padding: 4px 6px; border: 0; background: transparent;
+  color: inherit; font-size: 12px; cursor: pointer; border-radius: 4px; }
+.mc-df-row:hover { background: rgba(128,128,128,.15); }

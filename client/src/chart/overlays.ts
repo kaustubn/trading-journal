@@ -4,6 +4,7 @@
 import { registerOverlay } from 'klinecharts';
 import type { OverlayFigure, Coordinate, Chart, Overlay, KLineData, OverlayTemplate } from 'klinecharts';
 import { Drawing, TICK, POINT_VALUE, fmtPrice, fmtUsd, fmtSpan, signed } from './drawings';
+export type { Drawing };
 import { anchoredVwap } from './profiles';
 
 type O = Overlay<Drawing>;
@@ -518,6 +519,194 @@ const templates: OverlayTemplate<Drawing>[] = [
       return figs;
     },
   },
+  // ---------- lines: ray, extended line, info line ----------
+  {
+    ...base('jc_ray', 3),
+    createPointFigures: ({ overlay, coordinates, bounding }) => {
+      if (coordinates.length < 2) return [];
+      const d = overlay.extendData;
+      const [a, b] = coordinates;
+      // a ray starts at the first point and runs through the second to the edge
+      const k = b.x === a.x ? 0 : (b.y - a.y) / (b.x - a.x);
+      const edge = b.x >= a.x ? { x: bounding.width, y: a.y + k * (bounding.width - a.x) } : { x: 0, y: a.y - k * a.x };
+      return [line([a, b.x === a.x ? b : edge], d), ...lineText(d, b.x, b.y)];
+    },
+  },
+  {
+    ...base('jc_xline', 3),
+    createPointFigures: ({ overlay, coordinates, bounding }) => {
+      if (coordinates.length < 2) return [];
+      const d = overlay.extendData;
+      const [a, b] = extendSeg(coordinates[0], coordinates[1], bounding.width, { ...(d ?? {}), extL: true, extR: true } as Drawing);
+      return [line([a, b], d)];
+    },
+  },
+  {
+    ...base('jc_infoline', 3),
+    createPointFigures: ({ chart, overlay, coordinates }) => {
+      if (coordinates.length < 2) return [];
+      const d = overlay.extendData;
+      const [a, b] = coordinates;
+      const p0 = overlay.points[0]?.value, p1 = overlay.points[1]?.value;
+      const figs: Fig[] = [line([a, b], d)];
+      if (typeof p0 !== 'number' || typeof p1 !== 'number') return figs;
+      const st = rangeStats(chart, overlay as O);
+      const diff = p1 - p0;
+      const angle = Math.atan2(a.y - b.y, b.x - a.x) * 180 / Math.PI;
+      const text = `${signed(diff, 2)} (${signed((diff / p0) * 100, 2)}%) · ${Math.abs(st.bars)} bars, ${fmtSpan(st.span)} · ${angle.toFixed(0)}°`;
+      figs.push(label((a.x + b.x) / 2, Math.min(a.y, b.y) - 12, text, rgba(lineStyle(d).color, 0.9)));
+      return figs;
+    },
+  },
+  // ---------- Fib extension (trend-based): A -> B, projected from C ----------
+  {
+    ...base('jc_fibext', 4),
+    createPointFigures: ({ overlay, coordinates }) => {
+      const d = overlay.extendData;
+      const figs: Fig[] = [];
+      if (coordinates.length >= 2) figs.push(line(coordinates.slice(0, Math.min(3, coordinates.length)), d, { styles: { ...lineStyle(d), style: 'dashed', dashedValue: [4, 4] } }));
+      if (coordinates.length < 3) return figs;
+      const [pa, pb, pc] = [0, 1, 2].map(i => overlay.points[i]?.value);
+      if (typeof pa !== 'number' || typeof pb !== 'number' || typeof pc !== 'number') return figs;
+      const [, b, c] = coordinates;
+      const xl = Math.min(b.x, c.x), xr = Math.max(b.x, c.x) + 120;
+      const color = lineStyle(d).color;
+      // pixel per price unit from A/B (same pane, linear scale)
+      const ppu = (coordinates[1].y - coordinates[0].y) / ((pb - pa) || 1);
+      for (const v of [0, 0.618, 1, 1.272, 1.618, 2, 2.618]) {
+        const price = pc + (pb - pa) * v;
+        const y = c.y + (price - pc) * ppu;
+        figs.push(line([{ x: xl, y }, { x: xr, y }], d, { styles: { ...lineStyle(d), style: 'solid', size: 1, color: v === 1 ? color : rgba(color, 0.75) } }));
+        figs.push({
+          type: 'text', ignoreEvent: true,
+          attrs: { x: xl - 4, y, text: `${v} (${fmtPrice(price)})`, align: 'right', baseline: 'middle' },
+          styles: { color, size: 11, family: FONT, backgroundColor: 'transparent', borderColor: 'transparent', paddingLeft: 0, paddingRight: 0, paddingTop: 0, paddingBottom: 0 },
+        });
+      }
+      return figs;
+    },
+  },
+  // ---------- ellipse ----------
+  {
+    ...base('jc_ellipse', 3),
+    createPointFigures: ({ overlay, coordinates }) => {
+      if (coordinates.length < 2) return [];
+      const d = overlay.extendData, st = lineStyle(d);
+      const [a, b] = coordinates;
+      const cx = (a.x + b.x) / 2, cy = (a.y + b.y) / 2, rx = Math.abs(b.x - a.x) / 2, ry = Math.abs(b.y - a.y) / 2;
+      const pts = Array.from({ length: 64 }, (_, i) => { const t = (i / 64) * Math.PI * 2; return { x: cx + rx * Math.cos(t), y: cy + ry * Math.sin(t) }; });
+      return [{ type: 'polygon', attrs: { coordinates: pts }, styles: { style: 'stroke_fill', color: d?.fill ?? rgba(st.color, 0.12), borderColor: st.color, borderSize: st.size, borderStyle: st.style, borderDashedValue: st.dashedValue } }];
+    },
+  },
+  // ---------- callout: a note in a box pointing at a spot ----------
+  {
+    ...base('jc_callout', 3), needDefaultXAxisFigure: false, needDefaultYAxisFigure: false,
+    createPointFigures: ({ overlay, coordinates }) => {
+      const d = overlay.extendData, st = lineStyle(d);
+      const [a, b] = coordinates;
+      const box = b ?? { x: a.x + 40, y: a.y - 40 };
+      return [
+        line([a, box], d, { styles: { ...st, size: 1, style: 'solid' } }),
+        { type: 'circle', ignoreEvent: true, attrs: { x: a.x, y: a.y, r: 2.5 }, styles: { style: 'fill', color: st.color } },
+        {
+          type: 'text', attrs: { x: box.x, y: box.y, text: d?.text || 'Note', align: 'center', baseline: 'middle' },
+          styles: { color: '#ffffff', size: 12, family: FONT, weight: 'normal', backgroundColor: rgba(st.color, 0.92), borderColor: st.color, borderRadius: 4, paddingLeft: 8, paddingRight: 8, paddingTop: 5, paddingBottom: 5 },
+        },
+      ];
+    },
+  },
+  // ---------- price label: one click, shows the price there ----------
+  {
+    ...base('jc_pricelabel', 2), needDefaultXAxisFigure: false,
+    createPointFigures: ({ overlay, coordinates }) => {
+      const p = overlay.points[0]?.value;
+      if (!coordinates.length || typeof p !== 'number') return [];
+      const d = overlay.extendData, c = lineStyle(d).color;
+      const a = coordinates[0];
+      return [
+        { type: 'polygon', ignoreEvent: true, attrs: { coordinates: [a, { x: a.x + 8, y: a.y - 6 }, { x: a.x + 8, y: a.y + 6 }] }, styles: { style: 'fill', color: c } },
+        { type: 'text', attrs: { x: a.x + 8, y: a.y, text: d?.text ? `${d.text} ${fmtPrice(p)}` : fmtPrice(p), align: 'left', baseline: 'middle' },
+          styles: { color: '#ffffff', size: 11, family: FONT, weight: 'normal', backgroundColor: c, borderColor: c, borderRadius: 2, paddingLeft: 5, paddingRight: 6, paddingTop: 3, paddingBottom: 3 } },
+      ];
+    },
+  },
+  // ---------- arrow markers (one click): up arrow below the spot, down arrow above it ----------
+  ...(['up', 'down'] as const).map(dir => ({
+    ...base(`jc_arrow${dir}`, 2), needDefaultXAxisFigure: false, needDefaultYAxisFigure: false,
+    createPointFigures: ({ overlay, coordinates }: { overlay: O; coordinates: Coordinate[] }): Fig[] => {
+      if (!coordinates.length) return [];
+      const d = overlay.extendData, c = lineStyle(d).color;
+      const { x, y } = coordinates[0];
+      const s = dir === 'up' ? 1 : -1, w = 7 + (d?.width ?? 1) * 2;
+      const tip = { x, y: y + s * 4 };
+      const head = [tip, { x: x - w, y: tip.y + s * w }, { x: x + w, y: tip.y + s * w }];
+      return [
+        { type: 'polygon', attrs: { coordinates: head }, styles: { style: 'fill', color: c } },
+        { type: 'rect', attrs: { x: x - w / 3, y: s > 0 ? tip.y + w : tip.y - w - w * 1.4, width: (w * 2) / 3, height: w * 1.4 }, styles: { style: 'fill', color: c } },
+        ...(d?.text ? [{ type: 'text', ignoreEvent: true, attrs: { x, y: tip.y + s * (w * 2.6 + 2), text: d.text, align: 'center', baseline: s > 0 ? 'top' : 'bottom' },
+          styles: { color: c, size: 12, family: FONT, backgroundColor: 'transparent', borderColor: 'transparent', paddingLeft: 0, paddingRight: 0, paddingTop: 0, paddingBottom: 0 } } as Fig] : []),
+      ];
+    },
+  })),
+  // ---------- chart patterns ----------
+  {
+    ...base('jc_xabcd', 6),
+    createPointFigures: ({ overlay, coordinates }) => {
+      const d = overlay.extendData, st = lineStyle(d);
+      const names = ['X', 'A', 'B', 'C', 'D'];
+      const figs: Fig[] = [];
+      const c = coordinates;
+      if (c.length >= 3) figs.push({ type: 'polygon', ignoreEvent: true, attrs: { coordinates: [c[0], c[1], c[2]] }, styles: { style: 'fill', color: rgba(st.color, 0.12) } });
+      if (c.length >= 5) figs.push({ type: 'polygon', ignoreEvent: true, attrs: { coordinates: [c[2], c[3], c[4]] }, styles: { style: 'fill', color: rgba(st.color, 0.12) } });
+      if (c.length >= 2) figs.push(line(c, d));
+      if (c.length >= 3) figs.push(line([c[0], c[2]], d, { styles: { ...st, style: 'dashed', dashedValue: [3, 3], size: 1 } }));
+      if (c.length >= 5) figs.push(line([c[2], c[4]], d, { styles: { ...st, style: 'dashed', dashedValue: [3, 3], size: 1 } }), line([c[1], c[3]], d, { styles: { ...st, style: 'dashed', dashedValue: [3, 3], size: 1 } }));
+      const p = overlay.points.map(x => x.value as number);
+      const ratio = (i: number, j: number, k: number, l: number) => Math.abs((p[k] - p[l]) / ((p[i] - p[j]) || 1));
+      const mid = (i: number, j: number) => ({ x: (c[i].x + c[j].x) / 2, y: (c[i].y + c[j].y) / 2 });
+      if (c.length >= 3 && p.length >= 3) { const m = mid(0, 2); figs.push(label(m.x, m.y, ratio(0, 1, 1, 2).toFixed(3), rgba(st.color, 0.85))); }
+      if (c.length >= 4 && p.length >= 4) { const m = mid(1, 3); figs.push(label(m.x, m.y, ratio(1, 2, 2, 3).toFixed(3), rgba(st.color, 0.85))); }
+      if (c.length >= 5 && p.length >= 5) {
+        const m = mid(2, 4); figs.push(label(m.x, m.y, ratio(2, 3, 3, 4).toFixed(3), rgba(st.color, 0.85)));
+        const m2 = mid(0, 4); figs.push(label(m2.x, m2.y, `AD/XA ${ratio(0, 1, 1, 4).toFixed(3)}`, rgba(st.color, 0.85)));
+      }
+      c.forEach((pt, i) => { if (i < 5) figs.push(label(pt.x, pt.y + (i % 2 ? -12 : 12), names[i], st.color)); });
+      return figs;
+    },
+  },
+  {
+    ...base('jc_hs', 8),
+    createPointFigures: ({ overlay, coordinates, bounding }) => {
+      const d = overlay.extendData, st = lineStyle(d);
+      const c = coordinates;
+      const figs: Fig[] = [];
+      if (c.length >= 2) figs.push(line(c, d));
+      if (c.length >= 5) {
+        // neckline through the two troughs (points 2 and 4), extended to the right
+        const [n1, n2] = [c[2], c[4]];
+        const k = n2.x === n1.x ? 0 : (n2.y - n1.y) / (n2.x - n1.x);
+        figs.push(line([{ x: c[0].x, y: n1.y + k * (c[0].x - n1.x) }, { x: bounding.width, y: n1.y + k * (bounding.width - n1.x) }], d, { styles: { ...st, style: 'dashed', dashedValue: [5, 3], size: 1 } }));
+      }
+      const tags: [number, string][] = [[1, 'Left shoulder'], [3, 'Head'], [5, 'Right shoulder']];
+      for (const [i, t] of tags) if (c[i]) figs.push(label(c[i].x, c[i].y - 14, t, rgba(st.color, 0.9)));
+      return figs;
+    },
+  },
+  ...([['jc_elliott', 7, ['0', '1', '2', '3', '4', '5']], ['jc_abc', 5, ['0', 'A', 'B', 'C']]] as const).map(([name, steps, names]) => ({
+    ...base(name, steps),
+    createPointFigures: ({ overlay, coordinates }: { overlay: O; coordinates: Coordinate[] }): Fig[] => {
+      const d = overlay.extendData, st = lineStyle(d);
+      const c = coordinates;
+      const figs: Fig[] = c.length >= 2 ? [line(c, d)] : [];
+      c.forEach((pt, i) => {
+        if (i === 0 || i >= names.length) return;
+        const up = i < c.length - 1 ? c[i + 1].y > pt.y : c[i - 1].y > pt.y; // a peak: label above
+        figs.push({ type: 'text', ignoreEvent: true, attrs: { x: pt.x, y: pt.y + (up ? -14 : 14), text: names[i], align: 'center', baseline: 'middle' },
+          styles: { color: '#ffffff', size: 11, family: FONT, weight: 'bold', backgroundColor: st.color, borderColor: st.color, borderRadius: 9, paddingLeft: 5, paddingRight: 5, paddingTop: 2, paddingBottom: 2 } });
+      });
+      return figs;
+    },
+  })),
   // ---------- anchored VWAP: one click on the bar to start from (a swing, the open, news) ----------
   {
     ...base('jc_avwap', 2), needDefaultYAxisFigure: false,

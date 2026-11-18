@@ -150,7 +150,7 @@ export class DrawingController {
     const def = TOOLS[tool];
     const draft: Drawing = {
       id: newId(), tool, points: [], color: def.color, width: def.width, line: 'solid',
-      ...(tool === 'text' ? { text: 'Text' } : {}),
+      ...(tool === 'text' ? { text: 'Text' } : tool === 'callout' ? { text: 'Note' } : {}),
       ...(tool === 'long' || tool === 'short' ? { qty: 1, contract: 'NQ' as const } : {}),
       ...this.tplStyle(tool),
     };
@@ -305,7 +305,7 @@ export class DrawingController {
     this.selected = this.stayDrawing ? null : d.id;
     this.justCreated = d.id;
     this.store.commit([...this.store.drawings, d]);
-    if (this.stayDrawing && d.tool !== 'text') window.setTimeout(() => { if (!this.active) this.start(d.tool); }, 0);
+    if (this.stayDrawing && d.tool !== 'text' && d.tool !== 'callout') window.setTimeout(() => { if (!this.active) this.start(d.tool); }, 0);
   }
 
   /** A drawing was dragged: read its new points back, keeping full precision for untouched points. */
