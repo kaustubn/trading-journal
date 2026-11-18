@@ -7,6 +7,13 @@
 // NO LOOKAHEAD: paAnalyze walks the bars once, left to right; state[i] uses bars 0..i only. Swings are
 // fractals with 2 bars each side, so a swing at bar s is only known at bar s + 2.
 import { registerIndicator, KLineData } from 'klinecharts';
+import { etMinutes, etOffset } from './time';
+
+// FOMC statement days (federalreserve.gov), for the day-context note
+const FOMC = new Set(['2021-11-03', '2021-12-15', '2022-01-26', '2022-03-16', '2022-05-04', '2022-06-15', '2022-07-27', '2022-09-21', '2022-11-02', '2022-12-14',
+  '2023-02-01', '2023-03-22', '2023-05-03', '2023-06-14', '2023-07-26', '2023-09-20', '2023-11-01', '2023-12-13', '2024-01-31', '2024-03-20', '2024-05-01', '2024-06-12',
+  '2024-07-31', '2024-09-18', '2024-11-07', '2024-12-18', '2025-01-29', '2025-03-19', '2025-05-07', '2025-06-18', '2025-07-30', '2025-09-17', '2025-10-29', '2025-12-10',
+  '2026-01-28', '2026-03-18', '2026-04-29', '2026-06-17', '2026-07-29', '2026-09-16', '2026-10-28', '2026-12-09']);
 
 export type BarKind = 'bull trend' | 'bear trend' | 'doji' | 'bull reversal' | 'bear reversal' | 'bull' | 'bear';
 export interface PAState {
@@ -22,6 +29,14 @@ export interface PAState {
   bo: 1 | -1 | 0;                 // this bar is a breakout of the last 20 bars' range (trend bar)
   ft: boolean;                    // this bar is follow-through of a breakout on the previous bar
   signalQuality: 'good' | 'weak' | null; // for a count / reversal bar: does it close strongly?
+  trap: 1 | -1 | 0;               // failed breakout on this bar: 1 = failed bear BO (bear trap -> buy), -1 = failed bull BO (bull trap -> sell)
+  climax: 1 | -1 | 0;             // buy climax (1) / sell climax (-1): 3 strong bars in a row far from the EMA
+  maGap: 1 | -1 | 0;              // first touch of the EMA after 20+ bars away from it: 1 = in a bull trend (buy), -1 = bear
+  tight: boolean;                 // tight trading range (breakout mode): last 10 bars inside ~2 ATR, overlapping
+  io: 'inside' | 'outside' | 'ii' | 'ioi' | null;
+  mm: number | null;              // measured-move target projected from a breakout bar
+  open: { gap: number; gapPct: number; fomc: boolean } | null;   // first New York bar: gap vs yesterday's close (gapPct = share of yesterday's NY range)
+  openType: 'trend from the open up' | 'trend from the open down' | 'trading range open' | null; // read after the first 30 min
 }
 
 const cache = new WeakMap<KLineData[], PAState[]>();
@@ -38,6 +53,11 @@ export function paAnalyze(bars: KLineData[]): PAState[] {
   let micro = 0;
   const swingHi: { i: number; p: number }[] = [], swingLo: { i: number; p: number }[] = [];
   const side: number[] = []; // close above (1) / below (-1) the EMA
+  let lastBo: { i: number; dir: 1 | -1; level: number } | null = null;
+  let aboveRun = 0, belowRun = 0;
+  let rthClose = NaN, rthOpenI = -1, rthHi = -Infinity, rthLo = Infinity, prevRange = NaN;
+  let tfMin = bars.length > 1 ? Math.max(1, Math.round((bars[1].timestamp - bars[0].timestamp) / 60000)) : 5;
+  for (let k = 2; k < Math.min(bars.length, 50); k++) tfMin = Math.min(tfMin, Math.max(1, Math.round((bars[k].timestamp - bars[k - 1].timestamp) / 60000)));
   for (let i = 0; i < bars.length; i++) {
     const b = bars[i], p = bars[i - 1];
     const pc = p ? p.close : b.close;
@@ -119,10 +139,65 @@ export function paAnalyze(bars: KLineData[]): PAState[] {
     else if (bot5 && cf >= 0.55 && swingLo.some(sw => i - sw.i >= 8 && i - sw.i <= 60 && Math.abs(b.low - sw.p) <= tol && b.close > sw.p && realLo(sw))) dbl = 'DB';
 
     micro = p ? (b.low >= p.low && b.high > p.high ? Math.max(1, micro + 1) : b.high <= p.high && b.low < p.low ? Math.min(-1, micro - 1) : 0) : 0;
+
+    // failed breakout (trap): a 20-bar breakout in the last 1-3 bars, now closed back through the breakout level
+    if (bo) lastBo = { i, dir: bo, level: bo > 0 ? hh : ll };
+    let trap: 1 | -1 | 0 = 0;
+    if (lastBo && !bo && i - lastBo.i <= 3) {
+      if (lastBo.dir > 0 && b.close < lastBo.level) { trap = -1; lastBo = null; }
+      else if (lastBo.dir < 0 && b.close > lastBo.level) { trap = 1; lastBo = null; }
+    }
+    // climax: 3 strong bars in a row, closing more than 2 ATR from the EMA
+    let climax: 1 | -1 | 0 = 0;
+    if (i >= 2) {
+      const k3 = [out[i - 2]?.kind, out[i - 1]?.kind, kind];
+      if (k3.every(k => k === 'bull trend' || k === 'bull') && k3.filter(k => k === 'bull trend').length >= 2 && b.close > ema + 2 * atr) climax = 1;
+      else if (k3.every(k => k === 'bear trend' || k === 'bear') && k3.filter(k => k === 'bear trend').length >= 2 && b.close < ema - 2 * atr) climax = -1;
+    }
+    // EMA gap bar: first touch of the EMA after 20+ bars entirely on one side
+    let maGap: 1 | -1 | 0 = 0;
+    if (b.low <= ema && aboveRun >= 20 && ai >= 0) maGap = 1;
+    else if (b.high >= ema && belowRun >= 20 && ai <= 0) maGap = -1;
+    aboveRun = b.low > ema ? aboveRun + 1 : 0;
+    belowRun = b.high < ema ? belowRun + 1 : 0;
+    // tight trading range (breakout mode)
+    let tight = false;
+    if (i >= 10) {
+      let th = -Infinity, tl = Infinity, small = 0;
+      for (let k = i - 9; k <= i; k++) { th = Math.max(th, bars[k].high); tl = Math.min(tl, bars[k].low); if (out[k]?.kind === 'doji' || (k === i && kind === 'doji') || Math.abs(bars[k].close - bars[k].open) < 0.5 * atr) small++; }
+      tight = th - tl <= 2 * atr && small >= 6;
+    }
+    // inside / outside bars
+    const ins = !!p && b.high <= p.high && b.low >= p.low, outs = !!p && b.high > p.high && b.low < p.low;
+    const pio = out[i - 1]?.io, ppio = out[i - 2]?.io;
+    const io: PAState['io'] = ins && (pio === 'inside' || pio === 'ii') ? 'ii' : ins && pio === 'outside' && (ppio === 'inside' || ppio === 'ii') ? 'ioi' : ins ? 'inside' : outs ? 'outside' : null;
+    // measured move from a breakout bar (its height projected beyond its close)
+    const mm = bo ? b.close + bo * (b.high - b.low) : null;
+    // New York open context
+    let open: PAState['open'] = null, openType: PAState['openType'] = null;
+    const em = etMinutes(b.timestamp);
+    if (em >= 570 && em < 570 + tfMin && (i === 0 || etMinutes(bars[i - 1].timestamp) < 570 || bars[i - 1].timestamp < b.timestamp - 6 * 3600000)) {
+      const date = new Date(b.timestamp + etOffset(b.timestamp)).toISOString().slice(0, 10);
+      if (rthHi > -Infinity) prevRange = rthHi - rthLo;
+      rthHi = -Infinity; rthLo = Infinity;
+      const gap = Number.isNaN(rthClose) ? NaN : b.open - rthClose; // unknown without yesterday's session on the chart
+      open = { gap, gapPct: prevRange > 0 ? gap / prevRange : 0, fomc: FOMC.has(date) };
+      rthOpenI = i;
+    }
+    const nOpen = Math.max(1, Math.round(30 / tfMin));
+    if (rthOpenI >= 0 && i === rthOpenI + nOpen - 1) {
+      const o0 = bars[rthOpenI].open;
+      let up = 0, dn = 0, hi = -Infinity, lo = Infinity;
+      for (let k = rthOpenI; k <= i; k++) { if (bars[k].close > bars[k].open) up++; else if (bars[k].close < bars[k].open) dn++; hi = Math.max(hi, bars[k].high); lo = Math.min(lo, bars[k].low); }
+      const move = b.close - o0, span = hi - lo;
+      openType = Math.abs(move) >= 0.6 * span && Math.abs(move) >= 1.5 * atr && Math.max(up, dn) >= 0.65 * nOpen
+        ? (move > 0 ? 'trend from the open up' : 'trend from the open down') : 'trading range open';
+    }
+    if (em >= 570 && em < 960) { rthClose = b.close; rthHi = Math.max(rthHi, b.high); rthLo = Math.min(rthLo, b.low); }
     const bullish = count?.startsWith('H') || kind === 'bull reversal' || dbl === 'DB' || wedge === 'bottom';
     const bearish = count?.startsWith('L') || kind === 'bear reversal' || dbl === 'DT' || wedge === 'top';
     const signalQuality = bullish ? (cf >= 0.6 && kind !== 'doji' ? 'good' : 'weak') : bearish ? (cf <= 0.4 && kind !== 'doji' ? 'good' : 'weak') : null;
-    out.push({ kind, atr, ema, ai, aiFlip, ctx, count, pushes, wedge, dbl, micro, bo, ft, signalQuality });
+    out.push({ kind, atr, ema, ai, aiFlip, ctx, count, pushes, wedge, dbl, micro, bo, ft, signalQuality, trap, climax, maGap, tight, io, mm, open, openType });
   }
   cache.set(bars, out);
   return out;
@@ -156,9 +231,28 @@ export function paNarrate(bars: KLineData[], i: number): { title: string; text: 
   }
   if (s.wedge) parts.push(`Third push ${s.wedge === 'top' ? 'up' : 'down'} in this leg: a wedge. Three pushes often exhaust a move — watch for a ${s.wedge === 'top' ? 'bear' : 'bull'} reversal bar to fade it, aiming for at least a two-legged pullback.`);
   if (s.dbl) parts.push(s.dbl === 'DT' ? 'Double top: this bar tested an earlier swing high and closed back below it. Sellers defended the same price twice.' : 'Double bottom: this bar tested an earlier swing low and closed back above it. Buyers defended the same price twice.');
+  if (s.open) {
+    const g = s.open.gap;
+    parts.unshift(s.open.fomc ? 'FOMC DAY: the Fed statement is at 2:00 pm ET — mornings are often quiet and two-sided, the big move usually comes after 2:00.' : '');
+    parts.unshift(Number.isNaN(g) ? 'New York open (yesterday is not on the chart, so the gap is unknown): the first bars decide between a trend from the open and a trading range.'
+      : Math.abs(s.open.gapPct) < 0.1 ? `New York open with no real gap (${g >= 0 ? '+' : '−'}${Math.abs(g).toFixed(0)} pts vs yesterday's close): expect the first bars to decide between a trend from the open and a trading range.`
+      : `New York open, gap ${g > 0 ? 'UP' : 'DOWN'} ${Math.abs(g).toFixed(0)} pts (${Math.round(Math.abs(s.open.gapPct) * 100)}% of yesterday's range). Common outcomes: a trend from the open in the gap direction, a reversal that fills the gap, or a trading range. The first few bars tell you which.`);
+  }
+  if (s.openType) parts.push(s.openType === 'trading range open'
+    ? 'First 30 minutes = trading range open: overlapping two-sided bars. Odds favour a trading-range day or a late breakout; fade the extremes and do not chase.'
+    : `First 30 minutes = ${s.openType.toUpperCase()}: one-sided bars from the open. On these days pullbacks are small and short; the with-trend side is the only side worth trading until a clear reversal.`);
+  if (s.trap) parts.push(s.trap > 0 ? 'Failed bear breakout (bear trap): the break below the recent range reversed back above it. Trapped shorts must buy to get out, which often fuels a move up.' : 'Failed bull breakout (bull trap): the break above the recent range reversed back below it. Trapped longs must sell to get out, which often fuels a move down.');
+  if (s.climax) parts.push(s.climax > 0 ? 'Buy climax: three strong bull bars, far above the EMA. Late buyers are paying a high price; climaxes usually lead to a trading range or a two-legged pullback — do not buy late here.' : 'Sell climax: three strong bear bars, far below the EMA. Late sellers are selling low; climaxes usually lead to a trading range or a two-legged bounce — do not sell late here.');
+  if (s.maGap) parts.push(s.maGap > 0 ? 'EMA gap bar: the first touch of the 20-bar EMA after 20+ bars above it. In a strong bull trend that first touch is usually bought and leads to a test of the high.' : 'EMA gap bar: the first touch of the 20-bar EMA after 20+ bars below it. In a strong bear trend that first touch is usually sold and leads to a test of the low.');
+  if (s.tight) parts.push('Tight trading range: small overlapping bars inside about 2 ATR — breakout mode. Most breakouts from here fail at first; wait for a clear breakout with follow-through, or fade the edges with small size.');
+  if (s.io === 'ii') parts.push('ii: two inside bars in a row — the market is coiling. Expect a breakout soon; it often fails first.');
+  else if (s.io === 'ioi') parts.push('ioi: inside, outside, inside — breakout mode. A stop entry beyond this bar in the trend direction is the usual play.');
+  else if (s.io === 'outside') parts.push('Outside bar: it went above and below the prior bar — both sides got stopped out; the close shows who won.');
+  if (s.mm != null) parts.push(`Measured-move target from this breakout bar: about ${s.mm.toFixed(0)} (its height projected beyond the close).`);
   if (Math.abs(s.micro) >= 6) parts.push(s.micro > 0 ? `Bull micro channel: ${s.micro} bars without a lower low. Strong: the first pullback is usually bought, so do not short it yet.` : `Bear micro channel: ${-s.micro} bars without a higher high. Strong: the first bounce is usually sold, so do not buy it yet.`);
   const title = s.count ? `${s.count} bar` : s.wedge ? 'Wedge (3 pushes)' : s.dbl ? (s.dbl === 'DT' ? 'Double top' : 'Double bottom') : s.aiFlip ? 'Always-in flip' : s.bo ? 'Breakout' : 'Bar read';
-  return { title, text: parts.join(' ') };
+  const t2 = s.open ? 'New York open' : s.openType ? 'Opening type' : s.trap ? (s.trap > 0 ? 'Bear trap' : 'Bull trap') : s.climax ? (s.climax > 0 ? 'Buy climax' : 'Sell climax') : s.maGap ? 'EMA gap bar' : title;
+  return { title: t2, text: parts.filter(Boolean).join(' ') };
 }
 
 // ---------------------------------------------------------------- chart overlay
@@ -184,9 +278,9 @@ export function registerPriceAction() {
         ctx.fillStyle = s.ai > 0 ? 'rgba(8,153,129,.55)' : s.ai < 0 ? 'rgba(242,54,69,.55)' : 'rgba(128,128,128,.3)';
         ctx.fillRect(x(i) - bar / 2, bounding.height - 4, bar + 1, 4);
         const b = data[i];
-        const label = s.count || (s.wedge ? 'W3' : '') || s.dbl || '';
+        const label = s.count || (s.wedge ? 'W3' : '') || s.dbl || (s.trap ? 'TRAP' : '') || (s.climax ? 'CLX' : '') || (s.maGap ? 'MAG' : '') || (s.io === 'ii' || s.io === 'ioi' ? s.io : '');
         if (!label) continue;
-        const bull = s.count?.startsWith('H') || s.dbl === 'DB' || s.wedge === 'bottom';
+        const bull = s.count?.startsWith('H') || s.dbl === 'DB' || s.wedge === 'bottom' || s.trap > 0 || s.climax < 0 || s.maGap > 0;
         ctx.fillStyle = bull ? '#089981' : '#f23645';
         if (s.signalQuality === 'weak') ctx.globalAlpha = 0.55;
         if (bull) { ctx.textBaseline = 'top'; ctx.fillText(label, x(i), y(b.low) + 4); }

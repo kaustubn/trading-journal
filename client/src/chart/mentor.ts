@@ -286,6 +286,47 @@ Object.assign(DETECTORS, {
       return { steps, signal };
     },
   },
+  pa_trap: {
+    name: 'Failed breakout (trap)',
+    describe: 'A breakout of the last 20 bars reverses back through the breakout level within 3 bars: trade against the trapped traders.',
+    fn: (bars: Bars, i: number) => {
+      const S = paAnalyze(bars), s = S[i], b = bars[i];
+      const side: 'long' | 'short' | null = s?.trap > 0 ? 'long' : s?.trap < 0 ? 'short' : null;
+      const steps = [
+        { label: 'A breakout of the last 20 bars happened 1-3 bars ago', done: !!side },
+        { label: 'This bar closed back through the breakout level (the breakout failed)', done: !!side },
+        { label: 'Not in a tight trading range (where everything fails both ways)', done: !!side && !s.tight },
+      ];
+      let signal = null;
+      if (steps.every(x => x.done) && side) {
+        let ext = side === 'long' ? Infinity : -Infinity;
+        for (let k = Math.max(0, i - 3); k <= i; k++) ext = side === 'long' ? Math.min(ext, bars[k].low) : Math.max(ext, bars[k].high);
+        const stop = minRisk(b.close, side === 'long' ? ext - 0.25 : ext + 0.25, s.atr, side);
+        signal = plan(i, side, b.close, stop, 1, 2, `Failed ${side === 'long' ? 'bear' : 'bull'} breakout: trapped traders have to get out, which pushes price the other way. Stop beyond the failed breakout's extreme.`);
+      }
+      return { steps, signal };
+    },
+  },
+  pa_ma_gap: {
+    name: 'EMA gap bar (first touch of the 20-bar EMA)',
+    describe: 'After 20+ bars on one side of the EMA, the first touch is usually a with-trend entry.',
+    fn: (bars: Bars, i: number) => {
+      const S = paAnalyze(bars), s = S[i], b = bars[i];
+      const side: 'long' | 'short' | null = s?.maGap > 0 ? 'long' : s?.maGap < 0 ? 'short' : null;
+      const steps = [
+        { label: 'Price stayed on one side of the 20-bar EMA for 20+ bars (strong trend)', done: !!side },
+        { label: 'This bar is the first to touch the EMA', done: !!side },
+        { label: 'It closes back on the trend side of the EMA', done: !!side && (side === 'long' ? b.close > s.ema : b.close < s.ema) },
+      ];
+      let signal = null;
+      if (steps.every(x => x.done) && side) {
+        const entry = side === 'long' ? b.high + 0.25 : b.low - 0.25;
+        const stop = minRisk(entry, side === 'long' ? b.low - 0.25 : b.high + 0.25, s.atr, side);
+        signal = plan(i, side, entry, stop, 1, 2, `EMA gap bar: the first touch of the EMA in a strong ${side === 'long' ? 'bull' : 'bear'} trend is usually ${side === 'long' ? 'bought' : 'sold'}, aiming for a test of the trend extreme.`);
+      }
+      return { steps, signal };
+    },
+  },
   pa_bo_ft: {
     name: 'Breakout with follow-through',
     describe: 'A trend bar closes beyond the last 20 bars, the next bar follows through: join it for a second leg.',
