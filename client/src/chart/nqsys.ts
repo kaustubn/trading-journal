@@ -32,7 +32,11 @@ const nqStyle = (e?: NqSysExt): NqStyle => ({ ...NQ_STYLE_TV, ...(e?.style ?? {}
 // ---- Pine input defaults ----
 const EMA_LEN = 21, ATR_LEN = 14, RSI_LEN = 14;
 const SLOPE_PCT = 0, LEV_TOL_PCT = 0.05;
-const IB_TREND = 60, IB_RANGE = 120, ATR_MIN = 8, ATR_SKIP = 40, ATR_RED = 30;
+// Day classifier in volatility units (2026-11-18; the old 60 / 120 pt IB and 8 / 30 / 40 pt ATR were set
+// for 2023 prices and made 62% of 2026 days "no-trade"). Calibrated so 2023 keeps the same mix:
+//   IB (9:30-10:00) < 0.28x day ATR = trend, > 0.67x = range  (day ATR = avg NY session range, 14 days)
+//   ATR now vs its normal (avg ATR at 10:00, last 20 days): < 0.38x dead, > 1.74x wild, > 1.45x reduce size
+const IB_TREND_X = 0.28, IB_RANGE_X = 0.67, ATR_MIN_X = 0.38, ATR_SKIP_X = 1.74, ATR_RED_X = 1.45, ATR_NORM_DAYS = 20;
 const S1_REJ = 0.5, S2_REJ = 0.6, S2_RSI_LO = 35, S2_RSI_HI = 65;
 const S3_WICK = 8, S3_RSI_LO = 35, S3_RSI_HI = 65;
 // ORB range filter (Kay, 2026-11-18): the 9:30-9:45 range must be 0.15-0.50x the average New York
@@ -136,8 +140,11 @@ function calcNqSys(data: KLineData[], ext: NqSysExt | undefined): NqRow[] {
   // IB / ORB state
   let orbHi = NaN, orbLo = NaN, ibHi = NaN, ibLo = NaN, ibRange = NaN, orbRng = NaN, ibDone = false, dayType = 0;
   // New York session ranges (9:30-16:00) of the days loaded, for the ORB size filter
-  let rthHi = NaN, rthLo = NaN;
+  let rthHi = NaN, rthLo = NaN, dayAtr = NaN;
   const rthRanges: number[] = [];
+  const ibAtrs: number[] = [];         // ATR at the end of each day's IB (its "normal" level)
+  let atrNorm = NaN;
+  const atrX = (v: number) => (Number.isNaN(atrNorm) || !(atrNorm > 0) ? 1 : v / atrNorm); // unknown normal = treat as normal
   let pRTH = false, pORB = false, pIB = false;
   // Previous-bar raw signals
   let p = { s1L: false, s1S: false, s2L: false, s2S: false, s3L: false, s3S: false, oL: false, oS: false };
@@ -238,6 +245,10 @@ function calcNqSys(data: KLineData[], ext: NqSysExt | undefined): NqRow[] {
     if (rthStart) {
       if (!Number.isNaN(rthHi)) rthRanges.push(rthHi - rthLo);
       rthHi = NaN; rthLo = NaN;
+      const lastDays = rthRanges.slice(-ORB_ATR_DAYS);
+      dayAtr = lastDays.length >= 3 ? lastDays.reduce((a, b) => a + b, 0) / lastDays.length : NaN;
+      const lastAtr = ibAtrs.slice(-ATR_NORM_DAYS);
+      atrNorm = lastAtr.length >= 3 ? lastAtr.reduce((a, b) => a + b, 0) / lastAtr.length : NaN;
       orbHi = NaN; orbLo = NaN; ibHi = NaN; ibLo = NaN; ibRange = NaN; orbRng = NaN; ibDone = false; dayType = 0;
     }
     if (inRTH) { rthHi = Number.isNaN(rthHi) ? h : Math.max(rthHi, h); rthLo = Number.isNaN(rthLo) ? l : Math.min(rthLo, l); }
@@ -247,7 +258,13 @@ function calcNqSys(data: KLineData[], ext: NqSysExt | undefined): NqRow[] {
     if (!inIB && pIB && !Number.isNaN(ibHi) && !Number.isNaN(ibLo)) {
       ibRange = ibHi - ibLo;
       ibDone = true;
-      dayType = (atr < ATR_MIN || atr > ATR_SKIP) ? 0 : ibRange < IB_TREND ? 1 : ibRange <= IB_RANGE ? 2 : 3;
+      const ax = atrX(atr);
+      if (Number.isFinite(atr)) ibAtrs.push(atr);
+      // without enough history for the day ATR, fall back to the IB's own ATR multiple (about 3.5 ATR = 0.28x day)
+      const ibX = Number.isNaN(dayAtr) ? NaN : ibRange / dayAtr;
+      dayType = (ax < ATR_MIN_X || ax > ATR_SKIP_X) ? 0
+        : Number.isNaN(ibX) ? 2
+        : ibX < IB_TREND_X ? 1 : ibX <= IB_RANGE_X ? 2 : 3;
     }
 
     // ---- candle math ----
@@ -278,8 +295,6 @@ function calcNqSys(data: KLineData[], ext: NqSysExt | undefined): NqRow[] {
     const s3S = canBase && s3Day && !up15 && (sweepDn(vah) || sweepDn(pdh) || sweepDn(swHi)) && rsi >= S3_RSI_HI;
     // ORB
     // needs at least 3 earlier sessions on the chart; with fewer the size check is skipped
-    const lastDays = rthRanges.slice(-ORB_ATR_DAYS);
-    const dayAtr = lastDays.length >= 3 ? lastDays.reduce((a, b) => a + b, 0) / lastDays.length : NaN;
     const orbRangeOk = !Number.isNaN(orbRng) && (Number.isNaN(dayAtr) || (orbRng >= ORB_ATR_MIN * dayAtr && orbRng <= ORB_ATR_MAX * dayAtr));
     const orbDayOk = !ibDone || dayType !== 0;
     const oL = confirmed && inOrbTr && orbDayOk && orbRangeOk && !Number.isNaN(orbHi) && Math.min(o, c) > orbHi && body >= ORB_BODY;
@@ -302,7 +317,7 @@ function calcNqSys(data: KLineData[], ext: NqSysExt | undefined): NqRow[] {
       else { long = false; stop = orbLo + ORB_STOP; tag = 'ORB'; }
       if (!Number.isNaN(stop)) {
         const entry = c, risk = Math.abs(entry - stop);
-        const redTag = atr > ATR_RED ? ' (reduce 40%)' : '';
+        const redTag = atrX(atr) > ATR_RED_X ? ' (reduce 40%)' : '';
         const flowOk = long ? recentDelta > 0 : recentDelta < 0;
         const text = `${tag}${long ? ' LONG  ' : ' SHORT  '}${rnd(risk, 1)}pt  T1 ${t1m}R / T2 ${t2m}R  $${rnd(risk * 2 * REF_QTY)}/${REF_QTY}MNQ${redTag}${flowOk ? '  flow OK' : '  flow AGAINST'}`;
         plan = {
@@ -331,8 +346,9 @@ function calcNqSys(data: KLineData[], ext: NqSysExt | undefined): NqRow[] {
   // ---- scorecard (last bar) ----
   const lastClose = data[n - 1].close;
   const vwapLast = rows[n - 1].b!.vwap;
-  const atrTxt = rnd(atr, 1) + (atr < ATR_MIN ? ' DEAD' : atr > ATR_SKIP ? ' WILD' : atr > ATR_RED ? ' reduce' : '');
-  const atrCol = (atr < ATR_MIN || atr > ATR_SKIP) ? C.red : atr > ATR_RED ? C.orange : C.white;
+  const ax = atrX(atr);
+  const atrTxt = rnd(atr, 1) + (Number.isNaN(atrNorm) ? '' : ` (${rnd(ax, 2)}x)`) + (ax < ATR_MIN_X ? ' DEAD' : ax > ATR_SKIP_X ? ' WILD' : ax > ATR_RED_X ? ' reduce' : '');
+  const atrCol = (ax < ATR_MIN_X || ax > ATR_SKIP_X) ? C.red : ax > ATR_RED_X ? C.orange : C.white;
   const liveSig = sig & (S1L | S1S) ? 'S1' : sig & (S2L | S2S) ? 'S2' : sig & (S3L | S3S) ? 'S3' : sig & (ORBL | ORBS) ? 'ORB' : '—';
   const label = (text: string): Cell => ({ text, color: C.gray });
   const card: Card = {
