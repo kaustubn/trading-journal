@@ -352,13 +352,14 @@ export class DrawingController {
       return {
         id: d.id, name: TOOLS[d.tool].overlay, groupId: GROUP, paneId: PANE, points,
         extendData: { ...d, anchor: { t: points[0].timestamp, p: points[0].value } } as Drawing,
-        lock: !!d.locked || lockAll, visible: !hidden && !d.hidden, mode: 'normal',
+        lock: !!d.locked || lockAll, visible: !hidden && !d.hidden, mode: 'normal', zLevel: this.z.get(d.id) ?? 0,
       };
     }
     return {
       id: d.id, name: TOOLS[d.tool].overlay, groupId: GROUP, paneId: PANE,
       points: d.points.map(p => ({ timestamp: barTime(p.t, tf, rth), value: p.p })),
       extendData: d, lock: !!d.locked || lockAll, visible: !hidden && !d.hidden, mode: MODE[magnet],
+      zLevel: this.z.get(d.id) ?? 0,
     };
   }
 
@@ -367,8 +368,31 @@ export class DrawingController {
   private built = new Map<string, { d: Drawing; view: string }>();
   private viewKey() { const v = this.view; return `${v.tf}|${v.rth}|${v.magnet}|${v.hidden}|${v.lockAll}`; }
 
+  // stacking order = position in the shared list (later = in front)
+  private z = new Map<string, number>();
+
+  /** Copy a drawing on top of itself and select the copy (TradingView's Clone). */
+  clone(id: string) {
+    const d = this.store.drawings.find(x => x.id === id);
+    if (!d) return;
+    const copy: Drawing = { ...d, id: newId(), points: d.points.map(p => ({ ...p })), locked: false };
+    this.store.commit([...this.store.drawings, copy]);
+    this.select(copy.id);
+  }
+  /** Bring a drawing to the front or send it to the back. */
+  reorder(id: string, where: 'front' | 'back') {
+    const list = this.store.drawings;
+    const d = list.find(x => x.id === id);
+    if (!d) return;
+    const rest = list.filter(x => x.id !== id);
+    // new objects so every window rebuilds its overlays with the new stacking order
+    this.store.commit((where === 'front' ? [...rest, d] : [d, ...rest]).map(x => ({ ...x })));
+    this.select(id);
+  }
+
   /** Make this chart's overlays match the shared drawing list. */
   sync() {
+    this.z = new Map(this.store.drawings.map((d, i) => [d.id, i]));
     const onChart = new Set(
       this.chart.getOverlays({ groupId: GROUP })
         .filter(o => o.id !== this.draftId && OVERLAY_TO_TOOL[o.name])

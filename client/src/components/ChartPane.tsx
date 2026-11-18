@@ -407,7 +407,7 @@ export default function ChartPane({ index, tf, s, active, ws, onActivate }: Prop
     if (a.s.clock !== s.clock) chart.setTimezone(TZ[s.clock]);
     if (a.s.theme !== s.theme || a.s.look !== s.look || a.s.chart !== s.chart) { chart.setStyles(s.theme); chart.setStyles(chartStyles(s.theme, s.chart)); }
     if (a.s.log !== s.log) chart.overrideYAxis({ paneId: PANE, name: s.log ? 'logarithm' : 'normal' });
-    if (a.s.indicators !== s.indicators || a.tf !== tf || a.s.look !== s.look) syncIndicators(chart, s, tf);
+    if (a.s.indicators !== s.indicators || a.tf !== tf || a.s.look !== s.look || a.s.chart.ctype !== s.chart.ctype || (s.chart.ctype === 'heikin' && a.s.chart !== s.chart)) syncIndicators(chart, s, tf);
     pushBg();
     if (a.s.levels !== s.levels || a.tf !== tf) { levelsAt.current = null; refreshLevels(); }
     ctlRef.current?.setView(viewOf(s, tf));

@@ -4,7 +4,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { X } from 'lucide-react';
 import {
-  ChartCfg, CHART_TV, CHART_STD, IndKey, IndCfg, INDS, LINE_COLORS, lineNames, parseParams, VOL_BARS_TV,
+  ChartCfg, ChartType, CHART_TYPES, CHART_TV, CHART_STD, IndKey, IndCfg, INDS, LINE_COLORS, lineNames, parseParams, VOL_BARS_TV,
 } from '../chart/config';
 import { NQ_STYLE_TV, NqStyle, NqLine } from '../chart/nqsys';
 
@@ -195,6 +195,12 @@ export function ChartSettingsDialog({ cfg, onChange, onClose }: { cfg: ChartCfg;
       </div>
       <div className="mc-dlg-body">
         {tab === 'symbol' && (<>
+          <div className="mc-dlg-h">Chart type</div>
+          <div className="mc-dlg-row">
+            <select className="mc-input" value={cfg.ctype} onChange={e => set({ ctype: e.target.value as ChartType })}>
+              {CHART_TYPES.map(([t, l]) => <option key={t} value={t}>{l}</option>)}
+            </select>
+          </div>
           <div className="mc-dlg-h">Candles</div>
           <div className="mc-dlg-row">{chk('body', 'Body')}{col('upBody')}{col('downBody')}</div>
           <div className="mc-dlg-row">{chk('borders', 'Borders')}{col('upBorder')}{col('downBorder')}</div>

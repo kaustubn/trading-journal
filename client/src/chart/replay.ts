@@ -33,6 +33,7 @@ export interface Position {
 export interface ClosedTrade extends Position {
   id: string; exit: number; exitTime: number; reason: ExitReason; pnl: number; r: number;
   tf: number; saved: 'pending' | 'saved' | 'failed'; error?: string;
+  dbId?: number; tags?: string[];   // the journal trade once saved (quick tags at exit write to it)
 }
 export interface OrderInput {
   side: Side; qty: number; contract: Contract;
@@ -151,13 +152,15 @@ export class ReplayEngine {
   private buf: KLineData[] = [];   // 1-minute bars, full session, sorted
   private bufMore = true;          // the server may have bars after the buffer
   private idx = -1;                // index of the cursor bar in buf
+  /** True when the cursor sits on a loaded bar (false after a jump past the data). */
+  get hasBar(): boolean { return this.idx >= 0 && !!this.buf[this.idx]; }
   private timer: number | undefined;
 
   constructor(private hooks: ReplayHooks) {}
 
   get price(): number | null {
     if (this.part) return this.part.path[this.part.s];
-    return this.idx >= 0 ? this.buf[this.idx].close : null;
+    return this.buf[this.idx]?.close ?? null; // the buffer can be reloaded (e.g. a jump past the data) before idx moves
   }
   /** Market time now: the end of the revealed minute, or the current second in a forward test. */
   get nowMs(): number { return this.part ? this.part.k.timestamp + (this.part.s + 1) * 1000 : this.cursor + MIN; }
@@ -215,7 +218,7 @@ export class ReplayEngine {
     this.hooks.onChange();
     try {
       const ok = await this.placeCursor(t);
-      if (!ok) { this.message = 'No price data at that point — pick another bar.'; return; }
+      if (!ok) { this.idx = -1; this.message = 'No price data at that point — pick another bar.'; return; }
       this.active = true;
       this.hooks.onReset();
     } catch {
@@ -591,8 +594,8 @@ export class ReplayEngine {
     this.hooks.onClosed(t);
   }
 
-  markSaved(id: string, saved: ClosedTrade['saved'], error?: string) {
-    this.trades = this.trades.map(t => (t.id === id ? { ...t, saved, error } : t));
+  markSaved(id: string, saved: ClosedTrade['saved'], error?: string, db?: { dbId?: number; tags?: string[] }) {
+    this.trades = this.trades.map(t => (t.id === id ? { ...t, saved, error, ...(db ?? {}) } : t));
     this.hooks.onChange();
   }
 

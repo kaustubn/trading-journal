@@ -56,6 +56,44 @@ export function registerChartIndicators() {
   registerPhases();
   registerProfiles();
 
+  // Heikin Ashi candles (chart type), drawn over the hidden real candles
+  registerIndicator<Row, number, { up: string; down: string; wickUp: string; wickDown: string; borderUp: string; borderDown: string }>({
+    name: 'JC_HA', shortName: 'Heikin Ashi', series: 'price', precision: 2, calcParams: [], figures: [],
+    calc: dataList => {
+      let po = NaN, pc = NaN;
+      return dataList.map(k => {
+        const c = (k.open + k.high + k.low + k.close) / 4;
+        const o = Number.isFinite(po) ? (po + pc) / 2 : (k.open + k.close) / 2;
+        po = o; pc = c;
+        return { o, h: Math.max(k.high, o, c), l: Math.min(k.low, o, c), c };
+      });
+    },
+    createTooltipDataSource: () => ({ name: '', calcParamsText: '', features: [], legends: [] }),
+    draw: ({ ctx, chart, indicator, xAxis, yAxis }) => {
+      const ext = indicator.extendData;
+      const rows = indicator.result;
+      const range = chart.getVisibleRange();
+      const { bar, halfBar } = chart.getBarSpace();
+      const w = Math.max(1, Math.round(bar * 0.8)), hw = Math.floor(w / 2);
+      ctx.save();
+      for (let i = Math.max(0, range.from); i < Math.min(rows.length, range.to); i++) {
+        const r = rows[i];
+        if (!r || !Number.isFinite(r.o)) continue;
+        const up = r.c >= r.o;
+        const x = Math.round(xAxis.convertToPixel(i));
+        const yo = yAxis.convertToPixel(r.o), yc = yAxis.convertToPixel(r.c);
+        ctx.strokeStyle = up ? ext.wickUp : ext.wickDown; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(x + 0.5, yAxis.convertToPixel(r.h)); ctx.lineTo(x + 0.5, yAxis.convertToPixel(r.l)); ctx.stroke();
+        const top = Math.min(yo, yc), h = Math.max(1, Math.abs(yc - yo));
+        ctx.fillStyle = up ? ext.up : ext.down;
+        ctx.fillRect(x - hw, top, w, h);
+        if (halfBar > 2) { ctx.strokeStyle = up ? ext.borderUp : ext.borderDown; ctx.strokeRect(x - hw + 0.5, top + 0.5, w - 1, Math.max(0, h - 1)); }
+      }
+      ctx.restore();
+      return true;
+    },
+  });
+
   registerIndicator<Row, number>({
     name: 'JC_SMA', shortName: 'SMA', series: 'price', precision: 2, calcParams: [50],
     figures: [{ key: 'sma1', title: 'SMA50: ', type: 'line' }],

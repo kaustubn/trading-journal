@@ -66,8 +66,20 @@ export function chartStyles(theme: Theme, cfg: ChartCfg): DeepPartial<Styles> {
       vertical: { show: true, color: cfg.gridColor, style: 'solid', size: 1 },
     },
     candle: {
-      type: 'candle_solid',
-      bar: {
+      type: ({ candles: 'candle_solid', hollow: 'candle_up_stroke', bars: 'ohlc', heikin: 'candle_solid', line: 'area', area: 'area' } as const)[cfg.ctype ?? 'candles'],
+      area: {
+        lineSize: 2, lineColor: lightBg ? '#1e3a8a' : '#2962ff', smooth: false, value: 'close',
+        backgroundColor: cfg.ctype === 'area'
+          ? [{ offset: 0, color: 'rgba(41, 98, 255, 0.02)' }, { offset: 1, color: 'rgba(41, 98, 255, 0.28)' }]
+          : [{ offset: 0, color: transparent }, { offset: 1, color: transparent }],
+      },
+      bar: cfg.ctype === 'heikin' ? {
+        // the Heikin Ashi indicator draws the candles; the real ones stay (invisible) for the price axis and drawings
+        compareRule: 'current_open',
+        upColor: transparent, downColor: transparent, noChangeColor: transparent,
+        upBorderColor: transparent, downBorderColor: transparent, noChangeBorderColor: transparent,
+        upWickColor: transparent, downWickColor: transparent, noChangeWickColor: transparent,
+      } : {
         compareRule: cfg.prevClose ? 'previous_close' : 'current_open',
         upColor: cfg.body ? cfg.upBody : transparent, downColor: cfg.body ? cfg.downBody : transparent, noChangeColor: cfg.body ? cfg.downBody : transparent,
         upBorderColor: cfg.borders ? cfg.upBorder : (cfg.body ? cfg.upBody : transparent),

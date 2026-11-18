@@ -3,7 +3,8 @@ import { DrawingController, Magnet } from '../chart/drawingController';
 import { Tool, TOOLS, COLORS, LineStyle, Drawing } from '../chart/drawings';
 import { TEMPLATES, tplPatch } from '../chart/templates';
 import { Floating } from './ChartDialogs';
-import { Star, ChevronsLeft, X, ListTree } from 'lucide-react';
+import { Star, ChevronsLeft, X, ListTree, Bell, Copy, ArrowUpToLine, ArrowDownToLine } from 'lucide-react';
+import { canAlert } from '../chart/alerts';
 
 // ---------- icons (24px, stroke = currentColor) ----------
 const S = { fill: 'none', stroke: 'currentColor', strokeWidth: 1.5, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const };
@@ -123,8 +124,10 @@ const WIDTHS = [1, 2, 3, 4];
 const LINES: { v: LineStyle; label: string }[] = [{ v: 'solid', label: '━' }, { v: 'dashed', label: '╍' }, { v: 'dotted', label: '┉' }];
 
 /** Floating bar for the selected drawing: colour, width, line style, text, size, lock, delete. */
-export function DrawEditBar({ ctl, tplOf, onTemplate }: {
+export function DrawEditBar({ ctl, tplOf, onTemplate, onAlert, hasAlert }: {
   ctl: DrawingController | null;
+  onAlert?: (d: Drawing) => void;                     // add an alert on this drawing
+  hasAlert?: (id: string) => boolean;
   tplOf?: (tool: Tool) => string | undefined;
   onTemplate?: (tool: Tool, name: string) => void;   // remembered for that tool's next drawings
 }) {
@@ -221,6 +224,12 @@ export function DrawEditBar({ ctl, tplOf, onTemplate }: {
           </div>
         </>
       )}
+      {onAlert && canAlert(d) && (
+        <button className={`mc-btn mc-small${hasAlert?.(d.id) ? ' on' : ''}`} title="Alert when the price reaches this drawing" onClick={() => onAlert(d)}><Bell size={14} /></button>
+      )}
+      <button className="mc-btn mc-small" title="Clone (copy on top)" onClick={() => ctl.clone(d.id)}><Copy size={14} /></button>
+      <button className="mc-btn mc-small" title="Bring to front" onClick={() => ctl.reorder(d.id, 'front')}><ArrowUpToLine size={14} /></button>
+      <button className="mc-btn mc-small" title="Send to back" onClick={() => ctl.reorder(d.id, 'back')}><ArrowDownToLine size={14} /></button>
       <button className={`mc-btn mc-small${d.locked ? ' on' : ''}`} title={d.locked ? 'Unlock' : 'Lock in place'}
         onClick={() => set({ locked: !d.locked })}>{ICONS.lock}</button>
       <button className="mc-btn mc-small mc-danger-btn" title="Delete (Del)" onClick={() => ctl.remove(d.id)}>{ICONS.trash}</button>

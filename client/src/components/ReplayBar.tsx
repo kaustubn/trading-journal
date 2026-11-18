@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { OctagonAlert } from 'lucide-react';
 import { ReplayEngine, OrderInput, Side, ClosedTrade, rOf, OrderType } from '../chart/replay';
 import { Contract, fmtPrice, fmtUsd, signed } from '../chart/drawings';
-import { Clock, fmtWall } from '../chart/time';
+import { Clock, fmtWall, wallToUtc, etMinutes, etOffset } from '../chart/time';
 import { useOptions, values } from '../utils/options';
 import type { CoachRules } from '../chart/coach';
 import type { Verdict } from './CoachPanel';
@@ -11,6 +11,45 @@ const SPEEDS = [0.5, 1, 2, 3, 5, 10];
 // forward test: market seconds per real second (1 = real time; 60 = a minute every second)
 const LIVE_SPEEDS = [1, 2, 5, 10, 20, 30, 60];
 const REASON: Record<ClosedTrade['reason'], string> = { target: 'target', stop: 'stop', manual: 'closed', end: 'replay ended' };
+// Quick tags after a trade closes: same keys the trade review uses, so they feed the Emotions / Discipline pages
+const QUICK_TAGS: [string, string, boolean][] = [
+  ['planned', 'Followed plan', false], ['patient', 'Patient', false], ['fomo', 'FOMO', true], ['chased', 'Chased', true],
+  ['panic', 'Exited early', true], ['revenge', 'Revenge', true], ['hesitated', 'Hesitated', true], ['moved-stop', 'Moved stop', true],
+];
+const DAY = 86400000;
+/** 9:25 ET on the next trading weekday (or today when it is still before 9:25 and `nextDay` is false). */
+export function nextOpen(cursor: number, nextDay: boolean): number {
+  const wall = new Date(cursor + etOffset(cursor));
+  let d = Date.UTC(wall.getUTCFullYear(), wall.getUTCMonth(), wall.getUTCDate());
+  const wd = (x: number) => new Date(x).getUTCDay();
+  if (nextDay || etMinutes(cursor) >= 9 * 60 + 25 || wd(d) === 0 || wd(d) === 6) {
+    do { d += DAY; } while (wd(d) === 0 || wd(d) === 6);
+  }
+  return wallToUtc(new Date(d).toISOString().slice(0, 10), '09:25', 'ET');
+}
+
+/** P&L, R, win rate and max drawdown of this replay session, plus the equity points. */
+function sessionStats(trades: ClosedTrade[]) {
+  let eq = 0, peak = 0, dd = 0, rSum = 0;
+  const curve = [0];
+  for (const t of trades) { eq += t.pnl; rSum += t.r; peak = Math.max(peak, eq); dd = Math.min(dd, eq - peak); curve.push(eq); }
+  const wins = trades.filter(t => t.pnl > 0).length;
+  return { pnl: eq, rSum, avgR: trades.length ? rSum / trades.length : 0, win: trades.length ? wins / trades.length : 0, dd, curve };
+}
+
+function EquityCurve({ curve }: { curve: number[] }) {
+  if (curve.length < 2) return null;
+  const W = 260, H = 54;
+  const lo = Math.min(0, ...curve), hi = Math.max(0, ...curve), span = hi - lo || 1;
+  const x = (i: number) => (i / (curve.length - 1)) * W, y = (v: number) => H - 3 - ((v - lo) / span) * (H - 6);
+  const last = curve[curve.length - 1];
+  return (
+    <svg className="mc-eq" viewBox={`0 0 ${W} ${H}`} aria-label="Equity curve of this session">
+      <line x1={0} x2={W} y1={y(0)} y2={y(0)} className="mc-eq-zero" />
+      <polyline points={curve.map((v, i) => `${x(i)},${y(v)}`).join(' ')} className={last >= 0 ? 'mc-eq-up' : 'mc-eq-down'} />
+    </svg>
+  );
+}
 
 interface Account { id: number; account_name: string; }
 interface Props {
@@ -22,6 +61,8 @@ interface Props {
   onRetry: (t: ClosedTrade) => void;
   onExit: () => void;
   coach: CoachHooks;
+  onJump: (t: number) => Promise<void>;                                     // restart replay at time t
+  onTags: (t: ClosedTrade, tags: string[]) => Promise<string | null>;       // write tags to the saved journal trade
 }
 export interface CoachHooks {
   rules: CoachRules;
@@ -53,7 +94,40 @@ function loadDefaults(): Defaults {
   return d;
 }
 
-export default function ReplayBar({ engine: e, clock, accounts, accountId, onAccount, onRetry, onExit, coach }: Props) {
+export default function ReplayBar({ engine: e, clock, accounts, accountId, onAccount, onRetry, onExit, coach, onJump, onTags }: Props) {
+  const [tagFor, setTagFor] = useState<string | null>(null);   // id of the just-closed trade asking for quick tags
+  const [tagErr, setTagErr] = useState('');
+  const [jumping, setJumping] = useState(false);
+  const seenTrades = useRef(e.trades.length);
+  useEffect(() => {
+    if (e.trades.length > seenTrades.current) { setTagFor(e.trades[e.trades.length - 1].id); setTagErr(''); }
+    seenTrades.current = e.trades.length;
+  }, [e.trades.length]);
+  const jump = async (nextDay: boolean) => {
+    if (e.position || jumping) return;
+    setJumping(true);
+    const from = e.cursor;
+    try {
+      let t = nextOpen(e.cursor || Date.now(), nextDay);
+      // holidays have no 9:25 bar: try the following weekdays
+      for (let i = 0; i < 6; i++) {
+        await onJump(t);
+        if (e.hasBar && e.cursor >= t - 3 * 3600000) { setErr(''); return; }
+        if (!e.hasBar) break;                       // past the end of the data
+        t = nextOpen(t + 60000, true);
+      }
+      // no session there (the data ends): go back to where the trader was
+      if (from) await onJump(from);
+      setErr('No data for the next session yet.');
+    } finally { setJumping(false); }
+  };
+  const tagged = e.trades.find(t => t.id === tagFor) ?? null;
+  const toggleTag = async (k: string) => {
+    if (!tagged) return;
+    const cur = tagged.tags ?? [];
+    const next = cur.includes(k) ? cur.filter(x => x !== k) : [...cur, k];
+    setTagErr((await onTags(tagged, next)) ?? '');
+  };
   const [ticket, setTicket] = useState<Side | null>(null);
   const [form, setForm] = useState(() => ({ ...loadDefaults(), notes: '' }));
   const [err, setErr] = useState('');
@@ -97,6 +171,7 @@ export default function ReplayBar({ engine: e, clock, accounts, accountId, onAcc
   const price = e.price;
   const total = e.trades.reduce((s, t) => s + t.pnl, 0);
   const wins = e.trades.filter(t => t.pnl > 0).length;
+  const st = sessionStats(e.trades);
   const failed = e.trades.filter(t => t.saved === 'failed');
   const num = (v: string) => (v.trim() === '' ? NaN : Number(v));
 
@@ -249,6 +324,16 @@ export default function ReplayBar({ engine: e, clock, accounts, accountId, onAcc
         <div className="mc-ticket mc-trades">
           <div className="mc-panel-title">This session · {e.trades.length} trade{e.trades.length === 1 ? '' : 's'}</div>
           {!e.trades.length && <div className="mc-hint">Closed trades appear here and in the journal.</div>}
+          {e.trades.length > 0 && (
+            <div className="mc-stats">
+              <div><span>P&amp;L</span><b className={st.pnl >= 0 ? 'mc-up' : 'mc-down'}>{fmtUsd(st.pnl)}</b></div>
+              <div><span>Total R</span><b className={st.rSum >= 0 ? 'mc-up' : 'mc-down'}>{signed(st.rSum, 1)}R</b></div>
+              <div><span>Win rate</span><b>{Math.round(st.win * 100)}%</b></div>
+              <div><span>Avg R</span><b>{signed(st.avgR, 2)}R</b></div>
+              <div><span>Max drawdown</span><b className={st.dd < 0 ? 'mc-down' : ''}>{fmtUsd(st.dd)}</b></div>
+            </div>
+          )}
+          <EquityCurve curve={st.curve} />
           {[...e.trades].reverse().map(t => (
             <div key={t.id} className="mc-trade-row">
               <span className={t.side === 'long' ? 'mc-up' : 'mc-down'}>{t.side === 'long' ? 'Long' : 'Short'}</span>
@@ -262,6 +347,18 @@ export default function ReplayBar({ engine: e, clock, accounts, accountId, onAcc
         </div>
       )}
 
+      {tagged && !ticket && !p && (
+        <div className="mc-quicktags">
+          <span className="mc-dim">Last trade {signed(tagged.r, 1)}R — how was it?</span>
+          {QUICK_TAGS.map(([k, label, neg]) => (
+            <button key={k} className={`mc-qtag ${neg ? 'neg' : 'pos'}${tagged.tags?.includes(k) ? ' on' : ''}`}
+              disabled={!tagged.dbId} title={tagged.dbId ? 'Saved as a tag on the journal trade' : 'Waiting for the trade to save'}
+              onClick={() => toggleTag(k)}>{label}</button>
+          ))}
+          {tagErr && <span className="mc-bad mc-small-msg">{tagErr}</span>}
+          <button className="mc-btn mc-small" onClick={() => setTagFor(null)} title="Hide">✕</button>
+        </div>
+      )}
       <div className="mc-replay-row">
         <span className="mc-replay-tag">Replay</span>
         <button className="mc-btn" disabled={e.busy || e.playing} onClick={() => e.stepBack()} title="Step back (←)">⏮</button>
@@ -287,6 +384,10 @@ export default function ReplayBar({ engine: e, clock, accounts, accountId, onAcc
           <button className={e.live ? 'on mc-live-on' : ''} onClick={() => e.setLive(true)}>● Live</button>
         </div>
         <span className="mc-dim mc-replay-time">{e.cursor ? `${fmtWall(e.live ? e.nowMs - 1000 : e.cursor + 60000, clock, e.live)} ${clock}` : ''}</span>
+        <button className="mc-btn mc-small" disabled={!!p || jumping || e.busy} onClick={() => jump(false)}
+          title={p ? 'Close the position first' : 'Skip to 9:25 ET (5 minutes before the New York open)'}>⏩ 9:25</button>
+        <button className="mc-btn mc-small" disabled={!!p || jumping || e.busy} onClick={() => jump(true)}
+          title={p ? 'Close the position first' : 'Next trading day at 9:25 ET'}>Next day</button>
         <span className="mc-sep" />
         {p ? (
           <>
@@ -304,6 +405,7 @@ export default function ReplayBar({ engine: e, clock, accounts, accountId, onAcc
           <>
             <button className="mc-btn mc-buy" disabled={price === null} onClick={() => openTicket('long')}>Buy</button>
             <button className="mc-btn mc-sell" disabled={price === null} onClick={() => openTicket('short')}>Sell</button>
+            {err && !ticket && <span className="mc-bad mc-small-msg">{err}</span>}
           </>
         )}
         {e.pending.map(o => (

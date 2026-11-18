@@ -6,22 +6,23 @@ import DataPanel from './DataPanel';
 import ChartPane, { Workspace } from './ChartPane';
 import TvPane from './TvPane';
 import { DrawingStore } from '../chart/drawingController';
-import { Drawing, Tool, validDrawing, fmtUsd } from '../chart/drawings';
+import { Drawing, Tool, validDrawing, fmtUsd, fmtPrice, newId } from '../chart/drawings';
 import { DrawToolbar, DrawEditBar, FavBar } from './DrawingTools';
 import { ReplayEngine, ClosedTrade } from '../chart/replay';
 import ReplayBar, { CoachHooks } from './ReplayBar';
 import CoachPanel, { CoachMsg, Verdict } from './CoachPanel';
 import MentorPanel from './MentorPanel';
 import ObjectTree from './ObjectTree';
+import { ChartAlert, AlertCond, levelOf, triggered, describe as describeAlert, beep, notify, canAlert } from '../chart/alerts';
 import { Floating, IndicatorDialog, ChartSettingsDialog } from './ChartDialogs';
-import { Settings as Gear, CandlestickChart, OctagonAlert, Eye, EyeOff, GraduationCap, Rewind, Sun, Moon, Maximize2, Minimize2, Undo2, Redo2, Save, Trash2, Pencil, Upload } from 'lucide-react';
+import { Bell, Settings as Gear, CandlestickChart, OctagonAlert, Eye, EyeOff, GraduationCap, Rewind, Sun, Moon, Maximize2, Minimize2, Undo2, Redo2, Save, Trash2, Pencil, Upload } from 'lucide-react';
 import { checkOrder, checkAfterClose, CoachRules } from '../chart/coach';
 import { buildContext, PaneData } from '../chart/coachContext';
 import type { KLineData } from 'klinecharts';
 import type { OrderInput } from '../chart/replay';
 import {
   TFS, tfLabel, parseTfInput, INDS, IND_KEYS, IndKey, parseParams, Settings, DEFAULTS, mergeSettings,
-  Meta, BarsResp, toK, FocusTrade, LAYOUTS, LayoutMode, layoutCount, PaneSource, applyTvPreset, applyStdPreset, snapshotOf, applySnapshot,
+  Meta, BarsResp, toK, FocusTrade, ChartType, CHART_TYPES, LAYOUTS, LayoutMode, layoutCount, PaneSource, applyTvPreset, applyStdPreset, snapshotOf, applySnapshot,
 } from '../chart/config';
 import '../styles/MarketChart.css';
 
@@ -37,7 +38,12 @@ export default function MarketChart({ token, focus }: { token: string; focus?: {
   const [error, setErrorState] = useState('');
   const [busyPanes, setBusyPanes] = useState<Record<number, boolean>>({});
   const [meta, setMeta] = useState<Meta | null>(null);
-  const [panel, setPanel] = useState<null | 'ind' | 'levels' | 'goto' | 'replay' | 'data' | 'layout' | 'tf'>(null);
+  const [panel, setPanel] = useState<null | 'ind' | 'levels' | 'goto' | 'replay' | 'data' | 'layout' | 'tf' | 'alerts'>(null);
+  // alerts: toasts on screen, the new-alert form, and the previous price the checks compare with
+  const [toasts, setToasts] = useState<{ id: string; text: string; note: string }[]>([]);
+  const [alForm, setAlForm] = useState<{ price: string; cond: AlertCond; note: string; repeat: boolean }>({ price: '', cond: 'cross', note: '', repeat: false });
+  const lastPx = useRef<{ p: number; t: number } | null>(null);
+  const checkRef = useRef<(price: number, t: number, hi?: number, lo?: number) => void>(() => {});
   const [tfPane, setTfPane] = useState(0);         // chart the custom-interval box applies to
   const [tfText, setTfText] = useState('');
   const [tfKeys, setTfKeys] = useState('');        // digits typed to switch timeframe
@@ -119,8 +125,8 @@ export default function MarketChart({ token, focus }: { token: string; focus?: {
     rth: () => sRef.current.rth,
     stepTf: () => sRef.current.panes[sRef.current.active]?.tf ?? 5,
     onReset: () => panesOf().forEach(p => p.reset()),
-    onMinute: k => panesOf().forEach(p => p.onMinute(k)),
-    onLive: k => panesOf().forEach(p => p.onLive(k)),
+    onMinute: k => { panesOf().forEach(p => p.onMinute(k)); checkRef.current(k.close, k.timestamp + 60000, k.high, k.low); },
+    onLive: k => { panesOf().forEach(p => p.onLive(k)); checkRef.current(k.close, wsRef.current?.engine.nowMs ?? k.timestamp); },
     onOverlays: () => panesOf().forEach(p => p.drawReplay()),
     onChange: () => setTick(n => n + 1),
     onClosed: t => { saveTradeRef.current(t); closedRef.current(t); },
@@ -277,7 +283,13 @@ export default function MarketChart({ token, focus }: { token: string; focus?: {
         if (last && (!metaRef.current?.last || last > metaRef.current.last)) {
           metaRef.current = { ...(metaRef.current as Meta), last };
           setMeta(m => (m ? { ...m, last } : m));
-          if (!ws.target) panesOf().forEach(p => { void p.appendLatest(); });
+          if (!ws.target) {
+            void Promise.all(panesOf().map(p => p.appendLatest())).then(() => {
+              const d = panesOf()[0]?.chart.getDataList();
+              const k = d?.[d.length - 1];
+              if (k && !engine.active) checkRef.current(k.close, k.timestamp + 60000, k.high, k.low);
+            });
+          }
         }
       } catch { /* try again next minute */ }
     };
@@ -299,13 +311,51 @@ export default function MarketChart({ token, focus }: { token: string; focus?: {
   const startReplay = async (t: number) => {
     setReplayPick(false); setPanel(null);
     ws.target = null; setTarget(null);
+    lastPx.current = null; // a jump in time is not a price crossing
     panesOf().forEach(p => { p.ctl.cancel(); p.ctl.clearMeasure(); p.setHotkeys(false); });
     setMeasureArmed(false);
     if (!accounts.length) loadAccounts();
     await engine.start(t); // resets every window around the replay cursor
+    lastPx.current = engine.price !== null ? { p: engine.price, t: engine.nowMs } : null; // alerts compare from here
     if (!engine.active) panesOf().forEach(p => p.setHotkeys(true));
   };
   startReplayRef.current = startReplay;
+
+  // ----- alerts -----
+  checkRef.current = (price: number, t: number, hi?: number, lo?: number) => {
+    const prev = lastPx.current;
+    lastPx.current = { p: price, t };
+    if (!prev || t < prev.t) return;
+    const fired: ChartAlert[] = [];
+    for (const a of sRef.current.alerts) {
+      if (!a.active) continue;
+      if (a.repeat && a.fired && t - a.fired < 60000) continue; // a repeating alert rests a minute
+      const d = a.kind === 'drawing' ? store.drawings.find(x => x.id === a.drawingId) : undefined;
+      if (a.kind === 'drawing' && !d) continue;
+      const lvl = a.kind === 'price' ? { price: a.price! } : levelOf(d!, t);
+      if (triggered(a.cond, lvl, prev.p, price, prev.t, t, hi, lo)) fired.push(a);
+    }
+    if (!fired.length) return;
+    const ids = new Set(fired.map(a => a.id));
+    update(cur => ({ ...cur, alerts: cur.alerts.map(a => (ids.has(a.id) ? { ...a, fired: t, active: a.repeat } : a)) }));
+    beep();
+    const items = fired.map(a => ({ id: newId(), text: `${describeAlert(a, store.drawings.find(x => x.id === a.drawingId), fmtPrice)} · now ${fmtPrice(price)}`, note: a.note }));
+    setToasts(cur => [...cur, ...items].slice(-5));
+    items.forEach(x => {
+      notify('NQ alert', x.text + (x.note ? ` — ${x.note}` : ''));
+      window.setTimeout(() => setToasts(cur => cur.filter(y => y.id !== x.id)), 15000);
+    });
+  };
+  const askNotify = () => { try { if ('Notification' in window && Notification.permission === 'default') void Notification.requestPermission(); } catch { /* ignore */ } };
+  const addAlert = (a: Omit<ChartAlert, 'id' | 'created' | 'active'>) => {
+    askNotify();
+    update(cur => ({ ...cur, alerts: [...cur.alerts, { ...a, id: newId(), created: Date.now(), active: true }].slice(-200) }));
+  };
+  const currentPrice = (): number | null => {
+    if (engine.active && engine.price !== null) return engine.price;
+    const d = ws.panes.get(activeIdx)?.chart.getDataList();
+    return d && d.length ? d[d.length - 1].close : null;
+  };
   indActionRef.current = (name: string, feature: string) => {
     const k = IND_KEYS.find(x => INDS[x].name === name);
     if (!k) return;
@@ -364,7 +414,7 @@ export default function MarketChart({ token, focus }: { token: string; focus?: {
       pnl: t.pnl,
       screenshot: shots.current.get(t.id) || undefined,
     }, auth())
-      .then(() => engine.markSaved(t.id, 'saved'))
+      .then(r => engine.markSaved(t.id, 'saved', undefined, { dbId: r.data?.trade?.id, tags: r.data?.trade?.tags ?? [] }))
       .catch(err => engine.markSaved(t.id, 'failed', err?.response?.data?.error || 'Could not reach the server.'));
   };
 
@@ -583,6 +633,10 @@ export default function MarketChart({ token, focus }: { token: string; focus?: {
         <button className={`mc-btn mc-tf${panel === 'tf' ? ' open' : ''}`} onClick={() => (panel === 'tf' ? setPanel(null) : openTfBox(activeIdx))}
           title="Any interval: 2m, 7m, 45m, 90m, 2h, 6h… (or type the number on the chart and press Enter)">+</button>
         <span className="mc-sep" />
+        <select className="mc-input mc-ctype" value={s.chart.ctype} title="Chart type (all charts)"
+          onChange={e => update(cur => ({ ...cur, chart: { ...cur.chart, ctype: e.target.value as ChartType } }))}>
+          {CHART_TYPES.map(([t, l]) => <option key={t} value={t}>{l}</option>)}
+        </select>
         <button className={`mc-btn${panel === 'layout' ? ' open' : ''}`} onClick={() => setPanel(panel === 'layout' ? null : 'layout')}
           title="Chart layout: 1 to 4 charts">
           <LayoutIcon mode={s.layout} /> Layout
@@ -599,6 +653,13 @@ export default function MarketChart({ token, focus }: { token: string; focus?: {
             title="New York day session only, 9:30am–4pm ET (RTH)">Day 9:30–4</button>
         </div>
         <button className={`mc-btn${panel === 'levels' ? ' open' : ''}`} onClick={() => setPanel(panel === 'levels' ? null : 'levels')}>Levels</button>
+        <button className={`mc-btn${panel === 'alerts' ? ' open' : ''}`} title="Alerts on a price or a drawn line (live, replay and forward test)"
+          onClick={() => {
+            if (panel !== 'alerts' && !alForm.price) { const p = currentPrice(); if (p !== null) setAlForm(f => ({ ...f, price: String(p) })); }
+            setPanel(panel === 'alerts' ? null : 'alerts');
+          }}>
+          <Bell size={14} /> Alerts{s.alerts.filter(a => a.active).length ? <span className="mc-count">{s.alerts.filter(a => a.active).length}</span> : null}
+        </button>
         <button className={`mc-btn${s.notesOpen ? ' on' : ''}`} onClick={() => update({ notesOpen: !s.notesOpen })}
           title="Day notes: pre-market plan and review for the trading day on the active chart">Notes</button>
         <span className="mc-grow" />
@@ -662,6 +723,8 @@ export default function MarketChart({ token, focus }: { token: string; focus?: {
           </div>
 
           <DrawEditBar ctl={ctl} tplOf={tool => s.toolTpl[tool]}
+            onAlert={d => { setAlForm(f => ({ ...f, cond: d.tool === 'rect' ? 'cross' : f.cond })); addAlert({ kind: 'drawing', drawingId: d.id, cond: 'cross', note: d.text ?? '', repeat: false }); setPanel('alerts'); }}
+            hasAlert={id => s.alerts.some(a => a.active && a.drawingId === id)}
             onTemplate={(tool, name) => update(cur => ({ ...cur, toolTpl: { ...cur.toolTpl, [tool]: name } }))} />
           {focusTrade && focusTrade.chartable && !replayOn && (
             <div className="mc-focus">
@@ -685,7 +748,13 @@ export default function MarketChart({ token, focus }: { token: string; focus?: {
           {replayPick && <div className="mc-pick-hint">Click the candle to start from (on any chart) — everything after it is hidden. Esc to cancel.</div>}
           {replayOn && (
             <ReplayBar engine={engine} clock={s.clock} accounts={accounts} accountId={replayAcct}
-              onAccount={setReplayAcct} onRetry={t => saveTradeRef.current(t)} onExit={exitReplay} coach={coachHooks} />
+              onAccount={setReplayAcct} onRetry={t => saveTradeRef.current(t)} onExit={exitReplay} coach={coachHooks}
+              onJump={startReplay}
+              onTags={async (t, tags) => {
+                if (!t.dbId) return 'Not saved to the journal yet.';
+                try { await axios.put(`/api/trades/${t.dbId}`, { tags }, auth()); engine.markSaved(t.id, t.saved, t.error, { tags }); return null; }
+                catch { return 'Could not save the tag.'; }
+              }} />
           )}
           {widen && engine.position && (
             <div className="mc-coach-modal" onMouseDown={ev => ev.stopPropagation()}>
@@ -701,6 +770,15 @@ export default function MarketChart({ token, focus }: { token: string; focus?: {
           )}
           {busy && <div className="mc-busy">Loading…</div>}
           {error && <div className="mc-error" onClick={() => setErrorState('')} title="Click to dismiss">{error}</div>}
+          {toasts.length > 0 && (
+            <div className="mc-toasts">
+              {toasts.map(x => (
+                <div key={x.id} className="mc-toast" onClick={() => setToasts(cur => cur.filter(y => y.id !== x.id))} title="Click to dismiss">
+                  <Bell size={14} /> <div><b>{x.text}</b>{x.note && <div className="mc-dim">{x.note}</div>}</div>
+                </div>
+              ))}
+            </div>
+          )}
 
           {tfKeys && (
             <div className="mc-tfpop">
@@ -819,6 +897,46 @@ export default function MarketChart({ token, focus }: { token: string; focus?: {
             </div>
           )}
 
+          {panel === 'alerts' && (
+            <div className="mc-panel mc-panel-alerts">
+              <div className="mc-panel-title">Alerts</div>
+              <div className="mc-row">
+                <select className="mc-input" value={alForm.cond} onChange={e => setAlForm(f => ({ ...f, cond: e.target.value as AlertCond }))}>
+                  <option value="cross">Price crosses</option><option value="above">Price goes above</option><option value="below">Price goes below</option>
+                </select>
+                <input className="mc-input mc-al-price" type="number" step={0.25} value={alForm.price} placeholder="Price"
+                  onChange={e => setAlForm(f => ({ ...f, price: e.target.value }))} onKeyDown={e => e.stopPropagation()} />
+              </div>
+              <input className="mc-input mc-wide" placeholder="Note (optional), e.g. PDH retest, check S1" maxLength={120} value={alForm.note}
+                onChange={e => setAlForm(f => ({ ...f, note: e.target.value }))} onKeyDown={e => e.stopPropagation()} />
+              <label className="mc-check mc-row"><input type="checkbox" checked={alForm.repeat} onChange={e => setAlForm(f => ({ ...f, repeat: e.target.checked }))} /> Repeat (stay on after it fires)</label>
+              <div className="mc-row mc-row-end">
+                {ctl?.selectedDrawing && canAlert(ctl.selectedDrawing) && (
+                  <button className="mc-btn" onClick={() => { addAlert({ kind: 'drawing', drawingId: ctl.selectedDrawing!.id, cond: alForm.cond, note: alForm.note.trim(), repeat: alForm.repeat }); setAlForm(f => ({ ...f, note: '' })); }}>
+                    On selected drawing</button>
+                )}
+                <button className="mc-btn mc-primary" disabled={!(Number(alForm.price) > 0)}
+                  onClick={() => { addAlert({ kind: 'price', price: Math.round(Number(alForm.price) * 4) / 4, cond: alForm.cond, note: alForm.note.trim(), repeat: alForm.repeat }); setAlForm(f => ({ ...f, note: '' })); }}>
+                  Add price alert</button>
+              </div>
+              <div className="mc-hint">Checked on every new price: live chart, replay and forward test. Select a line, trend line, zone or vertical line and press the bell on its edit bar to alert on it. Allow notifications to get alerts when the tab is in the background.</div>
+              <div className="mc-al-list">
+                {!s.alerts.length && <div className="mc-hint">No alerts yet.</div>}
+                {[...s.alerts].reverse().map(a => (
+                  <div key={a.id} className={`mc-al-row${a.active ? '' : ' off'}`}>
+                    <div className="mc-grow">
+                      <div>{describeAlert(a, store.drawings.find(x => x.id === a.drawingId), fmtPrice)}{a.repeat ? ' · repeats' : ''}</div>
+                      <div className="mc-dim">{a.note}{a.note && a.fired ? ' · ' : ''}{a.fired ? `fired ${fmtWall(a.fired, s.clock)} ${s.clock}` : ''}</div>
+                    </div>
+                    <button className="mc-btn mc-small" title={a.active ? 'Pause' : 'Turn on'}
+                      onClick={() => update(cur => ({ ...cur, alerts: cur.alerts.map(x => (x.id === a.id ? { ...x, active: !x.active } : x)) }))}>{a.active ? 'On' : 'Off'}</button>
+                    <button className="mc-btn mc-small mc-danger-btn" title="Delete alert"
+                      onClick={() => update(cur => ({ ...cur, alerts: cur.alerts.filter(x => x.id !== a.id) }))}><Trash2 size={13} /></button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
           {panel === 'levels' && (
             <div className="mc-panel mc-panel-levels">
               <div className="mc-panel-title">Levels</div>

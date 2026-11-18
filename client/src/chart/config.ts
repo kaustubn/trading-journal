@@ -1,4 +1,5 @@
 // Shared definitions for the market chart workspace and its chart windows.
+import { ChartAlert, cleanAlerts } from './alerts';
 import type { Chart, KLineData, Period } from 'klinecharts';
 import type { Clock } from './time';
 import type { Theme } from './theme';
@@ -91,7 +92,12 @@ export const VOL_BARS_TV = { up: 'rgba(255, 255, 255, 0.6542)', down: 'rgba(0, 0
 export const VOL_BARS_STD = { up: 'rgba(8, 153, 129, 0.5)', down: 'rgba(242, 54, 69, 0.5)' };
 
 // ---------- chart settings (TradingView's Settings dialog) ----------
+export type ChartType = 'candles' | 'hollow' | 'bars' | 'heikin' | 'line' | 'area';
+export const CHART_TYPES: [ChartType, string][] = [
+  ['candles', 'Candles'], ['hollow', 'Hollow candles'], ['bars', 'Bars (OHLC)'], ['heikin', 'Heikin Ashi'], ['line', 'Line'], ['area', 'Area'],
+];
 export interface ChartCfg {
+  ctype: ChartType;
   upBody: string; downBody: string; upBorder: string; downBorder: string; upWick: string; downWick: string;
   body: boolean; borders: boolean; wicks: boolean; prevClose: boolean;
   bg: string; grid: boolean; gridColor: string;
@@ -103,6 +109,7 @@ export interface ChartCfg {
 }
 /** Kay's TradingView chart (read 2026-11-17). */
 export const CHART_TV: ChartCfg = {
+  ctype: 'candles',
   upBody: 'rgba(0, 188, 212, 1)', downBody: 'rgba(0, 0, 0, 1)', upBorder: 'rgba(0, 0, 0, 1)', downBorder: 'rgba(0, 0, 0, 1)',
   upWick: 'rgba(0, 0, 0, 1)', downWick: 'rgba(0, 0, 0, 1)', body: true, borders: true, wicks: true, prevClose: true,
   bg: '#9c9c9c', grid: false, gridColor: 'rgba(0, 0, 0, 0.08)',
@@ -114,6 +121,7 @@ export const CHART_TV: ChartCfg = {
 };
 /** TradingView's standard dark chart. */
 export const CHART_STD: ChartCfg = {
+  ctype: 'candles',
   upBody: '#089981', downBody: '#f23645', upBorder: '#089981', downBorder: '#f23645', upWick: '#089981', downWick: '#f23645',
   body: true, borders: true, wicks: true, prevClose: false,
   bg: '#131722', grid: true, gridColor: 'rgba(42, 46, 57, 0.6)',
@@ -130,6 +138,7 @@ function mergeChart(saved: any, base: ChartCfg): ChartCfg {
   if (!saved || typeof saved !== 'object') return c;
   for (const k of Object.keys(base) as (keyof ChartCfg)[]) {
     const v = saved[k], d = base[k];
+    if (k === 'ctype') { if (CHART_TYPES.some(([t]) => t === v)) c.ctype = v; continue; }
     if (typeof d === 'boolean' && typeof v === 'boolean') (c as any)[k] = v;
     else if (typeof d === 'number' && typeof v === 'number' && v >= 1 && v <= 20) (c as any)[k] = v;
     else if (k === 'crossStyle' && (v === 'solid' || v === 'dashed')) c.crossStyle = v;
@@ -174,6 +183,12 @@ export function syncIndicators(chart: Chart, s: Settings, tf: number) {
     else if (cfg.on) chart.overrideIndicator(spec);
     else if (exists) chart.removeIndicator({ name: def.name });
   }
+  // Heikin Ashi: drawn by an indicator over the (hidden) real candles
+  const ha = chart.getIndicators({ name: 'JC_HA' }).length > 0;
+  const haSpec = { name: 'JC_HA', paneId: PANE, extendData: { up: s.chart.upBody, down: s.chart.downBody, wickUp: s.chart.upWick, wickDown: s.chart.downWick, borderUp: s.chart.upBorder, borderDown: s.chart.downBorder } };
+  if (s.chart.ctype === 'heikin' && !ha) chart.createIndicator(haSpec, true);
+  else if (s.chart.ctype === 'heikin') chart.overrideIndicator(haSpec);
+  else if (ha) chart.removeIndicator({ name: 'JC_HA' });
 }
 
 // ---------- layout ----------
@@ -209,6 +224,7 @@ export interface Settings {
   syncTime: boolean;       // scrolling one window moves the others to the same time
   live: boolean;           // poll for new bars every minute
   customTfs: number[];     // extra timeframe buttons the trader added (minutes)
+  alerts: ChartAlert[];    // price / drawing alerts
   look: Look;              // chart colours: 'tv' = the trader's TradingView chart, 'journal' = TradingView default
   toolTpl: Partial<Record<Tool, string>>; // template new drawings of each tool start from
   coach: CoachRules;       // practice rules the coach holds you to
@@ -234,6 +250,7 @@ export const DEFAULTS: Settings = {
   }, {} as Settings['indicators']),
   layout: '1', panes: DEFAULT_PANES, active: 0, syncCrosshair: true, syncTime: true, live: true,
   customTfs: [],
+  alerts: [],
   look: 'tv',
   chart: { ...CHART_TV },
   saved: [],
@@ -302,6 +319,7 @@ export function mergeSettings(saved: any): Settings {
     }
     s.toolTpl = t;
   }
+  s.alerts = cleanAlerts(saved.alerts);
   if (Array.isArray(saved.customTfs)) {
     s.customTfs = [...new Set<number>(saved.customTfs.filter(validTf))].filter(m => !TFS.some(t => t.m === m)).sort((a, b) => a - b).slice(0, 10);
   }

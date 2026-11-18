@@ -616,3 +616,31 @@
 .mc-tree-name b { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .mc-tree-name .mc-dim { font-size: 11px; }
 .mc-tree-name:hover b { color: var(--mc-accent); }
+
+/* replay: session stats, equity curve, quick tags at exit */
+.mc-stats { display: grid; grid-template-columns: repeat(5, auto); gap: 4px 12px; margin: 4px 0 6px; font-size: 11px; }
+.mc-stats > div { display: flex; flex-direction: column; }
+.mc-stats span { opacity: .7; }
+.mc-eq { width: 100%; height: 54px; margin-bottom: 6px; }
+.mc-eq polyline { fill: none; stroke-width: 1.6; }
+.mc-eq .mc-eq-up { stroke: #26a69a; }
+.mc-eq .mc-eq-down { stroke: #ef5350; }
+.mc-eq .mc-eq-zero { stroke: rgba(128, 128, 128, .45); stroke-dasharray: 2 3; }
+.mc-quicktags { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; padding: 5px 8px; font-size: 12px; }
+.mc-qtag { border: 1px solid rgba(128,128,128,.45); background: transparent; color: inherit; border-radius: 999px; padding: 2px 9px; font-size: 11.5px; cursor: pointer; }
+.mc-qtag:disabled { opacity: .45; cursor: default; }
+.mc-qtag.pos.on { background: rgba(38,166,154,.18); border-color: #26a69a; color: #26a69a; }
+.mc-qtag.neg.on { background: rgba(239,83,80,.16); border-color: #ef5350; color: #ef5350; }
+
+.mc-ctype { width: auto; max-width: 132px; padding: 3px 6px; }
+
+/* alerts */
+.mc-panel-alerts { width: 360px; }
+.mc-al-price { width: 110px; }
+.mc-al-list { max-height: 260px; overflow-y: auto; margin-top: 6px; display: flex; flex-direction: column; gap: 4px; }
+.mc-al-row { display: flex; align-items: center; gap: 6px; padding: 5px 6px; border: 1px solid rgba(128,128,128,.3); border-radius: 6px; font-size: 12px; }
+.mc-al-row.off { opacity: .55; }
+.mc-toasts { position: absolute; right: 14px; top: 56px; z-index: 50; display: flex; flex-direction: column; gap: 6px; max-width: 360px; }
+.mc-toast { display: flex; gap: 8px; align-items: flex-start; background: #1e222d; color: #e0e3eb; border: 1px solid #f7a600; border-left-width: 4px;
+  border-radius: 6px; padding: 8px 10px; font-size: 12.5px; box-shadow: 0 6px 18px rgba(0,0,0,.35); cursor: pointer; animation: mc-toast-in .2s ease-out; }
+@keyframes mc-toast-in { from { transform: translateY(-6px); opacity: 0; } to { transform: none; opacity: 1; } }
