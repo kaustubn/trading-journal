@@ -13,7 +13,7 @@ import ReplayBar, { CoachHooks } from './ReplayBar';
 import CoachPanel, { CoachMsg, Verdict } from './CoachPanel';
 import MentorPanel from './MentorPanel';
 import { Floating, IndicatorDialog, ChartSettingsDialog } from './ChartDialogs';
-import { Settings as Gear, Eye, EyeOff, GraduationCap, Rewind, Sun, Moon, Maximize2, Minimize2, Undo2, Redo2, Save, Trash2, Pencil, Upload } from 'lucide-react';
+import { Settings as Gear, CandlestickChart, OctagonAlert, Eye, EyeOff, GraduationCap, Rewind, Sun, Moon, Maximize2, Minimize2, Undo2, Redo2, Save, Trash2, Pencil, Upload } from 'lucide-react';
 import { checkOrder, checkAfterClose, CoachRules } from '../chart/coach';
 import { buildContext, PaneData } from '../chart/coachContext';
 import type { KLineData } from 'klinecharts';
@@ -647,7 +647,7 @@ export default function MarketChart({ token, focus }: { token: string; focus?: {
             onTemplate={(tool, name) => update(cur => ({ ...cur, toolTpl: { ...cur.toolTpl, [tool]: name } }))} />
           {focusTrade && focusTrade.chartable && !replayOn && (
             <div className="mc-focus">
-              <span>🕯️ {focusTrade.side === 'long' ? 'Long' : focusTrade.side === 'short' ? 'Short' : 'Trade'} {focusTrade.quantity ?? ''} {focusTrade.symbol}</span>
+              <span><CandlestickChart size={14} /> {focusTrade.side === 'long' ? 'Long' : focusTrade.side === 'short' ? 'Short' : 'Trade'} {focusTrade.quantity ?? ''} {focusTrade.symbol}</span>
               {focusTrade.pnl !== null && (
                 <span className={focusTrade.pnl >= 0 ? 'mc-up' : 'mc-down'}>{fmtUsd(focusTrade.pnl)}</span>
               )}
@@ -671,7 +671,7 @@ export default function MarketChart({ token, focus }: { token: string; focus?: {
           )}
           {widen && engine.position && (
             <div className="mc-coach-modal" onMouseDown={ev => ev.stopPropagation()}>
-              <div className="mc-coach-stop-title">⛔ You moved your stop further away</div>
+              <div className="mc-coach-stop-title"><OctagonAlert size={15} /> You moved your stop further away</div>
               <div className="mc-coach-text">
                 {widen.prev} → {engine.position.stop}. Widening a stop to avoid being wrong is a rule break. The replay is paused.
               </div>

@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { OctagonAlert } from 'lucide-react';
 import { ReplayEngine, OrderInput, Side, ClosedTrade, rOf, OrderType } from '../chart/replay';
 import { Contract, fmtPrice, fmtUsd, signed } from '../chart/drawings';
 import { Clock, fmtWall } from '../chart/time';
@@ -186,7 +187,7 @@ export default function ReplayBar({ engine: e, clock, accounts, accountId, onAcc
           {err && <div className="mc-hint mc-bad">{err}</div>}
           {stage?.kind === 'breaks' && (
             <div className="mc-coach-stop">
-              <div className="mc-coach-stop-title">⛔ Coach: this order breaks your rules</div>
+              <div className="mc-coach-stop-title"><OctagonAlert size={15} /> Coach: this order breaks your rules</div>
               <ul>{stage.breaks.map(b => <li key={b}>{b}</li>)}</ul>
               <div className="mc-row mc-row-end">
                 <button type="button" className="mc-btn" onClick={cancelStage}>Fix the order</button>

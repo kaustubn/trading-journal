@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Target, Flame } from 'lucide-react';
 import axios from 'axios';
 import type { KLineData } from 'klinecharts';
 import type { Workspace } from './ChartPane';
@@ -316,7 +317,7 @@ export default function MentorPanel({ ws, activeIdx, clock, setPaneTf, startRepl
     <div className="mc-coach mt-panel" onMouseDown={e => e.stopPropagation()} onKeyDown={e => e.stopPropagation()}>
       <div className="mc-coach-head">
         <span className="mc-panel-title">Mentor</span>
-        <span className="mt-level" title={`${prog.xp} XP · streak ${prog.streak} (best ${prog.bestStreak})`}>Lv {lvl}<span className="mt-bar"><span style={{ width: `${lvlPct}%` }} /></span>🔥{prog.streak}</span>
+        <span className="mt-level" title={`${prog.xp} XP · streak ${prog.streak} (best ${prog.bestStreak})`}>Lv {lvl}<span className="mt-bar"><span style={{ width: `${lvlPct}%` }} /></span><Flame size={12} />{prog.streak}</span>
         <button className="mc-btn mc-small" onClick={onClose} title="Hide the mentor">✕</button>
       </div>
       <div className="mt-course">
@@ -413,7 +414,7 @@ export default function MentorPanel({ ws, activeIdx, clock, setPaneTf, startRepl
             ))}
             {quiz && (
               <div className="mc-coach-stop mt-quiz">
-                <div className="mc-coach-stop-title">🎯 {quiz.strategy.name}: what would {course?.mentor ?? 'the mentor'} do here?</div>
+                <div className="mc-coach-stop-title"><Target size={15} /> {quiz.strategy.name}: what would {course?.mentor ?? 'the mentor'} do here?</div>
                 {!quiz.answer ? (
                   <div className="mc-row">
                     <button className="mc-btn mc-buy" onClick={() => answer('long')}>Long</button>
@@ -422,7 +423,7 @@ export default function MentorPanel({ ws, activeIdx, clock, setPaneTf, startRepl
                   </div>
                 ) : (
                   <>
-                    <div className={quiz.correct ? 'mt-good-t' : 'mt-bad-t'}>{quiz.correct ? `Correct! +15 XP 🔥${prog.streak}` : `Mentor goes ${quiz.signal.side.toUpperCase()}.`} {quiz.signal.reason}.</div>
+                    <div className={quiz.correct ? 'mt-good-t' : 'mt-bad-t'}>{quiz.correct ? `Correct! +15 XP · streak ${prog.streak}` : `Mentor goes ${quiz.signal.side.toUpperCase()}.`} {quiz.signal.reason}.</div>
                     <div className="mt-plan">
                       Entry {fmtPrice(quiz.signal.entry)} · Stop {fmtPrice(quiz.signal.stop)} · T1 {fmtPrice(quiz.signal.t1)} · T2 {fmtPrice(quiz.signal.t2)}
                       {' '}({(Math.abs(quiz.signal.t1 - quiz.signal.entry) / Math.max(0.25, Math.abs(quiz.signal.entry - quiz.signal.stop))).toFixed(1)}R to T1)
