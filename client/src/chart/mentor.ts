@@ -6,6 +6,7 @@
 import type { Analysis, Bars, MarketEvent, Phase, Strategy } from './mentorTypes';
 import { analyze, phaseAt } from './patterns';
 import { etMinutes, sessionDay } from './time';
+import { paAnalyze, paNarrate } from './priceAction';
 
 export interface Step { label: string; done: boolean; }
 export interface Signal {
@@ -214,6 +215,98 @@ export const DETECTORS: Record<string, { name: string; describe: string; fn: Det
   },
 };
 
+// ---- price action (course 'Price action bar by bar'): uses chart/priceAction.ts
+const paSide = (ai: number): 'long' | 'short' | null => (ai > 0 ? 'long' : ai < 0 ? 'short' : null);
+const minRisk = (entry: number, stop: number, atr: number, side: 'long' | 'short') =>
+  Math.abs(entry - stop) >= 0.4 * atr ? stop : side === 'long' ? entry - 0.4 * atr : entry + 0.4 * atr;
+Object.assign(DETECTORS, {
+  pa_second_entry: {
+    name: 'Second entry with the trend (H2 / L2)',
+    describe: 'Always-in direction clear and trending, a pullback, and the second attempt to resume the trend (H2 buy / L2 sell) on a strong signal bar.',
+    fn: (bars: Bars, i: number) => {
+      const S = paAnalyze(bars), s = S[i], b = bars[i];
+      const side = paSide(s?.ai ?? 0);
+      const want = side === 'long' ? 'H2' : 'L2';
+      const steps = [
+        { label: 'Always-in direction is clear and the market is trending (not a trading range)', done: !!side && s.ctx === 'trend' },
+        { label: `A pullback is under way and price tries to resume the trend (${side === 'short' ? 'L1, L2' : 'H1, H2'})`, done: !!side && s.ctx === 'trend' && !!s.count && s.count[0] === (side === 'long' ? 'H' : 'L') },
+        { label: `Second attempt: ${want} bar`, done: !!side && s.ctx === 'trend' && s.count === want },
+        { label: 'Good signal bar: closes strongly in the trade direction, not a doji', done: !!side && s.ctx === 'trend' && s.count === want && s.signalQuality === 'good' },
+      ];
+      let signal = null;
+      if (steps.every(x => x.done) && side) {
+        const entry = side === 'long' ? b.high + 0.25 : b.low - 0.25;
+        const stop = minRisk(entry, side === 'long' ? b.low - 0.25 : b.high + 0.25, s.atr, side);
+        signal = plan(i, side, entry, stop, 1, 2, `${want}: second entry ${side === 'long' ? 'buy' : 'sell'} in an always-in ${side} trend. Entry = ${side === 'long' ? 'buy stop 1 tick above' : 'sell stop 1 tick below'} the signal bar, stop beyond its other end.`);
+      }
+      return { steps, signal };
+    },
+  },
+  pa_wedge: {
+    name: 'Wedge reversal (three pushes)',
+    describe: 'Three pushes in a trend leg, then a reversal bar against it: fade for a two-legged pullback.',
+    fn: (bars: Bars, i: number) => {
+      const S = paAnalyze(bars), s = S[i], b = bars[i];
+      let w: 'top' | 'bottom' | null = null, at = -1;
+      for (let k = i; k >= Math.max(0, i - 3); k--) if (S[k]?.wedge) { w = S[k].wedge; at = k; break; }
+      const side: 'long' | 'short' | null = w === 'top' ? 'short' : w === 'bottom' ? 'long' : null;
+      const rev = side === 'short' ? (s.kind === 'bear reversal' || s.kind === 'bear trend') : side === 'long' ? (s.kind === 'bull reversal' || s.kind === 'bull trend') : false;
+      const steps = [
+        { label: 'A trend leg made three pushes (wedge) in the last few bars', done: !!w },
+        { label: `A ${side === 'short' ? 'bear' : 'bull'} reversal bar after the third push`, done: !!w && i > at && rev },
+      ];
+      let signal = null;
+      if (steps.every(x => x.done) && side) {
+        let ext = side === 'short' ? -Infinity : Infinity;
+        for (let k = at; k <= i; k++) ext = side === 'short' ? Math.max(ext, bars[k].high) : Math.min(ext, bars[k].low);
+        const entry = side === 'short' ? b.low - 0.25 : b.high + 0.25;
+        const stop = minRisk(entry, side === 'short' ? ext + 0.25 : ext - 0.25, s.atr, side);
+        signal = plan(i, side, entry, stop, 1, 2, `Wedge ${w}: three pushes, then a reversal bar. Fade it for at least a two-legged pullback; stop beyond the wedge extreme.`);
+      }
+      return { steps, signal };
+    },
+  },
+  pa_double: {
+    name: 'Double top / double bottom',
+    describe: 'Price tests an earlier swing high (low) and closes back strongly: the level held twice.',
+    fn: (bars: Bars, i: number) => {
+      const S = paAnalyze(bars), s = S[i], b = bars[i];
+      const side: 'long' | 'short' | null = s?.dbl === 'DB' ? 'long' : s?.dbl === 'DT' ? 'short' : null;
+      const steps = [
+        { label: 'Price tests an earlier swing high / low (8-60 bars ago, within a quarter ATR) and closes back on the other side', done: !!side },
+        { label: 'Good signal bar: strong close away from the level', done: !!side && s.signalQuality === 'good' },
+        { label: 'Not fighting a strong micro channel', done: !!side && !(side === 'long' ? s.micro <= -6 : s.micro >= 6) },
+      ];
+      let signal = null;
+      if (steps.every(x => x.done) && side) {
+        const entry = side === 'long' ? b.high + 0.25 : b.low - 0.25;
+        const stop = minRisk(entry, side === 'long' ? b.low - 0.25 : b.high + 0.25, s.atr, side);
+        signal = plan(i, side, entry, stop, 1, 2, `${s.dbl === 'DB' ? 'Double bottom' : 'Double top'}: the same price was defended twice. Entry beyond the signal bar, stop beyond the test.`);
+      }
+      return { steps, signal };
+    },
+  },
+  pa_bo_ft: {
+    name: 'Breakout with follow-through',
+    describe: 'A trend bar closes beyond the last 20 bars, the next bar follows through: join it for a second leg.',
+    fn: (bars: Bars, i: number) => {
+      const S = paAnalyze(bars), s = S[i], b = bars[i], prev = S[i - 1];
+      const side: 'long' | 'short' | null = prev?.bo > 0 ? 'long' : prev?.bo < 0 ? 'short' : null;
+      const steps = [
+        { label: 'Breakout bar: a trend bar closed beyond the last 20 bars', done: !!side },
+        { label: 'Follow-through: the next bar closes further in the breakout direction', done: !!side && !!s?.ft },
+      ];
+      let signal = null;
+      if (steps.every(x => x.done) && side) {
+        const bo = bars[i - 1];
+        const stop = minRisk(b.close, side === 'long' ? bo.low - 0.25 : bo.high + 0.25, s.atr, side);
+        signal = plan(i, side, b.close, stop, 1, 2, 'Breakout with follow-through: traders who missed it buy the first pullback, so a second leg is likely. Stop beyond the breakout bar.');
+      }
+      return { steps, signal };
+    },
+  },
+});
+
 // ---------------------------------------------------------------- teaching text
 export const PHASE_TEACH: Record<Phase, string> = {
   accumulation: 'Accumulation: after a fall, price goes sideways. Big buyers absorb selling inside the range without chasing price up. Watch for a spring (stop-run under the lows) and a sign of strength.',
@@ -258,12 +351,19 @@ export class MentorFeed {
     const first = this.lastI < 0;
     const push = (kind: FeedKind, t: number, title: string, text: string, tag?: string) => msgs.push({ id: ++this.seq, kind, t, title, text, tag });
 
-    const ph = phaseAt(a, i);
+    const narrate = !!this.strategy?.detector?.params?.narrate;
+    if (narrate) {                              // price-action course: read every new bar aloud
+      for (let k = first ? i : Math.max(this.lastI + 1, i - 2); k <= i; k++) {
+        const nr = paNarrate(bars, k);
+        if (nr) push('info', bars[k].timestamp, nr.title, nr.text);
+      }
+    }
+    const ph = narrate ? null : phaseAt(a, i);
     if (ph && ph.phase !== this.lastPhase) {
       push('phase', bars[i].timestamp, `Phase: ${ph.phase[0].toUpperCase()}${ph.phase.slice(1)}`, PHASE_TEACH[ph.phase]);
       this.lastPhase = ph.phase;
     }
-    if (opts.events) {
+    if (opts.events && !narrate) {
       const from = first ? i - 3 : this.lastI + 1;
       for (const e of a.events) {
         if (e.i < from || e.i > i) continue;

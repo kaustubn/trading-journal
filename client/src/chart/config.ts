@@ -44,7 +44,7 @@ export function barEnd(key: number, tf: number, rth: boolean): number {
 }
 
 // ---------- indicators ----------
-export type IndKey = 'NQSYS' | 'PHASES' | 'EMA' | 'SMA' | 'VWAP' | 'SVP' | 'VRVP' | 'FP' | 'VA80' | 'BOLL' | 'VOL' | 'RSI' | 'ATR' | 'MACD';
+export type IndKey = 'NQSYS' | 'PHASES' | 'EMA' | 'SMA' | 'VWAP' | 'SVP' | 'VRVP' | 'FP' | 'VA80' | 'PA' | 'BOLL' | 'VOL' | 'RSI' | 'ATR' | 'MACD';
 export interface IndDef { label: string; name: string; main: boolean; def: number[]; hint: string; min: number; max: number; }
 export const INDS: Record<IndKey, IndDef> = {
   PHASES: { label: 'Smart money phases & patterns', name: 'JC_PHASES', main: true, def: [], hint: 'Accumulation / markup / distribution / markdown, springs, upthrusts, sweeps, breaks of structure, key candles', min: 0, max: 0 },
@@ -55,6 +55,7 @@ export const INDS: Record<IndKey, IndDef> = {
   SVP: { label: 'Volume profile: session', name: 'JC_SVP', main: true, def: [24], hint: 'Rows per day. Real POC / VAH / VAL for each 6pm ET trading day. Lower timeframes give a finer profile.', min: 1, max: 1 },
   VRVP: { label: 'Volume profile: visible range', name: 'JC_VRVP', main: true, def: [40], hint: 'Rows. Profile of the candles on screen, updates as you scroll.', min: 1, max: 1 },
   VA80: { label: 'VA80 — yesterday’s value area + 80% rule signal', name: 'JC_VA80', main: true, def: [], hint: 'Yesterday’s New York value area (pVAH / pPOC / pVAL). When the day opens outside it and a 5m close comes back inside before 13:30 ET, it marks the VA80 trade: stop 1 × ATR, target 2R. Use a 1–5 min chart.', min: 0, max: 0 },
+  PA: { label: 'Price action: bar counts (H1/H2, L1/L2), wedges, double tops / bottoms, always-in', name: 'JC_PA', main: true, def: [], hint: 'Labels H1/H2 under bull-pullback bars and L1/L2 over bear-rally bars, W3 on a third push, DT / DB on double tops / bottoms; faded = weak signal bar. The strip at the bottom is the always-in direction (green long, red short, grey unclear). Pair it with Mentor → Price action bar by bar.', min: 0, max: 0 },
   FP: { label: 'Footprint (order flow)', name: 'JC_FP', main: true, def: [3], hint: 'Imbalance ratio (e.g. 3 = one side 3× the other on the diagonal). Real buy/sell volume per price from Databento trades: one New York session at a time, price shown before buying. Zoom in for the numbers.', min: 1, max: 1 },
   BOLL: { label: 'Bollinger Bands', name: 'BOLL', main: true, def: [20, 2], hint: 'Period, deviations', min: 2, max: 2 },
   VOL: { label: 'Volume', name: 'VOL', main: false, def: [], hint: 'Moving average period (empty = no average, like your TradingView)', min: 0, max: 1 },

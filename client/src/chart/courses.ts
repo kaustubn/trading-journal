@@ -150,4 +150,101 @@ export const KAY_SYSTEM: Course = {
   ],
 };
 
-export const BUILTIN_COURSES: Course[] = [SMART_MONEY, KAY_SYSTEM];
+// ---------------------------------------------------------------- price action bar by bar
+// Widely taught price-action reading ideas (bar counting, always-in, wedges, double tops / bottoms,
+// breakouts), popularised by Al Brooks among others. Everything here is the journal's own simplified
+// wording and definitions (chart/priceAction.ts) — not his books or Encyclopedia. Untested as an edge:
+// these detectors have not been through the Edge Hunter yet.
+const N = { narrate: true };
+const paStrats: Strategy[] = [
+  {
+    id: 'pa-h2', name: 'Second entry with the trend (H2 / L2)', summary: 'In a clear trend, the second attempt to resume it after a pullback is the classic with-trend entry.', tf: 5,
+    when: [r('Always-in direction is clear: a strong breakout (big trend bar, or breakout + follow-through) put buyers (sellers) in charge.'), r('Price is trending, not chopping around the 20-bar EMA (fewer than 4 EMA crosses in the last 20 bars).')],
+    entry: [r('Wait for a pullback: bars with lower highs in a bull trend (higher lows in a bear trend).'), r('H1 / L1 = the first bar that goes above the prior bar’s high (below its low). H2 / L2 = the second time in the same pullback.')],
+    trigger: [r('On the H2 (L2) bar: buy stop 1 tick above it (sell stop 1 tick below it).'), r('Only if it is a good signal bar: closes in its upper part for a buy (lower part for a sell), not a doji.')],
+    stop: [r('Below the signal bar (above it for a sell). If that is tiny, at least about 0.4 × ATR.')],
+    targets: [r('T1 1R, T2 2R or a test of the trend extreme.')],
+    manage: [r('If the entry bar closes as a strong reversal bar against you, get out early.')],
+    scaleIn: [], scaleOut: [r('Half at 1R, trail the rest under each new higher low (above each lower high).')],
+    avoid: [r('Trading-range context: in a range, an H2 at the top of the range is a sell zone, not a buy.'), r('A third or fourth attempt (H3+, L3+): the pullback is too long, often a wedge flag or a range.')],
+    psychology: [r('The first attempt often fails and traps eager traders; the second entry is where the patient ones get in.'), r('Do not count every wiggle: if you cannot see the pullback clearly, there is no H2.')],
+    detector: { key: 'pa_second_entry', params: N }, rr: { t1R: 1, t2R: 2, scaleOutAtT1: 0.5 },
+  },
+  {
+    id: 'pa-wedge', name: 'Wedge reversal (three pushes)', summary: 'Three pushes in one direction often exhaust a move; fade the third push on a reversal bar.', tf: 5,
+    when: [r('A trend leg makes three pushes to new extremes, each after a pullback.'), r('Best when the pushes get weaker (smaller bars, more overlap).')],
+    entry: [r('After the third push, wait for a reversal bar against it.')],
+    trigger: [r('Sell stop below the bear reversal bar after a wedge top (buy stop above the bull reversal bar after a wedge bottom).')],
+    stop: [r('Beyond the wedge extreme.')],
+    targets: [r('At least a two-legged pullback: T1 1R, T2 2R or the start of the wedge.')],
+    manage: [r('If price makes a fourth push with a strong trend bar, the wedge failed: get out.')],
+    scaleIn: [], scaleOut: [r('Half at 1R.')],
+    avoid: [r('A strong micro channel (6+ bars without a pullback): pushes inside a strong trend are not exhaustion.')],
+    psychology: [r('Fading a trend feels wrong; that is why the reward comes only after clear exhaustion and a real reversal bar.')],
+    detector: { key: 'pa_wedge', params: N }, rr: { t1R: 1, t2R: 2, scaleOutAtT1: 0.5 },
+  },
+  {
+    id: 'pa-double', name: 'Double top / double bottom', summary: 'When the same price is defended twice, the second test is a reversal entry.', tf: 5,
+    when: [r('An earlier swing high (low) 8-60 bars ago.'), r('Price comes back to it (within about a quarter ATR) and closes back on the other side.')],
+    entry: [r('The test bar is the signal bar.')],
+    trigger: [r('Good signal bar (strong close away from the level), then entry 1 tick beyond it.')],
+    stop: [r('Beyond the test bar.')],
+    targets: [r('T1 1R, T2 2R or the middle of the range.')],
+    manage: [r('A close beyond the tested level cancels the idea.')],
+    scaleIn: [], scaleOut: [r('Half at 1R.')],
+    avoid: [r('Fighting a strong micro channel or a fresh always-in flip in the other direction.')],
+    psychology: [r('Double tops and bottoms are common in trading ranges and less reliable in strong trends; read the context first.')],
+    detector: { key: 'pa_double', params: N }, rr: { t1R: 1, t2R: 2, scaleOutAtT1: 0.5 },
+  },
+  {
+    id: 'pa-boft', name: 'Breakout with follow-through', summary: 'A strong breakout that the next bar confirms usually gets a second leg.', tf: 5,
+    when: [r('A trend bar closes beyond the high (low) of the last 20 bars.')],
+    entry: [r('Watch the next bar: does it continue?')],
+    trigger: [r('Follow-through bar closes further in the breakout direction: enter at its close.')],
+    stop: [r('Beyond the breakout bar’s other end.')],
+    targets: [r('T1 1R, T2 2R or a measured move (the breakout bar’s height projected).')],
+    manage: [r('A strong reversal bar right after entry = failed breakout: exit.')],
+    scaleIn: [r('Add on the first pullback that holds above the breakout point.')], scaleOut: [r('Half at 1R.')],
+    avoid: [r('Breakouts in a tight trading range late in the day; most range breakouts fail.')],
+    psychology: [r('Many traders wait for a pullback that never comes in a strong breakout. Follow-through is the market saying "now".')],
+    detector: { key: 'pa_bo_ft', params: N }, rr: { t1R: 1, t2R: 2, scaleOutAtT1: 0.5 },
+  },
+];
+
+export const PRICE_ACTION: Course = {
+  id: 'builtin-price-action', version: 1, kind: 'builtin', mentor: 'Journal mentor', title: 'Price action bar by bar (bar counts, always-in, wedges)',
+  description: 'Read every bar the way price-action traders do: who is in control, trend or range, pullback counts (H1/H2, L1/L2), wedges, double tops / bottoms, breakouts. Widely taught ideas (popularised by Al Brooks among others) in the journal’s own words — not his course. The mentor talks through each bar live in replay. Turn on the "Price action" indicator to see the labels.',
+  chapters: [
+    { id: 'pa-bars', title: '1. Every bar is a vote', summary: 'Who won the bar, and by how much?',
+      points: [r('Trend bar: big body, closes near its extreme — one side won clearly.'), r('Doji: small body — nobody won; one doji means little, several mean a trading range.'), r('Reversal bar: pushed one way, closed the other (long tail, close near the opposite end) — the losing side gave up.'), r('A signal bar is good when it closes strongly in your direction; weak signal bars mean more traps.')] },
+    { id: 'pa-ai', title: '2. Always in: who is in charge?', summary: 'If you had to be in the market right now, long or short?',
+      points: [r('A strong breakout (a big trend bar beyond the EMA, or a breakout bar with follow-through) flips the always-in direction.'), r('Once always-in long, look only to buy (pullbacks) until a strong breakout down flips it.'), r('No clear always-in direction = trading range: buy low, sell high, take quick profits.')] },
+    { id: 'pa-ctx', title: '3. Trend or trading range', summary: 'The same pattern means opposite things in the two contexts.',
+      points: [r('Trend: bars mostly on one side of the 20-bar EMA, pullbacks shallow and short.'), r('Trading range: price keeps crossing the EMA, bars overlap, breakouts fail.'), r('In a range, most breakouts fail — fade the extremes. In a trend, most reversals fail — trade with it.')] },
+    { id: 'pa-count', title: '4. Counting pullbacks: H1, H2, L1, L2', summary: 'Count the attempts to resume the trend.',
+      points: [r('In a bull trend pullback, each bar that goes above the prior bar’s high is an attempt to resume: H1, then H2.'), r('In a bear trend rally, each bar that goes below the prior bar’s low: L1, then L2.'), r('Second entries (H2 / L2) are the classic with-trend entries: the first attempt traps, the second works more often.'), r('H3+ / L3+: the pullback is becoming a flag or range; be more careful.')] },
+    { id: 'pa-rev', title: '5. Reversals: wedges and double tops / bottoms', summary: 'Trends end in recognisable ways.',
+      points: [r('Wedge: three pushes in one leg, each weaker. A reversal bar after the third push is a fade entry.'), r('Double top / bottom: the same price tested twice and defended.'), r('Most reversal attempts fail in strong trends; they work best after a long move, at a level, with a strong reversal bar.')] },
+    { id: 'pa-bo', title: '6. Breakouts and follow-through', summary: 'The bar after the breakout tells you if it is real.',
+      points: [r('A breakout bar closes beyond the recent range.'), r('Follow-through (the next bar continues) means a second leg is likely.'), r('A reversal bar right after the breakout means it probably failed — trapped breakout traders fuel the move back.'), r('Micro channel: many bars in a row without a pullback = very strong; the first pullback is usually bought (sold).')] },
+  ],
+  strategies: paStrats,
+  glossary: [
+    { term: 'Always in long / short', meaning: 'The direction you would want to be in if you had to hold a position now; flips on a strong breakout.' },
+    { term: 'Trend bar', meaning: 'A bar with a big body closing near its high (bull) or low (bear).' },
+    { term: 'Signal bar', meaning: 'The bar your entry order is placed beyond; good when it closes strongly in your direction.' },
+    { term: 'H1 / H2', meaning: 'First / second bar in a bull pullback that trades above the prior bar’s high.' },
+    { term: 'L1 / L2', meaning: 'First / second bar in a bear rally that trades below the prior bar’s low.' },
+    { term: 'Wedge', meaning: 'Three pushes in one direction; often ends a move.' },
+    { term: 'Micro channel', meaning: 'Several bars in a row without a pullback (no lower low in a bull channel).' },
+    { term: 'Follow-through', meaning: 'The bar after a breakout continuing in the same direction.' },
+    { term: 'Second leg', meaning: 'Moves often come in two legs; after the first leg and a pullback, traders expect a second.' },
+  ],
+  quizzes: [
+    { q: 'Always in long, a pullback forms. The first bar to go above the prior bar’s high failed. Another bar now goes above the prior high and closes strongly. What is it?', options: ['H1, wait', 'H2: the second-entry buy', 'A wedge top'], answer: 1, explain: 'The second attempt in the same pullback is the H2, the classic with-trend buy.' },
+    { q: 'Price keeps crossing the 20-bar EMA and bars overlap. A strong bull breakout bar closes above the range high, and the next bar is a big bear reversal bar. What is most likely?', options: ['Breakout with follow-through', 'Failed breakout in a trading range', 'H2 buy'], answer: 1, explain: 'In a trading range most breakouts fail, and a reversal bar right after is the tell.' },
+    { q: 'The trend made a third push up, each push smaller, and now a bear reversal bar prints. What setup is this?', options: ['Wedge top: fade it', 'H3: buy', 'Breakout with follow-through'], answer: 0, explain: 'Three pushes = wedge; a reversal bar after the third push is the fade entry.' },
+  ],
+};
+
+export const BUILTIN_COURSES: Course[] = [SMART_MONEY, KAY_SYSTEM, PRICE_ACTION];
