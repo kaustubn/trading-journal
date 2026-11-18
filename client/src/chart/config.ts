@@ -115,6 +115,7 @@ export type Look = 'tv' | 'journal';
 /** Default template per tool in the TV preset: the styles used most on the TradingView chart. */
 export const TV_TOOL_TPL: Partial<Record<Tool, string>> = {
   hline: '1w & 1 d', rect: 'zone purple', trend: 'white', fib: 'k1', vline: 'bl', channel: 'channel', long: 'k1', short: 'k1',
+  gann: 'k', path: 'path',
 };
 const DEFAULT_PANES: PaneCfg[] = [{ tf: 5, src: 'journal' }, { tf: 1, src: 'journal' }, { tf: 15, src: 'journal' }, { tf: 60, src: 'journal' }];
 export const DEFAULTS: Settings = {

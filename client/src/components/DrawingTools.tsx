@@ -21,6 +21,13 @@ const ICONS: Record<Tool | 'cursor' | 'measure' | 'magnet' | 'lock' | 'eye' | 'e
   arrow: <Icon><path {...S} d="M5 19L18 6" /><path {...S} d="M10 6h8v8" /></Icon>,
   long: <Icon><rect x="4" y="4" width="16" height="8" fill="#089981" opacity=".55" /><rect x="4" y="12" width="16" height="6" fill="#f23645" opacity=".55" /><path {...S} d="M4 12h16" /></Icon>,
   short: <Icon><rect x="4" y="6" width="16" height="6" fill="#f23645" opacity=".55" /><rect x="4" y="12" width="16" height="8" fill="#089981" opacity=".55" /><path {...S} d="M4 12h16" /></Icon>,
+  path: <Icon><path {...S} d="M4 18l5-8 5 5 6-9" /><circle {...S} cx="4" cy="18" r="1.5" /><circle {...S} cx="9" cy="10" r="1.5" /><circle {...S} cx="14" cy="15" r="1.5" /><circle {...S} cx="20" cy="6" r="1.5" /></Icon>,
+  brush: <Icon><path {...S} d="M4 17c2-1 3-5 6-5s2 4 5 4 3-6 5-8" /></Icon>,
+  highlight: <Icon><path stroke="currentColor" strokeOpacity=".45" strokeWidth="5" strokeLinecap="round" fill="none" d="M5 15c3-3 6-2 8-4s4-3 6-3" /></Icon>,
+  daterange: <Icon><path {...S} d="M5 5v14M19 5v14M7 12h10" /><path {...S} d="M14 9l3 3-3 3" /></Icon>,
+  dprange: <Icon><rect {...S} x="4" y="5" width="16" height="14" rx="1" /><path {...S} d="M12 7v10M7 12h10" /></Icon>,
+  gann: <Icon><rect {...S} x="4" y="4" width="16" height="16" /><path {...S} d="M4 20L20 4M4 20L20 12M4 20L12 4" /></Icon>,
+  vprofile: <Icon><path {...S} d="M4 4v16" /><path stroke="currentColor" strokeWidth="2.5" d="M5 6h5M5 9h9M5 12h14M5 15h8M5 18h4" /></Icon>,
   measure: <Icon><path {...S} d="M4 16L16 4l4 4L8 20z" /><path {...S} d="M8 12l2 2M11 9l2 2M14 6l2 2" /></Icon>,
   magnet: <Icon><path {...S} d="M6 4v8a6 6 0 0012 0V4h-4v8a2 2 0 01-4 0V4z" /><path {...S} d="M6 8h4M14 8h4" /></Icon>,
   lock: <Icon><rect {...S} x="6" y="11" width="12" height="9" rx="1.5" /><path {...S} d="M8.5 11V8a3.5 3.5 0 017 0v3" /></Icon>,
@@ -30,10 +37,10 @@ const ICONS: Record<Tool | 'cursor' | 'measure' | 'magnet' | 'lock' | 'eye' | 'e
 };
 
 const GROUPS: Tool[][] = [
-  ['trend', 'hline', 'hray', 'vline'],
-  ['rect', 'channel', 'fib'],
-  ['text', 'arrow'],
-  ['long', 'short'],
+  ['trend', 'hline', 'hray', 'vline', 'path'],
+  ['rect', 'channel', 'fib', 'gann'],
+  ['brush', 'highlight', 'text', 'arrow'],
+  ['long', 'short', 'daterange', 'dprange', 'vprofile'],
 ];
 const MAGNET_NEXT: Record<Magnet, Magnet> = { off: 'weak', weak: 'strong', strong: 'off' };
 const MAGNET_LABEL: Record<Magnet, string> = { off: 'Magnet off', weak: 'Weak magnet', strong: 'Strong magnet' };
@@ -71,7 +78,7 @@ export function DrawToolbar({ ctl, magnet, hidden, lockAll, measureArmed, onMagn
           <span className="mc-dsep" />
           {g.map(t => (
             <button key={t} disabled={!ready} className={`mc-dbtn${active === t ? ' on' : ''}`}
-              title={TOOLS[t].key ? `${TOOLS[t].label} (${TOOLS[t].key})` : TOOLS[t].label}
+              title={`${TOOLS[t].label}${TOOLS[t].key ? ` (${TOOLS[t].key})` : ''}${TOOLS[t].hint ? ` — ${TOOLS[t].hint}` : ''}`}
               onClick={() => pick(t)}>{ICONS[t]}</button>
           ))}
         </React.Fragment>

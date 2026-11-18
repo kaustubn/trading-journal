@@ -7,7 +7,8 @@ import { etOffset } from './time';
 
 export type Tool =
   | 'trend' | 'hline' | 'hray' | 'vline' | 'rect' | 'fib'
-  | 'channel' | 'text' | 'arrow' | 'long' | 'short';
+  | 'channel' | 'text' | 'arrow' | 'long' | 'short'
+  | 'path' | 'brush' | 'highlight' | 'daterange' | 'dprange' | 'gann' | 'vprofile';
 export type LineStyle = 'solid' | 'dashed' | 'dotted';
 export type Contract = 'NQ' | 'MNQ';
 
@@ -38,6 +39,8 @@ export interface ToolDef {
   key?: string;           // keyboard shortcut label
   color: string;
   width: number;
+  hint?: string;          // how to use it (toolbar tooltip)
+  manual?: 'clicks' | 'freehand'; // placed by the chart window's own mouse handling, not KLineChart steps
 }
 export const TOOLS: Record<Tool, ToolDef> = {
   trend: { label: 'Trend line', overlay: 'jc_trend', steps: 3, key: 'Alt+T', color: '#2962ff', width: 2 },
@@ -51,7 +54,15 @@ export const TOOLS: Record<Tool, ToolDef> = {
   arrow: { label: 'Arrow', overlay: 'jc_arrow', steps: 3, color: '#2962ff', width: 2 },
   long: { label: 'Long position', overlay: 'jc_long', steps: 2, color: '#089981', width: 1 },
   short: { label: 'Short position', overlay: 'jc_short', steps: 2, color: '#f23645', width: 1 },
+  path: { label: 'Path', hint: 'click points, double-click or Enter to finish', overlay: 'jc_path', steps: 2, color: 'rgba(242, 54, 69, 1)', width: 2, manual: 'clicks' },
+  brush: { label: 'Brush', hint: 'drag to draw', overlay: 'jc_brush', steps: 2, color: '#2962ff', width: 2, manual: 'freehand' },
+  highlight: { label: 'Highlighter', hint: 'drag to draw', overlay: 'jc_highlight', steps: 2, color: 'rgba(255, 235, 59, 0.38)', width: 3, manual: 'freehand' },
+  daterange: { label: 'Date range', overlay: 'jc_daterange', steps: 3, color: '#2962ff', width: 1 },
+  dprange: { label: 'Date and price range', overlay: 'jc_dprange', steps: 3, color: '#2962ff', width: 1 },
+  gann: { label: 'Gann square', overlay: 'jc_gann', steps: 3, color: 'rgba(21, 56, 153, 0.8)', width: 2 },
+  vprofile: { label: 'Fixed range volume profile', overlay: 'jc_vprofile', steps: 3, color: '#2962ff', width: 1 },
 };
+export const FREEHAND: Tool[] = ['brush', 'highlight'];
 export const TOOL_KEYS = Object.keys(TOOLS) as Tool[];
 export const OVERLAY_TO_TOOL: Record<string, Tool> =
   Object.fromEntries(TOOL_KEYS.map(k => [TOOLS[k].overlay, k]));

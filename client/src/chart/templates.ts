@@ -52,6 +52,12 @@ export const TEMPLATES: Partial<Record<Tool, Template[]>> = {
   channel: [
     { name: 'channel', from: 'TradingView', style: { color: 'rgba(0, 0, 0, 1)', width: 2, line: 'solid' } },
   ],
+  gann: [
+    { name: 'k', from: 'TradingView', style: { color: 'rgba(21, 56, 153, 0.8)', width: 2, line: 'solid' } },
+  ],
+  path: [
+    { name: 'path', from: 'TradingView', style: { color: 'rgba(242, 54, 69, 1)', width: 2, line: 'solid' } },
+  ],
   long: [
     { name: 'k1', from: 'TradingView', style: { color: W, width: 2, stopPts: 69, targetPts: 150 } },
   ],

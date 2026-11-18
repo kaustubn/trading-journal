@@ -220,6 +220,92 @@ const measure: OverlayTemplate<Drawing> = {
 // ---------- the line tools ----------
 const FIB_LEVELS = [0, 0.236, 0.382, 0.5, 0.618, 0.786, 1];
 
+// ---------- helpers for the range, profile and freehand tools ----------
+/** Bars whose start lies in [t0, t1]. */
+function barsIn(data: KLineData[], t0: number, t1: number): KLineData[] {
+  const i0 = firstAfter(data, t0 - 1), i1 = firstAfter(data, t1);
+  return data.slice(i0, Math.max(i0, i1));
+}
+const fmtVol = (v: number) => (v >= 1e6 ? `${(v / 1e6).toFixed(2)}M` : v >= 1e3 ? `${(v / 1e3).toFixed(1)}K` : String(Math.round(v)));
+/** Bars, calendar time and volume between an overlay's first two points. */
+function rangeStats(chart: Chart, overlay: O): { bars: number; span: number; vol: number } {
+  const ta = overlay.points[0]?.timestamp, tb = overlay.points[1]?.timestamp;
+  if (typeof ta !== 'number' || typeof tb !== 'number') return { bars: 0, span: 0, vol: 0 };
+  const data = chart.getDataList();
+  const t0 = Math.min(ta, tb), t1 = Math.max(ta, tb);
+  const inside = barsIn(data, t0, t1);
+  return { bars: Math.max(0, inside.length - 1) * Math.sign(tb - ta || 1), span: tb - ta, vol: inside.reduce((s, k) => s + (k.volume ?? 0), 0) };
+}
+
+export interface VolumeProfile { lo: number; step: number; rows: { up: number; down: number }[]; poc: number; vaLo: number; vaHi: number; }
+/**
+ * Volume at price for a set of bars: each bar's volume is spread evenly over the rows its
+ * high-low range covers (up volume for close >= open, else down). Value area = 70% of the
+ * volume, grown outward from the point of control, as TradingView does.
+ */
+export function volumeProfile(bars: KLineData[], rowCount: number): VolumeProfile | null {
+  let lo = Infinity, hi = -Infinity;
+  for (const k of bars) { lo = Math.min(lo, k.low); hi = Math.max(hi, k.high); }
+  if (!Number.isFinite(lo) || hi <= lo) return null;
+  const step = (hi - lo) / rowCount;
+  const rows = Array.from({ length: rowCount }, () => ({ up: 0, down: 0 }));
+  for (const k of bars) {
+    const v = k.volume ?? 0;
+    if (!v) continue;
+    const r0 = Math.min(rowCount - 1, Math.floor((k.low - lo) / step)), r1 = Math.min(rowCount - 1, Math.floor((k.high - lo) / step));
+    const share = v / (r1 - r0 + 1);
+    for (let r = r0; r <= r1; r++) { if (k.close >= k.open) rows[r].up += share; else rows[r].down += share; }
+  }
+  const tot = rows.map(r => r.up + r.down);
+  let poc = 0;
+  tot.forEach((v, i) => { if (v > tot[poc]) poc = i; });
+  const total = tot.reduce((s, v) => s + v, 0);
+  let vaLo = poc, vaHi = poc, acc = tot[poc];
+  while (acc < total * 0.7 && (vaLo > 0 || vaHi < rowCount - 1)) {
+    const below = vaLo > 0 ? tot[vaLo - 1] : -1, above = vaHi < rowCount - 1 ? tot[vaHi + 1] : -1;
+    if (above >= below) { vaHi++; acc += above; } else { vaLo--; acc += below; }
+  }
+  return { lo, step, rows, poc, vaLo, vaHi };
+}
+
+/** x pixel of time t, between bars too (freehand strokes keep their shape on any timeframe). */
+function xAt(chart: Chart, xAxis: any, t: number): number {
+  const data = chart.getDataList();
+  if (!data.length || !xAxis) return 0;
+  let step = Infinity;
+  for (let i = Math.max(1, data.length - 6); i < data.length; i++) step = Math.min(step, data[i].timestamp - data[i - 1].timestamp);
+  if (!Number.isFinite(step) || step <= 0) step = 60000;
+  const i = firstAfter(data, t) - 1;
+  let idx: number;
+  if (i < 0) idx = (t - data[0].timestamp) / step;
+  else if (i >= data.length - 1) idx = data.length - 1 + (t - data[data.length - 1].timestamp) / step;
+  else idx = i + Math.min(1, (t - data[i].timestamp) / Math.min(step, data[i + 1].timestamp - data[i].timestamp));
+  return xAxis.convertToPixel(idx);
+}
+
+/**
+ * Brush / highlighter. The stroke is stored in the drawing's points (raw times and prices);
+ * the overlay itself only carries the first and last point, so it can be dragged as a whole:
+ * while it moves, the stroke is drawn shifted by how far the first point has moved from
+ * `anchor` (where that point sat when the overlay was created).
+ */
+function freehand(name: string, highlighter: boolean): OverlayTemplate<Drawing> {
+  return {
+    ...base(name, 2), needDefaultPointFigure: false, needDefaultXAxisFigure: false, needDefaultYAxisFigure: false,
+    createPointFigures: ({ chart, overlay, coordinates, xAxis, yAxis }) => {
+      const d = overlay.extendData as (Drawing & { anchor?: { t: number; p: number } }) | undefined;
+      if (!d || !yAxis || !coordinates.length || d.points.length < 1) return [];
+      const anchor = d.anchor ?? d.points[0];
+      const dx = coordinates[0].x - xAt(chart, xAxis, anchor.t);
+      const dy = coordinates[0].y - yAxis.convertToPixel(anchor.p);
+      const pts = d.points.map(p => ({ x: xAt(chart, xAxis, p.t) + dx, y: yAxis.convertToPixel(p.p) + dy }));
+      if (pts.length === 1) pts.push({ x: pts[0].x + 0.5, y: pts[0].y });
+      const size = highlighter ? Math.max(8, d.width * 6) : d.width;
+      return [{ type: 'line', attrs: { coordinates: pts }, styles: { style: 'solid', size, color: d.color, smooth: !highlighter } }];
+    },
+  };
+}
+
 const templates: OverlayTemplate<Drawing>[] = [
   {
     ...base('jc_trend', 3),
@@ -343,6 +429,132 @@ const templates: OverlayTemplate<Drawing>[] = [
   measure,
   bracket(),
   tradeMarker(),
+  // ---------- path: a polyline, placed click by click ----------
+  {
+    ...base('jc_path', 2),
+    createPointFigures: ({ overlay, coordinates }) => {
+      if (coordinates.length < 2) return [];
+      const figs: Fig[] = [];
+      for (let i = 1; i < coordinates.length; i++) figs.push(line([coordinates[i - 1], coordinates[i]], overlay.extendData));
+      return figs;
+    },
+  },
+  // ---------- brush / highlighter: freehand strokes drawn from the raw points ----------
+  freehand('jc_brush', false),
+  freehand('jc_highlight', true),
+  // ---------- date range ----------
+  {
+    ...base('jc_daterange', 3),
+    createPointFigures: ({ chart, overlay, coordinates }) => {
+      if (coordinates.length < 2) return [];
+      const d = overlay.extendData, [a, b] = coordinates;
+      const st = lineStyle(d);
+      const x0 = Math.min(a.x, b.x), x1 = Math.max(a.x, b.x), y0 = Math.min(a.y, b.y), y1 = Math.max(a.y, b.y);
+      const s = rangeStats(chart, overlay);
+      const midY = (y0 + y1) / 2;
+      const right = b.x >= a.x;
+      const tip = { x: right ? x1 : x0, y: midY }, tail = { x: right ? x0 : x1, y: midY };
+      return [
+        { type: 'rect', attrs: { x: x0, y: y0, width: Math.max(1, x1 - x0), height: Math.max(1, y1 - y0) }, styles: { style: 'fill', color: rgba(st.color, 0.15) } },
+        line([{ x: x0, y: y0 }, { x: x0, y: y1 }], d), line([{ x: x1, y: y0 }, { x: x1, y: y1 }], d),
+        line([tail, tip], d),
+        { type: 'polygon', ignoreEvent: true, attrs: { coordinates: arrowHead(tail, tip, 7) }, styles: { style: 'fill', color: st.color } },
+        label((x0 + x1) / 2, y1 + 14, `${s.bars} bars, ${fmtSpan(s.span)}${s.vol ? ` · Vol ${fmtVol(s.vol)}` : ''}`, rgba(st.color, 0.92)),
+      ];
+    },
+  },
+  // ---------- date and price range ----------
+  {
+    ...base('jc_dprange', 3),
+    createPointFigures: ({ chart, overlay, coordinates }) => {
+      if (coordinates.length < 2) return [];
+      const d = overlay.extendData, [a, b] = coordinates;
+      const p0 = overlay.points[0]?.value, p1 = overlay.points[1]?.value;
+      if (typeof p0 !== 'number' || typeof p1 !== 'number') return [];
+      const st = lineStyle(d);
+      const x0 = Math.min(a.x, b.x), x1 = Math.max(a.x, b.x), y0 = Math.min(a.y, b.y), y1 = Math.max(a.y, b.y);
+      const s = rangeStats(chart, overlay);
+      const diff = p1 - p0;
+      const mx = (x0 + x1) / 2, my = (y0 + y1) / 2;
+      const vTip = { x: mx, y: b.y }, vTail = { x: mx, y: a.y };
+      const hTip = { x: b.x, y: my }, hTail = { x: a.x, y: my };
+      return [
+        { type: 'rect', attrs: { x: x0, y: y0, width: Math.max(1, x1 - x0), height: Math.max(1, y1 - y0) }, styles: { style: 'fill', color: rgba(st.color, 0.15) } },
+        line([vTail, vTip], d), line([hTail, hTip], d),
+        { type: 'polygon', ignoreEvent: true, attrs: { coordinates: arrowHead(vTail, vTip, 7) }, styles: { style: 'fill', color: st.color } },
+        { type: 'polygon', ignoreEvent: true, attrs: { coordinates: arrowHead(hTail, hTip, 7) }, styles: { style: 'fill', color: st.color } },
+        label(mx, (diff >= 0 ? y0 - 16 : y1 + 16),
+          `${signed(diff)} (${signed((diff / p0) * 100)}%) ${signed(diff / TICK, 0)} ticks · ${s.bars} bars, ${fmtSpan(s.span)}${s.vol ? ` · Vol ${fmtVol(s.vol)}` : ''}`,
+          rgba(st.color, 0.92)),
+      ];
+    },
+  },
+  // ---------- Gann square ----------
+  {
+    ...base('jc_gann', 3),
+    createPointFigures: ({ overlay, coordinates }) => {
+      if (coordinates.length < 2) return [];
+      const d = overlay.extendData, [a, b] = coordinates;
+      const st = lineStyle(d);
+      const thin = { ...st, size: 1, style: 'solid' };
+      const figs: Fig[] = [];
+      const LV = [0.25, 0.382, 0.5, 0.618, 0.75];
+      const X = (f: number) => a.x + (b.x - a.x) * f, Y = (f: number) => a.y + (b.y - a.y) * f;
+      figs.push({ type: 'rect', attrs: { x: Math.min(a.x, b.x), y: Math.min(a.y, b.y), width: Math.abs(b.x - a.x), height: Math.abs(b.y - a.y) },
+        styles: { style: 'stroke_fill', color: rgba(st.color, 0.06), borderColor: st.color, borderSize: st.size } });
+      LV.forEach((f, i) => {
+        figs.push({ type: 'rect', ignoreEvent: true, attrs: { x: Math.min(a.x, b.x), y: Math.min(Y(f), Y(LV[i + 1] ?? 1)), width: Math.abs(b.x - a.x), height: Math.abs(Y(LV[i + 1] ?? 1) - Y(f)) },
+          styles: { style: 'fill', color: rgba(st.color, i % 2 ? 0.04 : 0.09) } });
+        figs.push(line([{ x: a.x, y: Y(f) }, { x: b.x, y: Y(f) }], d, { ignoreEvent: true, styles: thin }));
+        figs.push(line([{ x: X(f), y: a.y }, { x: X(f), y: b.y }], d, { ignoreEvent: true, styles: thin }));
+      });
+      // fans from the first corner to the far edges, and both diagonals
+      figs.push(line([a, b], d), line([{ x: a.x, y: b.y }, { x: b.x, y: a.y }], d));
+      for (const f of LV) {
+        figs.push(line([a, { x: b.x, y: Y(f) }], d, { ignoreEvent: true, styles: thin }));
+        figs.push(line([a, { x: X(f), y: b.y }], d, { ignoreEvent: true, styles: thin }));
+      }
+      return figs;
+    },
+  },
+  // ---------- fixed range volume profile ----------
+  {
+    ...base('jc_vprofile', 3),
+    needDefaultYAxisFigure: false,
+    createPointFigures: ({ chart, overlay, coordinates, yAxis }) => {
+      if (coordinates.length < 2 || !yAxis) return [];
+      const d = overlay.extendData;
+      const [a, b] = coordinates;
+      const t0 = Math.min(overlay.points[0]?.timestamp ?? 0, overlay.points[1]?.timestamp ?? 0);
+      const t1 = Math.max(overlay.points[0]?.timestamp ?? 0, overlay.points[1]?.timestamp ?? 0);
+      const bars = barsIn(chart.getDataList(), t0, t1);
+      const x0 = Math.min(a.x, b.x), x1 = Math.max(a.x, b.x);
+      const figs: Fig[] = [
+        line([{ x: x0, y: a.y }, { x: x1, y: a.y }], d, { styles: { ...lineStyle(d), style: 'dashed', dashedValue: [3, 3], size: 1 } }),
+      ];
+      if (!bars.length) return figs;
+      const vp = volumeProfile(bars, 24);
+      if (!vp) return figs;
+      const width = Math.max(60, (x1 - x0) * 0.3);
+      const max = Math.max(...vp.rows.map(r => r.up + r.down)) || 1;
+      vp.rows.forEach((r, i) => {
+        const yTop = yAxis.convertToPixel(vp.lo + (i + 1) * vp.step), yBot = yAxis.convertToPixel(vp.lo + i * vp.step);
+        const h = Math.max(1, Math.abs(yBot - yTop) - 1);
+        const inVA = i >= vp.vaLo && i <= vp.vaHi;
+        const wu = (r.up / max) * width, wd = (r.down / max) * width;
+        const y = Math.min(yTop, yBot);
+        if (wu > 0) figs.push({ type: 'rect', ignoreEvent: true, attrs: { x: x0, y, width: wu, height: h }, styles: { style: 'fill', color: inVA ? 'rgba(41, 98, 255, 0.7)' : 'rgba(41, 98, 255, 0.3)' } });
+        if (wd > 0) figs.push({ type: 'rect', ignoreEvent: true, attrs: { x: x0 + wu, y, width: wd, height: h }, styles: { style: 'fill', color: inVA ? 'rgba(251, 192, 45, 0.7)' : 'rgba(251, 192, 45, 0.3)' } });
+      });
+      const pocY = yAxis.convertToPixel(vp.lo + (vp.poc + 0.5) * vp.step);
+      figs.push({ type: 'line', ignoreEvent: true, attrs: { coordinates: [{ x: x0, y: pocY }, { x: x1, y: pocY }] }, styles: { style: 'solid', size: 2, color: 'rgba(242, 54, 69, 1)' } });
+      const vah = vp.lo + (vp.vaHi + 1) * vp.step, val = vp.lo + vp.vaLo * vp.step, poc = vp.lo + (vp.poc + 0.5) * vp.step;
+      figs.push(label(x1, pocY, `POC ${fmtPrice(poc)}`, 'rgba(242, 54, 69, 0.92)', 'right'));
+      figs.push(label(x1, yAxis.convertToPixel(vah), `VAH ${fmtPrice(vah)}`, 'rgba(41, 98, 255, 0.85)', 'right'));
+      figs.push(label(x1, yAxis.convertToPixel(val), `VAL ${fmtPrice(val)}`, 'rgba(41, 98, 255, 0.85)', 'right'));
+      return figs;
+    },
+  },
 ];
 
 // ---------- replay: open position bracket and closed-trade markers ----------

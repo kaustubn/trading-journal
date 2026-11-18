@@ -370,6 +370,20 @@ export default function ChartPane({ index, tf, s, active, ws, onActivate }: Prop
         ws.startReplay(barEnd(p.timestamp, tfRef.current, sRef.current.rth));
         return;
       }
+      if (ctl.manualTool) {
+        // path: each click adds a point; brush / highlighter: drag to draw
+        const p = pointAt(e);
+        if (!p) return;
+        e.stopPropagation(); e.preventDefault();
+        ctl.manualDown(p);
+        if (ctl.manualTool === 'brush' || ctl.manualTool === 'highlight') {
+          const mv = (ev: MouseEvent) => { const q = pointAt(ev); if (q) ctl.manualMove(q); };
+          const up = () => { window.removeEventListener('mousemove', mv, true); window.removeEventListener('mouseup', up, true); ctl.manualUp(); };
+          window.addEventListener('mousemove', mv, true);
+          window.addEventListener('mouseup', up, true);
+        }
+        return;
+      }
       if (follow) {
         follow = false;
         e.stopPropagation(); e.preventDefault();
@@ -390,15 +404,29 @@ export default function ChartPane({ index, tf, s, active, ws, onActivate }: Prop
       window.addEventListener('mouseup', onUp, true);
     };
     const onGuide = (e: MouseEvent) => {
+      const ctl = ctlRef.current;
+      if (ctl?.manualTool === 'path') { const p = pointAt(e); if (p) ctl.manualMove(p); }
       if (!ws.replayPick()) { setGuideX(null); return; }
       const r = root.getBoundingClientRect();
       setGuideX(e.clientX - r.left);
     };
     const onLeave = () => setGuideX(null);
+    const onDbl = (e: MouseEvent) => {
+      const ctl = ctlRef.current;
+      if (ctl?.manualTool === 'path') { e.stopPropagation(); e.preventDefault(); ctl.manualFinish(); }
+    };
+    const onKey = (e: KeyboardEvent) => {
+      const ctl = ctlRef.current;
+      if (ctl?.manualTool === 'path' && e.key === 'Enter') { e.preventDefault(); ctl.manualFinish(); }
+    };
+    root.addEventListener('dblclick', onDbl, true);
+    window.addEventListener('keydown', onKey);
     root.addEventListener('mousedown', onDown, true);
     root.addEventListener('mousemove', onGuide);
     root.addEventListener('mouseleave', onLeave);
     return () => {
+      root.removeEventListener('dblclick', onDbl, true);
+      window.removeEventListener('keydown', onKey);
       root.removeEventListener('mousedown', onDown, true);
       root.removeEventListener('mousemove', onGuide);
       root.removeEventListener('mouseleave', onLeave);

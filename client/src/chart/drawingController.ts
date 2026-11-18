@@ -5,7 +5,7 @@
 //                       the store, handles placing / dragging / selecting drawings and
 //                       the measure tool. React reads state from here and re-renders on `onChange`.
 import type { Chart, Overlay, OverlayCreate, Point } from 'klinecharts';
-import { Drawing, Tool, TOOLS, OVERLAY_TO_TOOL, DPoint, TICK, barTime, newId, positionPoints } from './drawings';
+import { Drawing, Tool, TOOLS, OVERLAY_TO_TOOL, DPoint, TICK, barTime, newId, positionPoints, FREEHAND } from './drawings';
 import { TEMPLATES, tplPatch } from './templates';
 
 const toTick = (v: number) => Math.round(v / TICK) * TICK;
@@ -88,6 +88,8 @@ export class DrawingController {
   justCreated: string | null = null; // newest drawing (the text tool opens its editor)
   measuring = false;
   private draftId: string | null = null;
+  // path / brush / highlighter: placed by the chart window's mouse handlers through manual*()
+  private manual: { tool: Tool; draft: Drawing; pts: DPoint[]; stroking: boolean } | null = null;
   private measureFrom: Partial<Point> | null = null;
   private unsubscribe: () => void;
 
@@ -148,6 +150,13 @@ export class DrawingController {
       ...(tool === 'long' || tool === 'short' ? { qty: 1, contract: 'NQ' as const } : {}),
       ...this.tplStyle(tool),
     };
+    if (def.manual) {
+      this.manual = { tool, draft, pts: [], stroking: false };
+      this.active = tool;
+      this.selected = null;
+      this.onChange();
+      return;
+    }
     const id = this.create({
       ...this.events(),
       id: draft.id, name: def.overlay, groupId: GROUP, paneId: PANE,
@@ -166,8 +175,92 @@ export class DrawingController {
     return t ? tplPatch(t.style) : {};
   }
 
+  // ---------- path (clicks) and brush / highlighter (drag) ----------
+  get manualTool(): Tool | null { return this.manual?.tool ?? null; }
+  private toDP(p: Partial<Point>, tick: boolean): DPoint | null {
+    if (typeof p.value !== 'number') return null;
+    let t = p.timestamp;
+    if (typeof t !== 'number' && typeof p.dataIndex === 'number') {
+      const data = this.chart.getDataList();
+      if (!data.length) return null;
+      const last = data.length - 1;
+      t = p.dataIndex <= last ? data[Math.max(0, p.dataIndex)].timestamp : data[last].timestamp + (p.dataIndex - last) * this.barMs();
+    }
+    if (typeof t !== 'number') return null;
+    return { t, p: tick ? toTick(p.value) : p.value };
+  }
+  private drawManual() {
+    const m = this.manual;
+    if (!m || !m.pts.length) return;
+    const free = FREEHAND.includes(m.tool);
+    const { tf, rth } = this.view;
+    const pts = free ? [m.pts[0], m.pts[m.pts.length - 1]] : m.pts;
+    const points = pts.map(p => ({ timestamp: free ? p.t : barTime(p.t, tf, rth), value: p.p }));
+    const extendData = { ...m.draft, points: m.pts, anchor: m.pts[0] } as Drawing;
+    if (this.chart.getOverlays({ id: m.draft.id }).length) {
+      this.chart.overrideOverlay({ id: m.draft.id, points, extendData } as unknown as Partial<OverlayCreate>);
+    } else {
+      this.create({ id: m.draft.id, name: TOOLS[m.tool].overlay, groupId: 'draft', paneId: PANE, lock: true, points, extendData });
+    }
+  }
+  /** Mouse down on the chart while a manual tool is active. */
+  manualDown(p: Partial<Point>) {
+    const m = this.manual;
+    if (!m) return;
+    const free = FREEHAND.includes(m.tool);
+    const dp = this.toDP(p, !free);
+    if (!dp) return;
+    if (free) { m.pts = [dp]; m.stroking = true; }
+    else if (!m.pts.length) m.pts = [dp, { ...dp }];      // second point follows the mouse
+    else { m.pts[m.pts.length - 1] = dp; m.pts.push({ ...dp }); }
+    this.drawManual();
+  }
+  manualMove(p: Partial<Point>) {
+    const m = this.manual;
+    if (!m || !m.pts.length) return;
+    const free = FREEHAND.includes(m.tool);
+    if (free && !m.stroking) return;
+    const dp = this.toDP(p, !free);
+    if (!dp) return;
+    if (free) {
+      const last = m.pts[m.pts.length - 1];
+      if (last.t === dp.t && last.p === dp.p) return;
+      if (m.pts.length >= 2000) return;
+      m.pts.push(dp);
+    } else m.pts[m.pts.length - 1] = dp;
+    this.drawManual();
+  }
+  /** Mouse up: a brush stroke ends here. */
+  manualUp() {
+    const m = this.manual;
+    if (m && FREEHAND.includes(m.tool) && m.stroking) this.manualFinish();
+  }
+  /** Double-click / Enter: a path ends here (the point following the mouse is dropped). */
+  manualFinish() {
+    const m = this.manual;
+    if (!m) return;
+    let pts = m.pts;
+    if (!FREEHAND.includes(m.tool)) {
+      pts = pts.slice(0, -1).filter((p, i, a) => i === 0 || p.t !== a[i - 1].t || p.p !== a[i - 1].p);
+    }
+    this.chart.removeOverlay({ id: m.draft.id });
+    this.manual = null;
+    this.active = null;
+    if (pts.length < 2) { this.onChange(); return; }
+    const d: Drawing = { ...m.draft, points: pts };
+    this.selected = d.id;
+    this.store.commit([...this.store.drawings, d]);
+  }
+
   /** Abandon a drawing that is still being placed. */
   cancel() {
+    if (this.manual) {
+      this.chart.removeOverlay({ id: this.manual.draft.id });
+      this.manual = null;
+      this.active = null;
+      this.onChange();
+      return;
+    }
     if (!this.draftId) return;
     const id = this.draftId;
     this.draftId = null;
@@ -203,6 +296,16 @@ export class DrawingController {
     const cur = this.store.drawings.find(d => d.id === o.id);
     if (!cur) return;
     const { tf, rth } = this.view;
+    if (FREEHAND.includes(cur.tool)) {
+      // the whole stroke moves by how far its first point moved
+      const p0 = o.points[0];
+      const a = (o.extendData as Drawing & { anchor?: DPoint })?.anchor ?? cur.points[0];
+      if (typeof p0?.timestamp !== 'number' || typeof p0.value !== 'number') return;
+      const dt = p0.timestamp - a.t, dp = p0.value - a.p;
+      if (!dt && !dp) return;
+      this.store.commit(this.store.drawings.map(d => (d.id === o.id ? { ...d, points: d.points.map(p => ({ t: p.t + dt, p: p.p + dp })) } : d)));
+      return;
+    }
     const points = o.points.map((p, i): DPoint => {
       const old = cur.points[i];
       const value = typeof p.value === 'number' ? toTick(p.value) : old?.p ?? 0;
@@ -224,6 +327,17 @@ export class DrawingController {
   // ---------- chart <-> list ----------
   private toOverlay(d: Drawing): OverlayCreate<Drawing> {
     const { tf, rth, magnet, hidden, lockAll } = this.view;
+    if (FREEHAND.includes(d.tool)) {
+      // brush / highlighter: the overlay holds the first and last point (snapped to bars);
+      // the stroke itself is drawn from the drawing's raw points
+      const ends = [d.points[0], d.points[d.points.length - 1]];
+      const points = ends.map(p => ({ timestamp: barTime(p.t, tf, rth), value: p.p }));
+      return {
+        id: d.id, name: TOOLS[d.tool].overlay, groupId: GROUP, paneId: PANE, points,
+        extendData: { ...d, anchor: { t: points[0].timestamp, p: points[0].value } } as Drawing,
+        lock: !!d.locked || lockAll, visible: !hidden, mode: 'normal',
+      };
+    }
     return {
       id: d.id, name: TOOLS[d.tool].overlay, groupId: GROUP, paneId: PANE,
       points: d.points.map(p => ({ timestamp: barTime(p.t, tf, rth), value: p.p })),
