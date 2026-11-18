@@ -3,6 +3,7 @@ import { Router, Request, Response } from 'express';
 import { verifyToken } from '../middleware/auth';
 import { requireAdmin } from '../middleware/admin';
 import { scan, cellDays, DIR_RULES, DirRule, ScanParams } from '../patterns/timeScan';
+import { startHunt, latest, edgeStatus } from '../patterns/edgeHunter';
 
 const router = Router();
 router.use(verifyToken, requireAdmin);
@@ -39,6 +40,17 @@ router.get('/time/days', async (req: Request, res: Response) => {
   if (!/^\d{1,2}:\d{2}$/.test(slot) || !(wd >= -1 && wd <= 4)) return res.status(400).json({ error: 'slot (H:MM) and wd (-1..4) required' });
   try { res.json({ days: await cellDays(p, slot, wd) }); }
   catch (e: any) { console.error('[patterns/time/days]', e.message); res.status(500).json({ error: 'Failed to list days' }); }
+});
+
+// Edge Hunter: latest saved run + whether one is running
+router.get('/edge', async (_req: Request, res: Response) => {
+  try { res.json({ result: await latest(), status: edgeStatus() }); }
+  catch (e: any) { console.error('[patterns/edge]', e.message); res.status(500).json({ error: 'Failed to load the last search' }); }
+});
+// Start a new search in the background (about 10-60 s); poll GET /edge
+router.post('/edge/run', (_req: Request, res: Response) => {
+  startHunt().catch(e => console.error('[patterns/edge run]', e.message));
+  res.json({ status: edgeStatus() });
 });
 
 export default router;

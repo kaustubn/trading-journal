@@ -14,12 +14,12 @@ const SLIP_PTS = 0.5;
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
 
 // ---------------------------------------------------------------- data (cached, packed)
-interface Day { date: string; wd: number; start: number; n: number; } // wd 0=Mon .. 4=Fri; bars [start, start+n)
-interface Store { m: Int16Array; t: Float64Array; o: Float64Array; h: Float64Array; l: Float64Array; c: Float64Array; v: Float64Array; days: Day[]; loadedAt: number; }
+export interface Day { date: string; wd: number; start: number; n: number; } // wd 0=Mon .. 4=Fri; bars [start, start+n)
+export interface Store { m: Int16Array; t: Float64Array; o: Float64Array; h: Float64Array; l: Float64Array; c: Float64Array; v: Float64Array; days: Day[]; loadedAt: number; }
 let store: Store | null = null;
 let loading: Promise<Store> | null = null;
 
-async function load(): Promise<Store> {
+export async function load(): Promise<Store> {
   if (store && Date.now() - store.loadedAt < 6 * 3600 * 1000) return store;
   if (loading) return loading;
   loading = (async () => {

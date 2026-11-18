@@ -66,7 +66,7 @@ const PAGE_META: Record<string, { title: string; sub: string; icon: React.Compon
   discipline: { title: 'Mindset', icon: Brain, sub: 'Did you follow your plan, and what did your emotions cost you?' },
   compare: { title: 'Paper vs Real', icon: Scale, sub: 'Put a practice account next to a live one to see what changes when real money is on the line.' },
   s1practice: { title: 'S1 Practice', icon: Target, sub: '25 replay days for S1. Every replay trade is checked against the S1 bot rules and compared with what the bot did that day.' },
-  patterns: { title: 'Pattern Finder', icon: ScanSearch, sub: 'Test your exact trade (target $ / stop $) at every time of day and weekday over 5 years of NQ, with a train / test split so luck is not mistaken for an edge.' },
+  patterns: { title: 'Pattern Finder', icon: ScanSearch, sub: 'Edge Hunter searches 5 years of NQ for repeating patterns and the stop / target that suit them, and tells you honestly which ones are just luck.' },
   backtestlab: { title: 'Backtest Lab', icon: FlaskConical, sub: 'Stress-test a run before risking money: equity, drawdown, prop-challenge pass rate and reshuffled-order risk.' },
   strategy: { title: 'Strategy Rules', icon: Workflow, sub: 'Write down each strategy’s entry, exit and risk rules so you trade it the same way every time.' },
   checklist: { title: 'Entry Checklist', icon: ListChecks, sub: 'Run this before every entry. If any gate fails, there is no trade. The score decides A, B or C.' },

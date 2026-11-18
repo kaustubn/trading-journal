@@ -5,6 +5,7 @@ import { useMemo, useState } from 'react';
 import axios from 'axios';
 import { Play, Search, AlertTriangle } from 'lucide-react';
 import { openReplayDay } from '../utils/chartLink';
+import EdgeHunter from './EdgeHunter';
 import '../styles/BacktestLab.css';
 import '../styles/S1Practice.css';
 import '../styles/PatternFinder.css';
@@ -46,6 +47,7 @@ export default function PatternFinder({ token }: { token: string }) {
   const [view, setView] = useState<'test' | 'train' | 'all' | 'move' | 'vol'>('test');
   const [sel, setSel] = useState<Cell | null>(null);
   const [days, setDays] = useState<DayRow[] | null>(null);
+  const [tab, setTab] = useState<'hunt' | 'mine'>('hunt');
 
   const params = () => ({ ...form, from: form.from || undefined, to: form.to || undefined });
   const run = async () => {
@@ -74,6 +76,11 @@ export default function PatternFinder({ token }: { token: string }) {
 
   return (
     <div className="bl pf">
+      <div className="pf-tabs">
+        <button className={tab === 'hunt' ? 'on' : ''} onClick={() => setTab('hunt')}>Edge Hunter (automatic)</button>
+        <button className={tab === 'mine' ? 'on' : ''} onClick={() => setTab('mine')}>Test my own trade by time</button>
+      </div>
+      {tab === 'hunt' ? <EdgeHunter token={token} /> : <>
       <div className="bl-card">
         <h3>Your trade</h3>
         <div className="bl-rules">
@@ -200,6 +207,7 @@ export default function PatternFinder({ token }: { token: string }) {
       {!res && !busy && (
         <div className="bl-card pf-note"><AlertTriangle size={16} /> Time and weekday alone rarely make an edge. Use this to see when NQ moves, then test a real setup at those times.</div>
       )}
+      </>}
     </div>
   );
 }

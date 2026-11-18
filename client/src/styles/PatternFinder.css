@@ -20,3 +20,15 @@
 .pf-day { display: grid; grid-template-columns: 90px 44px 1fr 60px auto; align-items: center; gap: 6px; font-size: 12.5px; padding: 3px 6px; background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-sm); font-variant-numeric: tabular-nums; }
 .pf-day .bl-dim { margin: 0; }
 .pf-note { display: flex; gap: 8px; align-items: center; color: var(--text-dim); font-size: 13px; }
+.pf-tabs { display: flex; gap: 6px; flex-wrap: wrap; }
+.pf-tabs button { padding: 7px 12px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--card); color: var(--text-dim); font-size: 13px; font-weight: 600; cursor: pointer; }
+.pf-tabs button.on { background: var(--brand-2); border-color: var(--brand-2); color: #fff; }
+.eh-list { display: flex; flex-direction: column; gap: 8px; }
+.eh-cand { border: 1px solid var(--border); border-left: 3px solid var(--red); border-radius: var(--radius-sm); background: var(--card); padding: 6px 10px 8px; }
+.eh-cand.ok { border-left-color: var(--green); }
+.eh-head { display: flex; gap: 6px; align-items: flex-start; background: none; border: 0; color: var(--text); text-align: left; cursor: pointer; padding: 2px 0; font-size: 13px; width: 100%; }
+.eh-head svg { flex-shrink: 0; margin-top: 2px; }
+.eh-rule { font-weight: 600; }
+.eh-stats { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12.5px; margin: 4px 0 2px 20px; font-variant-numeric: tabular-nums; }
+.eh-stats .bl-dim { margin: 0; }
+.eh-cand .pf-days { margin-top: 6px; }
