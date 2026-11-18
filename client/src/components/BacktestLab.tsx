@@ -2,6 +2,8 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Check, X } from 'lucide-react';
 import axios from 'axios';
 import { TradeLite, metrics, dailySeries, propSim, monteCarlo, PropRules, Metrics } from '../utils/backtestStats';
+import { withSlippage, bootstrapMean, tradesNeeded, walkForward, verdictOf } from '../utils/robustness';
+import EdgeDecay from './EdgeDecay';
 import '../styles/BacktestLab.css';
 
 // Backtest Lab: deep stats, a prop-firm challenge simulator that replays your trades
@@ -40,7 +42,10 @@ function toLite(r: Row, tz: string | null | undefined, size: number): TradeLite 
   const pv = PV[(r.symbol || '').toUpperCase()];
   const risk = pv && r.entry_price && r.stop_loss && r.quantity ? Math.abs(r.entry_price - r.stop_loss) * pv * r.quantity : 0;
   const pnl = Number(r.pnl) * size;
-  return { t: Date.parse(`${wall.slice(0, 19)}Z`), day, pnl, r: risk > 0 ? Number(r.pnl) / risk : null };
+  return {
+    t: Date.parse(`${wall.slice(0, 19)}Z`), day, pnl, r: risk > 0 ? Number(r.pnl) / risk : null,
+    ppt: pv && r.quantity ? pv * Number(r.quantity) * size : undefined, riskUsd: risk > 0 ? risk * size : undefined,
+  };
 }
 
 function rulesFrom(a: Acct | undefined): PropRules {
@@ -69,6 +74,7 @@ export default function BacktestLab({ token, account_id, attempt }: Props) {
   const [size, setSize] = useState(1);
   const [rules, setRules] = useState<PropRules | null>(null);
   const [mcRuns, setMcRuns] = useState(1000);
+  const [slip, setSlip] = useState(0);   // extra points of cost per round trip (robustness test)
 
   useEffect(() => { setAtt(attempt); }, [attempt, account_id]);
   useEffect(() => {
@@ -112,6 +118,27 @@ export default function BacktestLab({ token, account_id, attempt }: Props) {
     });
     return [...g.entries()].map(([k, list]) => ({ k, m: metrics(list) })).sort((a, b) => b.m.net - a.m.net);
   }, [rows, session, size, acct?.timezone]);
+
+  // ---- robustness: slippage stress, bootstrap ranges, walk-forward ----
+  const stressed = useMemo(() => withSlippage(trades, slip), [trades, slip]);
+  const sm = useMemo(() => metrics(stressed), [stressed]);
+  const bootUsd = useMemo(() => bootstrapMean(stressed.map(t => t.pnl)), [stressed]);
+  const rVals = useMemo(() => stressed.map(t => t.r).filter((x): x is number => typeof x === 'number' && Number.isFinite(x)), [stressed]);
+  const bootR = useMemo(() => (rVals.length >= 5 ? bootstrapMean(rVals) : null), [rVals]);
+  const need = useMemo(() => tradesNeeded(stressed.map(t => t.pnl)), [stressed]);
+  const wf = useMemo(() => walkForward(stressed, 4), [stressed]);
+  const verdict = verdictOf(bootUsd);
+  const decayGroups = useMemo(() => {
+    const g = new Map<string, TradeLite[]>();
+    (rows || []).filter(r => !session || r.session === session).forEach(r => {
+      const t = toLite(r, acct?.timezone, size);
+      if (!t) return;
+      const k = r.setup_tag || '(no setup)';
+      g.set(k, [...(g.get(k) || []), t]);
+    });
+    return [...g.entries()].map(([k, list]) => ({ k, trades: withSlippage(list, slip) }));
+  }, [rows, session, size, slip, acct?.timezone]);
+  const noPpt = trades.length > 0 && trades.every(t => !t.ppt);
 
   const setRule = (patch: Partial<PropRules>) => setRules({ ...R, ...patch });
   const numIn = (k: keyof PropRules, label: string, nullable = false, step = 100) => (
@@ -222,6 +249,57 @@ export default function BacktestLab({ token, account_id, attempt }: Props) {
           </section>
 
           <section className="bl-card">
+            <h3>Robustness — can you trust these numbers?</h3>
+            <p className="bl-dim">Real fills cost more than a backtest assumes, and a good average can be luck. Add slippage, see the range the
+              true average could be in (bootstrap, 2,000 resamples), and check the edge in each period of time.</p>
+            <div className="bl-filters">
+              <label className="bl-field">Extra slippage per trade
+                <select value={slip} onChange={e => setSlip(Number(e.target.value))}>
+                  {[0, 0.25, 0.5, 1, 2, 3].map(x => <option key={x} value={x}>{x === 0 ? 'none' : `${x} pt round trip`}</option>)}
+                </select>
+              </label>
+            </div>
+            {noPpt && slip > 0 && <p className="bl-dim">These trades have no contract size, so slippage could not be added.</p>}
+            {stressed.length >= 5 ? (
+              <>
+                <div className="bl-tiles">
+                  <Tile label={slip ? `Net after ${slip} pt slippage` : 'Net'} v={usd(sm.net, true)} bad={sm.net < 0} />
+                  <Tile label="Avg per trade (95% range)" v={bootUsd ? `${usd(bootUsd.lo, true)} … ${usd(bootUsd.hi, true)}` : '—'} bad={!!bootUsd && bootUsd.hi < 0}
+                    hint="If you could replay this strategy's luck many times, its true average per trade would land in this range 95% of the time" />
+                  <Tile label="Avg R (95% range)" v={bootR ? `${fx(bootR.lo)} … ${fx(bootR.hi)}` : '—'} bad={!!bootR && bootR.hi < 0} />
+                  <Tile label="Chance the edge is real" v={bootUsd ? pct(bootUsd.pPositive) : '—'} bad={!!bootUsd && bootUsd.pPositive < 0.8}
+                    hint="Share of the resamples whose average trade is above zero" />
+                </div>
+                <p className={`bl-verdict bl-v-${verdict}`}>
+                  {verdict === 'holds' && `Edge holds${slip ? ` with ${slip} pt slippage` : ''}: even the low end of the range is positive.`}
+                  {verdict === 'losing' && `Losing${slip ? ` with ${slip} pt slippage` : ''}: even the best case of the range is negative.`}
+                  {verdict === 'unproven' && `Not proven yet: the range includes zero.${need ? ` With this win/loss pattern you need about ${need.toLocaleString()} trades (you have ${stressed.length}).` : ''}`}
+                </p>
+                {wf.length > 0 && (
+                  <>
+                    <h4 className="bl-sub">Walk-forward: the same trades in 4 time periods, oldest first</h4>
+                    <table className="bl-table">
+                      <thead><tr><th>Period</th><th>Trades</th><th>Win %</th><th>Net</th><th>Avg</th><th>Avg R</th><th>Profit factor</th></tr></thead>
+                      <tbody>
+                        {wf.map(p => (
+                          <tr key={p.from + p.to}>
+                            <td>{p.from} → {p.to}</td><td>{p.n}</td><td>{pct(p.win)}</td>
+                            <td className={p.net >= 0 ? 'bl-up' : 'bl-down'}>{usd(p.net, true)}</td>
+                            <td className={p.avg >= 0 ? 'bl-up' : 'bl-down'}>{usd(p.avg, true)}</td><td>{fx(p.avgR)}</td><td>{fx(p.pf)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    <p className="bl-dim">{wf.every(p => p.net > 0) ? 'Positive in every period: a good sign the edge is not one lucky stretch.'
+                      : wf.every(p => p.net <= 0) ? 'Negative in every period.'
+                      : `Positive in ${wf.filter(p => p.net > 0).length} of 4 periods: the result depends on when you traded it.`}</p>
+                  </>
+                )}
+              </>
+            ) : <p className="bl-dim">Needs at least 5 trades.</p>}
+          </section>
+
+          <section className="bl-card">
             <h3>By setup</h3>
             <table className="bl-table">
               <thead><tr><th>Setup</th><th>Trades</th><th>Win %</th><th>Net</th><th>Profit factor</th><th>Expectancy</th><th>Avg R</th></tr></thead>
@@ -235,6 +313,13 @@ export default function BacktestLab({ token, account_id, attempt }: Props) {
                 ))}
               </tbody>
             </table>
+          </section>
+
+          <section className="bl-card">
+            <h3>Edge over time — is each setup still working?</h3>
+            <p className="bl-dim">Rolling average of each setup's last 30 trades (line) with its 95% band (shaded), against the setup's
+              all-time average (dotted) and zero. {slip ? `Includes ${slip} pt slippage.` : ''}</p>
+            <EdgeDecay groups={decayGroups} window={30} />
           </section>
         </>
       )}

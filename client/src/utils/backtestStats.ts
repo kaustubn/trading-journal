@@ -7,6 +7,8 @@ export interface TradeLite {
   day: string; // trading day 'YYYY-MM-DD'
   pnl: number; // net P&L in account currency
   r?: number | null; // R multiple if known
+  ppt?: number;       // $ per point for this trade (contract value x quantity), for slippage tests
+  riskUsd?: number;   // $ risked to the stop, if known
 }
 
 export interface DayPnl {
