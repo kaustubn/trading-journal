@@ -564,6 +564,8 @@
 .mc-float-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 10px; border-bottom: 1px solid var(--mc-border); cursor: move; user-select: none; }
 .mc-float-title { font-weight: 600; }
 .mc-float-grip { cursor: move; user-select: none; color: var(--mc-dim); padding: 4px 3px; font-size: 11px; letter-spacing: -2px; display: flex; align-items: center; }
+.mc-float-grip, .mc-float-head { touch-action: none; -webkit-user-select: none; }
+@media (pointer: coarse) { .mc-float-grip { padding: 4px 10px; font-size: 14px; min-width: 30px; justify-content: center; } }
 .mc-dlg-body { padding: 10px 12px 12px; display: flex; flex-direction: column; gap: 8px; overflow-y: auto; }
 .mc-dlg-h { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--mc-dim); margin-top: 4px; }
 .mc-dlg-row { display: flex; align-items: center; gap: 8px; }

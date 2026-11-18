@@ -28,25 +28,35 @@ export function Floating({ id, title, children, onClose, initial, width, classNa
     return { x: Math.max(0, Math.min(window.innerWidth - Math.min(w, 80), p.x)), y: Math.max(0, Math.min(window.innerHeight - Math.min(h, 32), p.y)) };
   };
   useEffect(() => { setPos(p => clamp(p)); }, []);
-  const startDrag = (e: React.MouseEvent) => {
+  // Pointer events: one path for mouse, finger and pen (touch drags never fired mouse events)
+  const startDrag = (e: React.PointerEvent) => {
     if ((e.target as HTMLElement).closest('button, input, select, textarea')) return;
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
     e.preventDefault(); e.stopPropagation();
+    const grip = e.currentTarget as HTMLElement, pid = e.pointerId;
+    try { grip.setPointerCapture(pid); } catch { /* ignore */ }
     const sx = e.clientX, sy = e.clientY, start = pos;
     let last = start;
-    const mv = (ev: MouseEvent) => { last = clamp({ x: start.x + ev.clientX - sx, y: start.y + ev.clientY - sy }); setPos(last); };
-    const up = () => {
-      window.removeEventListener('mousemove', mv); window.removeEventListener('mouseup', up);
+    const mv = (ev: PointerEvent) => {
+      if (ev.pointerId !== pid) return;
+      ev.preventDefault();
+      last = clamp({ x: start.x + ev.clientX - sx, y: start.y + ev.clientY - sy }); setPos(last);
+    };
+    const up = (ev: PointerEvent) => {
+      if (ev.pointerId !== pid) return;
+      grip.removeEventListener('pointermove', mv); grip.removeEventListener('pointerup', up); grip.removeEventListener('pointercancel', up);
+      try { grip.releasePointerCapture(pid); } catch { /* ignore */ }
       try { localStorage.setItem(POS_KEY + id, JSON.stringify(last)); } catch { /* ignore */ }
     };
-    window.addEventListener('mousemove', mv); window.addEventListener('mouseup', up);
+    grip.addEventListener('pointermove', mv); grip.addEventListener('pointerup', up); grip.addEventListener('pointercancel', up);
   };
   return (
     <div ref={ref} className={`mc-float${bare ? ' bare' : ''}${className ? ` ${className}` : ''}`} style={{ left: pos.x, top: pos.y, width }}
-      onMouseDown={e => e.stopPropagation()} onKeyDown={e => e.stopPropagation()}>
+      onMouseDown={e => e.stopPropagation()} onPointerDown={e => e.stopPropagation()} onTouchStart={e => e.stopPropagation()} onKeyDown={e => e.stopPropagation()}>
       {bare ? (
-        <div className="mc-float-grip" onMouseDown={startDrag} title="Drag to move">⋮⋮</div>
+        <div className="mc-float-grip" onPointerDown={startDrag} title="Drag to move">⋮⋮</div>
       ) : (
-        <div className="mc-float-head" onMouseDown={startDrag}>
+        <div className="mc-float-head" onPointerDown={startDrag}>
           <span className="mc-float-title">{title}</span>
           {onClose && <button className="mc-btn mc-small" onClick={onClose} title="Close"><X size={14} /></button>}
         </div>
