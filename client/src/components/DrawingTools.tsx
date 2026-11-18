@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { DrawingController, Magnet } from '../chart/drawingController';
 import { Tool, TOOLS, COLORS, LineStyle, Drawing } from '../chart/drawings';
+import { TEMPLATES, tplPatch } from '../chart/templates';
 
 // ---------- icons (24px, stroke = currentColor) ----------
 const S = { fill: 'none', stroke: 'currentColor', strokeWidth: 1.5, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const };
@@ -100,7 +101,11 @@ const WIDTHS = [1, 2, 3, 4];
 const LINES: { v: LineStyle; label: string }[] = [{ v: 'solid', label: '━' }, { v: 'dashed', label: '╍' }, { v: 'dotted', label: '┉' }];
 
 /** Floating bar for the selected drawing: colour, width, line style, text, size, lock, delete. */
-export function DrawEditBar({ ctl }: { ctl: DrawingController | null }) {
+export function DrawEditBar({ ctl, tplOf, onTemplate }: {
+  ctl: DrawingController | null;
+  tplOf?: (tool: Tool) => string | undefined;
+  onTemplate?: (tool: Tool, name: string) => void;   // remembered for that tool's next drawings
+}) {
   const d = ctl?.selectedDrawing ?? null;
   const [text, setText] = useState('');
   const [qty, setQty] = useState('1');
@@ -128,9 +133,28 @@ export function DrawEditBar({ ctl }: { ctl: DrawingController | null }) {
     if (Number.isFinite(n) && n >= 1 && n <= 100) set({ qty: n }); else setQty(String(d.qty ?? 1));
   };
 
+  const tpls = TEMPLATES[d.tool] ?? [];
+  const labelled = d.tool === 'hline' || d.tool === 'hray' || d.tool === 'trend';
   return (
     <div className="mc-edit" onMouseDown={e => e.stopPropagation()}>
       <span className="mc-edit-name">{TOOLS[d.tool].label}</span>
+      {tpls.length > 0 && (
+        <select className="mc-input mc-tpl" value="" title="Templates from your TradingView (choosing one also makes it the default for this tool)"
+          onChange={e => {
+            const t = tpls.find(x => x.name === e.target.value);
+            if (!t) return;
+            set(tplPatch(t.style));
+            onTemplate?.(d.tool, t.name);
+          }}>
+          <option value="">Template{tplOf?.(d.tool) ? ` · ${tplOf(d.tool)}` : ''} ▾</option>
+          {tpls.map(t => <option key={t.name} value={t.name}>{t.name}{t.from === 'TV chart' ? ' (from your chart)' : ''}</option>)}
+        </select>
+      )}
+      {labelled && (
+        <input className="mc-input mc-edit-text" placeholder="Label" maxLength={60} defaultValue={d.text ?? ''} key={`${d.id}:${d.text ?? ''}`}
+          onKeyDown={e => { e.stopPropagation(); if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+          onBlur={e => { const v = e.target.value.trim(); if (v !== (d.text ?? '')) set({ text: v || undefined }); }} />
+      )}
       {!position && (
         <>
           <div className="mc-swatches">

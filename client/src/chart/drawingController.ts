@@ -6,12 +6,16 @@
 //                       the measure tool. React reads state from here and re-renders on `onChange`.
 import type { Chart, Overlay, OverlayCreate, Point } from 'klinecharts';
 import { Drawing, Tool, TOOLS, OVERLAY_TO_TOOL, DPoint, TICK, barTime, newId, positionPoints } from './drawings';
+import { TEMPLATES, tplPatch } from './templates';
 
 const toTick = (v: number) => Math.round(v / TICK) * TICK;
 const snapPoint = (p: Partial<Point>): Partial<Point> => (typeof p.value === 'number' ? { ...p, value: toTick(p.value) } : p);
 
 export type Magnet = 'off' | 'weak' | 'strong';
-export interface DrawView { tf: number; rth: boolean; magnet: Magnet; hidden: boolean; lockAll: boolean; }
+export interface DrawView {
+  tf: number; rth: boolean; magnet: Magnet; hidden: boolean; lockAll: boolean;
+  tpl?: Partial<Record<Tool, string>>;   // template each tool's new drawings start from
+}
 
 const PANE = 'candle_pane';
 const GROUP = 'drawings';
@@ -142,6 +146,7 @@ export class DrawingController {
       id: newId(), tool, points: [], color: def.color, width: def.width, line: 'solid',
       ...(tool === 'text' ? { text: 'Text' } : {}),
       ...(tool === 'long' || tool === 'short' ? { qty: 1, contract: 'NQ' as const } : {}),
+      ...this.tplStyle(tool),
     };
     const id = this.create({
       ...this.events(),
@@ -153,6 +158,12 @@ export class DrawingController {
     this.active = this.draftId ? tool : null;
     this.selected = null;
     this.onChange();
+  }
+
+  /** Style of the tool's chosen template (if any), as a Drawing patch. */
+  private tplStyle(tool: Tool): Partial<Drawing> {
+    const t = TEMPLATES[tool]?.find(x => x.name === this.view.tpl?.[tool]);
+    return t ? tplPatch(t.style) : {};
   }
 
   /** Abandon a drawing that is still being placed. */
@@ -175,6 +186,11 @@ export class DrawingController {
     if (!draft || !points.length) { this.chart.removeOverlay({ id: o.id }); this.onChange(); return; }
     if (draft.tool === 'long' || draft.tool === 'short') {
       points = positionPoints(points[0], draft.tool, this.visiblePriceRange(), this.timeAfterBars(points[0].t, 30));
+      const tpl = TEMPLATES[draft.tool]?.find(x => x.name === this.view.tpl?.[draft.tool])?.style;
+      if (tpl?.stopPts && tpl?.targetPts) {
+        const dir = draft.tool === 'long' ? 1 : -1, e = points[0];
+        points = [e, { t: e.t, p: e.p + dir * tpl.targetPts }, { t: e.t, p: e.p - dir * tpl.stopPts }, points[3]];
+      }
     }
     const d: Drawing = { ...draft, id: o.id, points };
     this.selected = d.id;

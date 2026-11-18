@@ -12,6 +12,13 @@ const FONT = '-apple-system, BlinkMacSystemFont, "Trebuchet MS", "Segoe UI", Rob
 const UP = '#089981', DOWN = '#f23645', BLUE = '#2962ff';
 
 function rgba(hex: string, a: number): string {
+  // rgb()/rgba() input (e.g. imported from TradingView): keep the colour; a strong alpha keeps
+  // its own transparency, a faint one scales it
+  const m = /^rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*(?:,\s*([\d.]+))?\s*\)$/i.exec(hex.trim());
+  if (m) {
+    const a0 = m[4] === undefined ? 1 : Number(m[4]);
+    return `rgba(${m[1]}, ${m[2]}, ${m[3]}, ${a >= 0.9 ? a0 : Math.round(a0 * a * 1000) / 1000})`;
+  }
   const h = hex.replace('#', '');
   const n = parseInt(h.length === 3 ? h.split('').map(c => c + c).join('') : h, 16);
   return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${a})`;
@@ -29,6 +36,25 @@ function lineStyle(d: Drawing | undefined) {
 }
 const line = (coordinates: Coordinate[], d?: Drawing, extra: Partial<Fig> = {}): Fig =>
   ({ type: 'line', attrs: { coordinates }, styles: lineStyle(d), ...extra });
+
+/** A drawing's own text (TradingView-style template labels like "asia high"), above the line at its right end. */
+function lineText(d: Drawing | undefined, x: number, y: number, align: 'left' | 'right' = 'right'): Fig[] {
+  if (!d?.text || d.tool === 'text') return [];
+  return [{
+    type: 'text', ignoreEvent: true,
+    attrs: { x: align === 'right' ? x - 4 : x + 4, y: y - 3, text: d.text, align, baseline: 'bottom' },
+    styles: { color: d.textColor ?? d.color ?? BLUE, size: 13, family: FONT, weight: 'normal', backgroundColor: 'transparent', borderColor: 'transparent', paddingLeft: 0, paddingRight: 0, paddingTop: 0, paddingBottom: 0 },
+  }];
+}
+/** Extend segment a→b to the pane edges when the drawing asks for it. */
+function extendSeg(a: Coordinate, b: Coordinate, width: number, d?: Drawing): [Coordinate, Coordinate] {
+  if (!d?.extL && !d?.extR) return [a, b];
+  const [l, r] = a.x <= b.x ? [a, b] : [b, a];
+  const k = r.x === l.x ? 0 : (r.y - l.y) / (r.x - l.x);
+  const L = d.extL ? { x: 0, y: l.y - k * l.x } : l;
+  const R = d.extR ? { x: width, y: r.y + k * (width - r.x) } : r;
+  return [L, R];
+}
 
 const label = (x: number, y: number, text: string, bg: string, align = 'center', baseline = 'middle'): Fig => ({
   type: 'text', ignoreEvent: true,
@@ -197,18 +223,26 @@ const FIB_LEVELS = [0, 0.236, 0.382, 0.5, 0.618, 0.786, 1];
 const templates: OverlayTemplate<Drawing>[] = [
   {
     ...base('jc_trend', 3),
-    createPointFigures: ({ overlay, coordinates }) => (coordinates.length === 2 ? [line(coordinates, overlay.extendData)] : []),
+    createPointFigures: ({ overlay, coordinates, bounding }) => {
+      if (coordinates.length !== 2) return [];
+      const d = overlay.extendData;
+      const [a, b] = extendSeg(coordinates[0], coordinates[1], bounding.width, d);
+      const right = coordinates[0].x >= coordinates[1].x ? coordinates[0] : coordinates[1];
+      return [line([a, b], d), ...lineText(d, right.x, right.y)];
+    },
   },
   {
     ...base('jc_hline', 2), needDefaultXAxisFigure: false,
     createPointFigures: ({ overlay, coordinates, bounding }) =>
-      [line([{ x: 0, y: coordinates[0].y }, { x: bounding.width, y: coordinates[0].y }], overlay.extendData)],
+      [line([{ x: 0, y: coordinates[0].y }, { x: bounding.width, y: coordinates[0].y }], overlay.extendData),
+        ...lineText(overlay.extendData, bounding.width - 70, coordinates[0].y)],
     createYAxisFigures: ({ chart, overlay, coordinates, bounding, yAxis }) => yAxisLabel(chart, overlay as O, coordinates, bounding, yAxis),
   },
   {
     ...base('jc_hray', 2),
     createPointFigures: ({ overlay, coordinates, bounding }) =>
-      [line([coordinates[0], { x: bounding.width, y: coordinates[0].y }], overlay.extendData)],
+      [line([coordinates[0], { x: bounding.width, y: coordinates[0].y }], overlay.extendData),
+        ...lineText(overlay.extendData, bounding.width - 70, coordinates[0].y)],
     createYAxisFigures: ({ chart, overlay, coordinates, bounding, yAxis }) => yAxisLabel(chart, overlay as O, coordinates, bounding, yAxis),
   },
   {
@@ -218,14 +252,16 @@ const templates: OverlayTemplate<Drawing>[] = [
   },
   {
     ...base('jc_rect', 3),
-    createPointFigures: ({ overlay, coordinates }) => {
+    createPointFigures: ({ overlay, coordinates, bounding }) => {
       if (coordinates.length < 2) return [];
       const d = overlay.extendData, [a, b] = coordinates;
       const st = lineStyle(d);
+      const x0 = d?.extL ? 0 : Math.min(a.x, b.x);
+      const x1 = d?.extR ? bounding.width : Math.max(a.x, b.x);
       return [{
         type: 'rect',
-        attrs: { x: Math.min(a.x, b.x), y: Math.min(a.y, b.y), width: Math.abs(b.x - a.x), height: Math.abs(b.y - a.y) },
-        styles: { style: 'stroke_fill', color: rgba(st.color, 0.15), borderColor: st.color, borderSize: st.size, borderStyle: st.style, borderDashedValue: st.dashedValue },
+        attrs: { x: x0, y: Math.min(a.y, b.y), width: Math.max(1, x1 - x0), height: Math.max(1, Math.abs(b.y - a.y)) },
+        styles: { style: 'stroke_fill', color: d?.fill ?? rgba(st.color, 0.15), borderColor: st.color, borderSize: st.size, borderStyle: st.style, borderDashedValue: st.dashedValue },
       }];
     },
   },
@@ -239,18 +275,20 @@ const templates: OverlayTemplate<Drawing>[] = [
       const xl = Math.min(a.x, b.x), xr = Math.max(a.x, b.x, xl + 40);
       const color = d?.color ?? '#787b86';
       const figs: Fig[] = [line([a, b], d, { styles: { ...lineStyle(d), style: 'dashed', dashedValue: [4, 4] } })];
-      FIB_LEVELS.forEach((lv, i) => {
-        const y = b.y + (a.y - b.y) * lv;
-        const price = p1 + (p0 - p1) * lv;
-        if (i > 0) {
-          const yPrev = b.y + (a.y - b.y) * FIB_LEVELS[i - 1];
-          figs.push({ type: 'rect', ignoreEvent: true, attrs: { x: xl, y: Math.min(y, yPrev), width: xr - xl, height: Math.abs(y - yPrev) }, styles: { style: 'fill', color: rgba(color, i % 2 ? 0.06 : 0.11) } });
+      const lvls = d?.levels?.length ? [...d.levels].sort((x, y) => x.v - y.v) : FIB_LEVELS.map(v => ({ v, c: color }));
+      const shade = d?.levels?.length ? d.fibFill !== false : true;
+      lvls.forEach((lv, i) => {
+        const y = b.y + (a.y - b.y) * lv.v;
+        const price = p1 + (p0 - p1) * lv.v;
+        if (i > 0 && shade) {
+          const yPrev = b.y + (a.y - b.y) * lvls[i - 1].v;
+          figs.push({ type: 'rect', ignoreEvent: true, attrs: { x: xl, y: Math.min(y, yPrev), width: xr - xl, height: Math.abs(y - yPrev) }, styles: { style: 'fill', color: rgba(lv.c, i % 2 ? 0.06 : 0.11) } });
         }
-        figs.push(line([{ x: xl, y }, { x: xr, y }], d, { styles: { ...lineStyle(d), style: 'solid' } }));
+        figs.push(line([{ x: xl, y }, { x: xr, y }], d, { styles: { ...lineStyle(d), color: lv.c, style: 'solid' } }));
         figs.push({
           type: 'text', ignoreEvent: true,
-          attrs: { x: xl - 4, y, text: `${lv} (${fmtPrice(price)})`, align: 'right', baseline: 'middle' },
-          styles: { color, size: 11, family: FONT, backgroundColor: 'transparent', borderColor: 'transparent', paddingLeft: 0, paddingRight: 0, paddingTop: 0, paddingBottom: 0 },
+          attrs: { x: xl - 4, y, text: `${lv.v} (${fmtPrice(price)})`, align: 'right', baseline: 'middle' },
+          styles: { color: lv.c, size: 11, family: FONT, backgroundColor: 'transparent', borderColor: 'transparent', paddingLeft: 0, paddingRight: 0, paddingTop: 0, paddingBottom: 0 },
         });
       });
       return figs;

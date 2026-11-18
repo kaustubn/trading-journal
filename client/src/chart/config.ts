@@ -4,6 +4,8 @@ import type { Clock } from './time';
 import type { Theme } from './theme';
 import type { DrawView, Magnet } from './drawingController';
 import { CoachRules, DEFAULT_RULES, mergeRules } from './coach';
+import type { Tool } from './drawings';
+import { TEMPLATES } from './templates';
 
 export const PANE = 'candle_pane';
 
@@ -39,9 +41,10 @@ export function barEnd(key: number, tf: number, rth: boolean): number {
 }
 
 // ---------- indicators ----------
-export type IndKey = 'EMA' | 'SMA' | 'VWAP' | 'BOLL' | 'VOL' | 'RSI' | 'ATR' | 'MACD';
+export type IndKey = 'NQSYS' | 'EMA' | 'SMA' | 'VWAP' | 'BOLL' | 'VOL' | 'RSI' | 'ATR' | 'MACD';
 export interface IndDef { label: string; name: string; main: boolean; def: number[]; hint: string; min: number; max: number; }
 export const INDS: Record<IndKey, IndDef> = {
+  NQSYS: { label: 'NQ System v3 (S1/S2/S3/ORB)', name: 'JC_NQSYS', main: true, def: [], hint: 'Your TradingView NQ-SYS v3: day type, EMA21, VWAP, VAH/VAL, IB, PDH/PDL, signals, scorecard. Made for the 5-min chart.', min: 0, max: 0 },
   EMA: { label: 'EMA', name: 'EMA', main: true, def: [9, 21], hint: 'Periods, e.g. 9, 21, 50', min: 1, max: 6 },
   SMA: { label: 'SMA', name: 'JC_SMA', main: true, def: [50, 200], hint: 'Periods, e.g. 50, 200', min: 1, max: 6 },
   VWAP: { label: 'VWAP', name: 'JC_VWAP', main: true, def: [], hint: 'Resets at the 6pm ET session open', min: 0, max: 0 },
@@ -104,8 +107,15 @@ export interface Settings {
   syncCrosshair: boolean;
   live: boolean;           // poll for new bars every minute
   customTfs: number[];     // extra timeframe buttons the trader added (minutes)
+  look: Look;              // chart colours: 'tv' = the trader's TradingView chart, 'journal' = TradingView default
+  toolTpl: Partial<Record<Tool, string>>; // template new drawings of each tool start from
   coach: CoachRules;       // practice rules the coach holds you to
 }
+export type Look = 'tv' | 'journal';
+/** Default template per tool in the TV preset: the styles used most on the TradingView chart. */
+export const TV_TOOL_TPL: Partial<Record<Tool, string>> = {
+  hline: '1w & 1 d', rect: 'zone purple', trend: 'white', fib: 'k1', vline: 'bl', channel: 'channel', long: 'k1', short: 'k1',
+};
 const DEFAULT_PANES: PaneCfg[] = [{ tf: 5, src: 'journal' }, { tf: 1, src: 'journal' }, { tf: 15, src: 'journal' }, { tf: 60, src: 'journal' }];
 export const DEFAULTS: Settings = {
   clock: 'ET', theme: 'dark',
@@ -113,11 +123,13 @@ export const DEFAULTS: Settings = {
   magnet: 'off', drawHidden: false, drawLocked: false, notesOpen: false,
   levels: { pd: true, on: true, open: true, round: false },
   indicators: IND_KEYS.reduce((acc, k) => {
-    acc[k] = { on: k === 'VOL', params: INDS[k].def };
+    acc[k] = { on: k === 'VOL' || k === 'NQSYS', params: INDS[k].def };
     return acc;
   }, {} as Settings['indicators']),
   layout: '1', panes: DEFAULT_PANES, active: 0, syncCrosshair: true, live: true,
   customTfs: [],
+  look: 'tv',
+  toolTpl: { ...TV_TOOL_TPL },
   coach: DEFAULT_RULES,
 };
 export const layoutCount = (m: LayoutMode) => LAYOUTS.find(l => l.mode === m)?.count ?? 1;
@@ -154,6 +166,14 @@ export function mergeSettings(saved: any): Settings {
   if (Number.isInteger(saved.active) && saved.active >= 0 && saved.active < 4) s.active = saved.active;
   if (s.active >= layoutCount(s.layout)) s.active = 0;
   s.coach = mergeRules(saved.coach);
+  if (saved.look === 'tv' || saved.look === 'journal') s.look = saved.look;
+  if (saved.toolTpl && typeof saved.toolTpl === 'object') {
+    const t: Partial<Record<Tool, string>> = {};
+    for (const [k, v] of Object.entries(saved.toolTpl)) {
+      if (typeof v === 'string' && TEMPLATES[k as Tool]?.some(x => x.name === v)) t[k as Tool] = v;
+    }
+    s.toolTpl = t;
+  }
   if (Array.isArray(saved.customTfs)) {
     s.customTfs = [...new Set<number>(saved.customTfs.filter(validTf))].filter(m => !TFS.some(t => t.m === m)).sort((a, b) => a - b).slice(0, 10);
   }
@@ -161,7 +181,14 @@ export function mergeSettings(saved: any): Settings {
 }
 
 export const viewOf = (s: Settings, tf: number): DrawView =>
-  ({ tf, rth: s.rth, magnet: s.magnet, hidden: s.drawHidden, lockAll: s.drawLocked });
+  ({ tf, rth: s.rth, magnet: s.magnet, hidden: s.drawHidden, lockAll: s.drawLocked, tpl: s.toolTpl });
+
+/** The "TV" preset: chart colours, indicators and tool templates from the trader's TradingView. */
+export function applyTvPreset(cur: Settings): Settings {
+  const indicators = { ...cur.indicators };
+  for (const k of IND_KEYS) indicators[k] = { ...indicators[k], on: k === 'VOL' || k === 'NQSYS' };
+  return { ...cur, look: 'tv', theme: 'dark', sessions: true, indicators, toolTpl: { ...TV_TOOL_TPL } };
+}
 
 // ---------- data ----------
 export interface BarsResp { bars: [number, number, number, number, number, number][]; older: boolean; newer: boolean; }

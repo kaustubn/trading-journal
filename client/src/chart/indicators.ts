@@ -5,6 +5,7 @@
 //   JC_BG    not an indicator: draws session shading, key levels, round numbers and
 //            contract-roll markers behind the candles
 import { registerIndicator, KLineData } from 'klinecharts';
+import { registerNqSys } from './nqsys';
 import { sessionDay, sessionOf, SessionName } from './time';
 
 export interface LevelsData {
@@ -18,6 +19,7 @@ export interface BgData {
   tfMin: number;
   dark: boolean;
   sessions: boolean;
+  breaks?: boolean;    // TradingView-style session breaks (dashed line at each 6pm ET open) instead of shading
   rolls: { contract: string; from: number }[] | null; // null = hidden
   levels: LevelsData | null;
   show: { pd: boolean; on: boolean; open: boolean; round: boolean };
@@ -47,6 +49,7 @@ let registered = false;
 export function registerChartIndicators() {
   if (registered) return;
   registered = true;
+  registerNqSys();
 
   registerIndicator<Row, number>({
     name: 'JC_SMA', shortName: 'SMA', series: 'price', precision: 2, calcParams: [50],
@@ -125,8 +128,20 @@ export function registerChartIndicators() {
       const intraday = ext.tfMin < 1440;
       ctx.save();
 
+      // Session breaks: a dashed line where each trading day starts (after the daily halt)
+      if (ext.sessions && ext.breaks && intraday) {
+        ctx.strokeStyle = 'rgba(0, 0, 0, 0.85)';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([5, 5]);
+        for (let i = Math.max(1, from); i < to; i++) {
+          if (data[i].timestamp - data[i - 1].timestamp <= 30 * 60000 + ext.tfMin * 60000) continue;
+          const xb = Math.round(x(i) - half) + 0.5;
+          ctx.beginPath(); ctx.moveTo(xb, 0); ctx.lineTo(xb, height); ctx.stroke();
+        }
+        ctx.setLineDash([]);
+      }
       // Session shading: one rectangle per run of bars in the same session
-      if (ext.sessions && ext.tfMin <= 60) {
+      if (ext.sessions && !ext.breaks && ext.tfMin <= 60) {
         const fills = SESSION_FILL[ext.dark ? 'dark' : 'light'];
         let run: SessionName = null, start = from;
         const flush = (end: number) => {

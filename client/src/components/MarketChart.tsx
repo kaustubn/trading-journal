@@ -17,7 +17,7 @@ import type { KLineData } from 'klinecharts';
 import type { OrderInput } from '../chart/replay';
 import {
   TFS, tfLabel, parseTfInput, INDS, IND_KEYS, IndKey, parseParams, Settings, DEFAULTS, mergeSettings,
-  Meta, BarsResp, toK, FocusTrade, LAYOUTS, LayoutMode, layoutCount, PaneSource,
+  Meta, BarsResp, toK, FocusTrade, LAYOUTS, LayoutMode, layoutCount, PaneSource, applyTvPreset, DEFAULTS as CHART_DEFAULTS,
 } from '../chart/config';
 import '../styles/MarketChart.css';
 
@@ -516,7 +516,7 @@ export default function MarketChart({ token, focus }: { token: string; focus?: {
   const chartDate = chartDates[activeIdx] ?? null;
 
   return (
-    <div ref={rootRef} className={`mc-root mc-${s.theme}${full ? ' mc-full' : ''}`}>
+    <div ref={rootRef} className={`mc-root mc-${s.theme} mc-look-${s.look}${full ? ' mc-full' : ''}`}>
       <div className="mc-top">
         <span className="mc-sym">NQ</span>
         <span className="mc-sym-sub">E-mini Nasdaq-100 · CME</span>
@@ -600,7 +600,8 @@ export default function MarketChart({ token, focus }: { token: string; focus?: {
             ))}
           </div>
 
-          <DrawEditBar ctl={ctl} />
+          <DrawEditBar ctl={ctl} tplOf={tool => s.toolTpl[tool]}
+            onTemplate={(tool, name) => update(cur => ({ ...cur, toolTpl: { ...cur.toolTpl, [tool]: name } }))} />
           {focusTrade && focusTrade.chartable && !replayOn && (
             <div className="mc-focus">
               <span>🕯️ {focusTrade.side === 'long' ? 'Long' : focusTrade.side === 'short' ? 'Short' : 'Trade'} {focusTrade.quantity ?? ''} {focusTrade.symbol}</span>
@@ -682,6 +683,20 @@ export default function MarketChart({ token, focus }: { token: string; focus?: {
                 <span>Near-live: fetch new bars every minute (Databento credit)</span>
               </label>
               <div className="mc-hint">Each chart has its own timeframe (box at its top-left). Replay, drawings, Go to and trades opened from the journal apply to every chart. Alt+1…4 picks the active chart.</div>
+              <div className="mc-panel-title mc-sub-title">Chart style <span className="mc-dim">(all layouts)</span></div>
+              <div className="mc-styles">
+                <button className={`mc-style-btn${s.look === 'tv' ? ' on' : ''}`} onClick={() => update(applyTvPreset)}
+                  title="Your TradingView chart: colours and chart settings, NQ System v3 + Volume, your drawing templates. Your TradingView levels and drawings are on the chart in every style.">
+                  <span className="mc-style-swatch mc-swatch-tv" /><b>TV</b>
+                  <span className="mc-dim">levels · chart settings · tools · indicators · colours from your TradingView</span>
+                </button>
+                <button className={`mc-style-btn${s.look === 'journal' ? ' on' : ''}`}
+                  onClick={() => update(cur => ({ ...cur, look: 'journal', toolTpl: {}, indicators: { ...CHART_DEFAULTS.indicators, NQSYS: { ...CHART_DEFAULTS.indicators.NQSYS, on: false } } }))}
+                  title="TradingView's standard dark chart with green/red candles">
+                  <span className="mc-style-swatch mc-swatch-journal" /><b>Standard</b>
+                  <span className="mc-dim">green / red candles, grid, default tool colours</span>
+                </button>
+              </div>
             </div>
           )}
 

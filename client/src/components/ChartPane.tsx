@@ -74,7 +74,7 @@ export default function ChartPane({ index, tf, s, active, ws, onActivate }: Prop
     const chart = chartRef.current, st = sRef.current;
     if (!chart) return;
     const extendData: BgData = {
-      tfMin: tfRef.current, dark: st.theme === 'dark', sessions: st.sessions && !st.rth,
+      tfMin: tfRef.current, dark: st.theme === 'dark', sessions: st.sessions && !st.rth, breaks: st.look === 'tv',
       rolls: st.rolls ? ws.meta()?.rolls ?? [] : null,
       levels: levelsRef.current, show: st.levels,
     };
@@ -218,7 +218,7 @@ export default function ChartPane({ index, tf, s, active, ws, onActivate }: Prop
     if (!chart) { ws.setError('The chart could not start in this browser.'); return; }
     chartRef.current = chart;
     appliedRef.current = { s: st, tf: tfRef.current };
-    chart.setStyles(chartStyles(st.theme));
+    chart.setStyles(chartStyles(st.theme, st.look));
     chart.setSymbol({ ticker: 'NQ', pricePrecision: 2, volumePrecision: 0 });
     chart.setPeriod(periodOf(tfRef.current));
     chart.createIndicator({ name: 'JC_BG', paneId: PANE }, true);
@@ -317,7 +317,7 @@ export default function ChartPane({ index, tf, s, active, ws, onActivate }: Prop
       chart.resetData();
     }
     if (a.s.clock !== s.clock) chart.setTimezone(TZ[s.clock]);
-    if (a.s.theme !== s.theme) { chart.setStyles(s.theme); chart.setStyles(chartStyles(s.theme)); }
+    if (a.s.theme !== s.theme || a.s.look !== s.look) { chart.setStyles(s.theme); chart.setStyles(chartStyles(s.theme, s.look)); }
     if (a.s.log !== s.log) chart.overrideYAxis({ paneId: PANE, name: s.log ? 'logarithm' : 'normal' });
     if (a.s.indicators !== s.indicators || a.tf !== tf) syncIndicators(chart, s, tf);
     pushBg();

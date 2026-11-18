@@ -23,6 +23,12 @@ export interface Drawing {
   text?: string;          // text tool
   qty?: number;           // long / short position
   contract?: Contract;    // long / short position
+  fill?: string;          // rectangle fill (any CSS colour); default: the line colour, faint
+  extL?: boolean;         // rectangle / trend line: extend to the left edge
+  extR?: boolean;         // … and to the right edge
+  textColor?: string;     // label on a horizontal line / ray / trend line (uses `text`)
+  levels?: { v: number; c: string }[]; // fib retracement levels and their colours
+  fibFill?: boolean;      // fib: shade between levels
 }
 
 export interface ToolDef {

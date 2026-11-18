@@ -471,3 +471,20 @@
 .mc-ticket { max-width: calc(100% - 16px); }
 .mc-panel-tf { left: 200px; width: 330px; }
 @media (max-width: 700px) { .mc-panel-tf { left: 8px; right: 8px; width: auto; } }
+
+/* ---------- Chart style presets ---------- */
+.mc-look-tv .mc-cell { background: #9c9c9c; }
+.mc-look-tv .mc-cell-head { background: var(--mc-bar); }
+.mc-sub-title { margin-top: 12px; }
+.mc-styles { display: flex; flex-direction: column; gap: 6px; }
+.mc-style-btn {
+  display: grid; grid-template-columns: 28px auto 1fr; align-items: center; gap: 8px; text-align: left;
+  background: transparent; border: 1px solid var(--mc-border); border-radius: 6px; padding: 7px 9px; color: var(--mc-text); cursor: pointer;
+}
+.mc-style-btn .mc-dim { font-size: 11px; }
+.mc-style-btn:hover { background: var(--mc-hover); }
+.mc-style-btn.on { border-color: var(--mc-accent); background: var(--mc-accent-soft); }
+.mc-style-swatch { width: 28px; height: 20px; border-radius: 4px; border: 1px solid var(--mc-border); }
+.mc-swatch-tv { background: linear-gradient(90deg, #9c9c9c 0 30%, #00bcd4 30% 50%, #9c9c9c 50% 60%, #000 60% 80%, #9c9c9c 80%); }
+.mc-swatch-journal { background: linear-gradient(90deg, #131722 0 30%, #089981 30% 50%, #131722 50% 60%, #f23645 60% 80%, #131722 80%); }
+.mc-tpl { max-width: 150px; height: 26px; }
