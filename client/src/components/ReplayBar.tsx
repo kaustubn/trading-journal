@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ReplayEngine, OrderInput, Side, ClosedTrade, rOf } from '../chart/replay';
+import { ReplayEngine, OrderInput, Side, ClosedTrade, rOf, OrderType } from '../chart/replay';
 import { Contract, fmtPrice, fmtUsd, signed } from '../chart/drawings';
 import { Clock, fmtWall } from '../chart/time';
 import { useOptions, values } from '../utils/options';
@@ -7,6 +7,8 @@ import type { CoachRules } from '../chart/coach';
 import type { Verdict } from './CoachPanel';
 
 const SPEEDS = [0.5, 1, 2, 3, 5, 10];
+// forward test: market seconds per real second (1 = real time; 60 = a minute every second)
+const LIVE_SPEEDS = [1, 2, 5, 10, 20, 30, 60];
 const REASON: Record<ClosedTrade['reason'], string> = { target: 'target', stop: 'stop', manual: 'closed', end: 'replay ended' };
 
 interface Account { id: number; account_name: string; }
@@ -55,6 +57,8 @@ export default function ReplayBar({ engine: e, clock, accounts, accountId, onAcc
   const [form, setForm] = useState(() => ({ ...loadDefaults(), notes: '' }));
   const [err, setErr] = useState('');
   const [showTrades, setShowTrades] = useState(false);
+  const [otype, setOtype] = useState<OrderType>('market');
+  const [oprice, setOprice] = useState('');
   const [stage, setStageState] = useState<Stage | null>(null);
   const stageSeq = useRef(0);   // a Claude review that comes back after Cancel is ignored
   const setStage = (st: Stage | null) => { stageSeq.current++; setStageState(st); };
@@ -63,7 +67,8 @@ export default function ReplayBar({ engine: e, clock, accounts, accountId, onAcc
 
   useEffect(() => { if (e.position) { setTicket(null); setStage(null); } }, [e.position]);
   const openTicket = (side: Side) => {
-    e.pause(); // think with the chart still
+    if (!e.live) e.pause(); // think with the chart still (a forward test keeps running, like the real market)
+    setOtype('market'); setOprice('');
     setTicket(ticket === side ? null : side); setStage(null); setShowTrades(false); setErr('');
   };
 
@@ -100,6 +105,14 @@ export default function ReplayBar({ engine: e, clock, accounts, accountId, onAcc
     const o: OrderInput = { ...form, side: ticket };
     if (!Number.isInteger(o.qty) || o.qty < 1 || o.qty > 100) { setErr('Quantity must be 1–100.'); return; }
     if (!(o.stopPts > 0) || !(o.target > 0)) { setErr('Stop and target must be above 0.'); return; }
+    if (e.live && otype !== 'market') {
+      const px = Number(oprice);
+      if (!Number.isFinite(px) || px <= 0) { setErr('Enter the order price.'); return; }
+      const msg = e.placeOrder({ ...o, type: otype, price: px });
+      if (msg) { setErr(msg); return; }
+      setErr(''); setTicket(null);
+      return;
+    }
     const breaks = coach.check(o);
     if (breaks.length && coach.rules.pauseOnBreak) { e.pause(); setStage({ kind: 'breaks', o, breaks }); return; }
     if (aiOnTrades) { runReview(o, breaks); return; }
@@ -114,7 +127,23 @@ export default function ReplayBar({ engine: e, clock, accounts, accountId, onAcc
     <div className="mc-replay" onMouseDown={ev => ev.stopPropagation()}>
       {ticket && (
         <form className="mc-ticket" onSubmit={submit} noValidate>
-          <div className="mc-panel-title">{ticket === 'long' ? 'Buy' : 'Sell'} at market{price !== null ? ` · ${fmtPrice(price)}` : ''}</div>
+          <div className="mc-panel-title">{ticket === 'long' ? 'Buy' : 'Sell'} {otype === 'market' ? 'at market' : otype}{price !== null ? ` · ${fmtPrice(price)}` : ''}</div>
+          {e.live && (
+            <div className="mc-row">
+              <div className="mc-seg" title="Market fills now. Limit / stop wait for the price (forward test).">
+                {(['market', 'limit', 'stop'] as OrderType[]).map(t => (
+                  <button type="button" key={t} className={otype === t ? 'on' : ''}
+                    onClick={() => { setOtype(t); if (t !== 'market' && price !== null && !oprice) setOprice(String(price + ((t === 'limit') === (ticket === 'long') ? -5 : 5))); }}>
+                    {t[0].toUpperCase() + t.slice(1)}</button>
+                ))}
+              </div>
+              {otype !== 'market' && (
+                <label className="mc-field">Price
+                  <input className="mc-input" type="number" step={0.25} value={oprice} onChange={ev => setOprice(ev.target.value)} />
+                </label>
+              )}
+            </div>
+          )}
           <div className="mc-row">
             <label className="mc-field">Qty
               <input className="mc-input" type="number" min={1} max={100} step={1} value={Number.isFinite(form.qty) ? form.qty : ''}
@@ -219,16 +248,24 @@ export default function ReplayBar({ engine: e, clock, accounts, accountId, onAcc
           {e.playing ? '⏸' : '▶'}
         </button>
         <button className="mc-btn" disabled={e.busy || e.playing || e.ended} onClick={() => e.stepForward()} title="Step forward (→)">⏭</button>
-        <select className="mc-input mc-speed" value={e.speed} title="Steps per second"
-          onChange={ev => { e.speed = Number(ev.target.value); if (e.playing) { e.pause(); e.play(); } else e.pause(); }}>
-          {SPEEDS.map(s => <option key={s} value={s}>{s}/s</option>)}
-        </select>
-        <div className="mc-seg" title="Each step reveals one candle of the chart's timeframe, or one minute">
+        {e.live ? (
+          <select className="mc-input mc-speed" value={e.liveSpeed} title="Forward test speed: market time per real second"
+            onChange={ev => { e.liveSpeed = Number(ev.target.value); if (e.playing) { e.pause(); e.play(); } }}>
+            {LIVE_SPEEDS.map(s => <option key={s} value={s}>{s === 1 ? '1× real time' : s === 60 ? '60× (1 min/s)' : `${s}×`}</option>)}
+          </select>
+        ) : (
+          <select className="mc-input mc-speed" value={e.speed} title="Steps per second"
+            onChange={ev => { e.speed = Number(ev.target.value); if (e.playing) { e.pause(); e.play(); } else e.pause(); }}>
+            {SPEEDS.map(s => <option key={s} value={s}>{s}/s</option>)}
+          </select>
+        )}
+        <div className="mc-seg" title="Bar / 1m: step candle by candle. Live: forward test — the market plays second by second and you trade it as it happens.">
           {(['bar', '1m'] as const).map(m => (
-            <button key={m} className={e.stepMode === m ? 'on' : ''} onClick={() => { e.stepMode = m; e.pause(); }}>{m === 'bar' ? 'Bar' : '1m'}</button>
+            <button key={m} className={!e.live && e.stepMode === m ? 'on' : ''} onClick={() => { e.setLive(false); e.stepMode = m; e.pause(); }}>{m === 'bar' ? 'Bar' : '1m'}</button>
           ))}
+          <button className={e.live ? 'on mc-live-on' : ''} onClick={() => e.setLive(true)}>● Live</button>
         </div>
-        <span className="mc-dim mc-replay-time">{e.cursor ? `${fmtWall(e.cursor + 60000, clock)} ${clock}` : ''}</span>
+        <span className="mc-dim mc-replay-time">{e.cursor ? `${fmtWall(e.live ? e.nowMs - 1000 : e.cursor + 60000, clock, e.live)} ${clock}` : ''}</span>
         <span className="mc-sep" />
         {p ? (
           <>
@@ -244,6 +281,12 @@ export default function ReplayBar({ engine: e, clock, accounts, accountId, onAcc
             <button className="mc-btn mc-sell" disabled={price === null} onClick={() => openTicket('short')}>Sell</button>
           </>
         )}
+        {e.pending.map(o => (
+          <span key={o.id} className={`mc-pending ${o.side === 'long' ? 'mc-up' : 'mc-down'}`} title="Working order: fills when the price gets there">
+            {o.side === 'long' ? 'Buy' : 'Sell'} {o.type} {o.qty} @ {fmtPrice(o.price)}
+            <button className="mc-btn mc-small" onClick={() => e.cancelOrder(o.id)} title="Cancel the order">✕</button>
+          </span>
+        ))}
         <span className="mc-sep" />
         <button className={`mc-btn mc-small${showTrades ? ' open' : ''}`} onClick={() => { setShowTrades(!showTrades); setTicket(null); setStage(null); }}
           title="Trades taken in this replay session">

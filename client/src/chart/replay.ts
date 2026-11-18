@@ -36,6 +36,10 @@ export interface OrderInput {
   setup: string; notes: string;
 }
 
+export type OrderType = 'market' | 'limit' | 'stop';
+/** A working entry order (forward test): fills when the live price reaches it. */
+export interface PendingOrder extends OrderInput { id: string; type: 'limit' | 'stop'; price: number; placed: number; }
+
 export interface ReplayHooks {
   fetch1m: (afterMs: number, limit: number) => Promise<KLineData[]>;
   rth: () => boolean;                    // regular-trading-hours view (shared by all windows)
@@ -46,6 +50,45 @@ export interface ReplayHooks {
   onChange: () => void;
   onClosed: (t: ClosedTrade) => void;    // log it to the journal
   onStopWidened?: (prevStop: number) => void; // the stop was dragged further from entry
+  onLive?: (k: KLineData) => void;       // forward test: the minute being played, as it grows second by second
+}
+
+// ---------- forward test: a 60-second price path through a 1-minute bar ----------
+function rng(seed: number) {
+  let a = seed | 0;
+  return () => {
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+/**
+ * Second-by-second prices for one minute. We only have the minute's open, high, low and
+ * close, so the path goes open → first extreme → second extreme → close (low first on an
+ * up bar, high first on a down bar) with a little noise, always inside the bar's range and
+ * on the tick grid. The same bar always gets the same path.
+ */
+export function minutePath(k: KLineData): number[] {
+  const r = rng(Math.floor(k.timestamp / 60000));
+  const up = k.close >= k.open;
+  const first = up ? k.low : k.high, second = up ? k.high : k.low;
+  const t1 = 3 + Math.floor(r() * 25);
+  const t2 = Math.min(56, t1 + 6 + Math.floor(r() * Math.max(1, 50 - t1)));
+  const way: [number, number][] = [[0, k.open], [t1, first], [t2, second], [59, k.close]];
+  const range = k.high - k.low;
+  const out: number[] = new Array(60);
+  for (let w = 0; w < way.length - 1; w++) {
+    const [s0, p0] = way[w], [s1, p1] = way[w + 1];
+    for (let sec = s0; sec <= s1; sec++) {
+      const f = s1 === s0 ? 1 : (sec - s0) / (s1 - s0);
+      const noise = sec === s0 || sec === s1 ? 0 : (r() - 0.5) * range * 0.25 * Math.sin(Math.PI * f);
+      const v = Math.min(k.high, Math.max(k.low, p0 + (p1 - p0) * f + noise));
+      out[sec] = Math.round(v / TICK) * TICK;
+    }
+  }
+  out[0] = k.open; out[t1] = first; out[t2] = second; out[59] = k.close;
+  return out;
 }
 
 const toTick = (v: number) => Math.round(v / TICK) * TICK;
@@ -88,6 +131,12 @@ export class ReplayEngine {
   message = '';
   position: Position | null = null;
   trades: ClosedTrade[] = [];
+  /** Forward test: play the market second by second (liveSpeed market seconds per real second). */
+  live = false;
+  liveSpeed = 1;
+  pending: PendingOrder[] = [];
+  private part: { n: number; k: KLineData; path: number[]; s: number } | null = null;
+  private liveTimer: number | undefined;
 
   private buf: KLineData[] = [];   // 1-minute bars, full session, sorted
   private bufMore = true;          // the server may have bars after the buffer
@@ -96,7 +145,14 @@ export class ReplayEngine {
 
   constructor(private hooks: ReplayHooks) {}
 
-  get price(): number | null { return this.idx >= 0 ? this.buf[this.idx].close : null; }
+  get price(): number | null {
+    if (this.part) return this.part.path[this.part.s];
+    return this.idx >= 0 ? this.buf[this.idx].close : null;
+  }
+  /** Market time now: the end of the revealed minute, or the current second in a forward test. */
+  get nowMs(): number { return this.part ? this.part.k.timestamp + (this.part.s + 1) * 1000 : this.cursor + MIN; }
+  /** Start of the minute being shown (the one playing in a forward test). */
+  private liveMinute(): number { return this.part ? this.part.k.timestamp : this.cursor; }
   get openPnl(): number { return this.position && this.price !== null ? pnlOf(this.position, this.price) : 0; }
 
   // Daily candles start up to ~24h before their last minute; keep that much history buffered
@@ -144,6 +200,7 @@ export class ReplayEngine {
   /** Start (or restart) replay so that the minute at time `t` is the last one shown. */
   async start(t: number) {
     this.pause();
+    this.part = null; this.pending = [];
     this.busy = true; this.message = ''; this.ended = false;
     this.hooks.onChange();
     try {
@@ -160,10 +217,10 @@ export class ReplayEngine {
   }
 
   /** For a window on timeframe `tf`: history ends where the cursor's candle begins… */
-  historyEnd(tf: number): number { return this.key(this.cursor, tf); }
+  historyEnd(tf: number): number { return this.key(this.liveMinute(), tf); }
   /** …and that candle is built here from the revealed 1-minute bars. */
   formingCandle(tf: number): KLineData | null {
-    const key = this.key(this.cursor, tf);
+    const key = this.key(this.liveMinute(), tf);
     let c = null as KLineData | null; // cast: keeps TS from narrowing it to null inside the loop
     for (let i = this.indexAt(this.cursor); i >= 0; i--) {
       const k = this.buf[i];
@@ -175,7 +232,79 @@ export class ReplayEngine {
         ? { ...prev, open: k.open, high: Math.max(prev.high, k.high), low: Math.min(prev.low, k.low), volume: (prev.volume ?? 0) + (k.volume ?? 0) }
         : { timestamp: key, open: k.open, high: k.high, low: k.low, close: k.close, volume: k.volume ?? 0 };
     }
+    const lp = this.partial();
+    if (lp && this.key(lp.timestamp, tf) === key) {
+      const cc: KLineData | null = c;
+      c = cc ? { ...cc, high: Math.max(cc.high, lp.high), low: Math.min(cc.low, lp.low), close: lp.close, volume: (cc.volume ?? 0) + (lp.volume ?? 0) }
+        : { ...lp, timestamp: key };
+    }
     return c;
+  }
+  /** The forward-test minute so far, as a 1-minute candle. */
+  private partial(): KLineData | null {
+    const p = this.part;
+    if (!p) return null;
+    let hi = -Infinity, lo = Infinity;
+    for (let i = 0; i <= p.s; i++) { hi = Math.max(hi, p.path[i]); lo = Math.min(lo, p.path[i]); }
+    return { timestamp: p.k.timestamp, open: p.path[0], high: hi, low: lo, close: p.path[p.s], volume: Math.round(((p.k.volume ?? 0) * (p.s + 1)) / 60) };
+  }
+
+  // ---------- forward test (live seconds) ----------
+  /** Advance one market second. False at the end of the data. */
+  private async liveSecond(): Promise<boolean> {
+    if (!this.part) {
+      const n = await this.nextIndex();
+      if (n < 0) { this.ended = true; this.message = 'End of the data.'; return false; }
+      const k = this.buf[n];
+      if (!this.shows(k.timestamp)) { this.consume(n); return true; }   // hidden (RTH view): skip it whole
+      this.part = { n, k, path: minutePath(k), s: 0 };
+    } else {
+      this.part.s++;
+    }
+    const p = this.part;
+    this.liveFills(p.path[p.s], p.k.timestamp + (p.s + 1) * 1000);
+    const lp = this.partial();
+    if (lp) this.hooks.onLive?.(lp);
+    if (p.s >= 59) { this.idx = p.n; this.cursor = p.k.timestamp; this.part = null; }
+    if (this.position || this.pending.length) this.hooks.onOverlays();
+    return true;
+  }
+  /** Working orders, stops and targets against the live price, every second. */
+  private liveFills(px: number, t: number) {
+    const minute = this.part?.k.timestamp ?? this.cursor;
+    if (!this.position && this.pending.length) {
+      const hit = this.pending.find(o => o.side === 'long'
+        ? (o.type === 'limit' ? px <= o.price : px >= o.price)
+        : (o.type === 'limit' ? px >= o.price : px <= o.price));
+      if (hit) {
+        this.pending = this.pending.filter(o => o.id !== hit.id);
+        const fill = hit.type === 'limit' ? (hit.side === 'long' ? Math.min(px, hit.price) : Math.max(px, hit.price)) : px;
+        this.openAt(hit, fill, t, minute);
+        return;
+      }
+    }
+    const pos = this.position;
+    if (!pos || t <= pos.entryTime) return;
+    if (pos.side === 'long') {
+      if (px <= pos.stop) this.closePosition(this.part?.s === 0 ? Math.min(px, pos.stop) : pos.stop, t, 'stop');   // a gap at the open fills at the open
+      else if (px >= pos.target) this.closePosition(this.part?.s === 0 ? Math.max(px, pos.target) : pos.target, t, 'target');
+    } else {
+      if (px >= pos.stop) this.closePosition(this.part?.s === 0 ? Math.max(px, pos.stop) : pos.stop, t, 'stop');
+      else if (px <= pos.target) this.closePosition(this.part?.s === 0 ? Math.min(px, pos.target) : pos.target, t, 'target');
+    }
+  }
+  /** Finish the minute that is playing (before a manual step or leaving live mode). */
+  private async finishMinute() {
+    while (this.part) { if (!(await this.liveSecond())) break; }
+  }
+  setLive(on: boolean) {
+    if (on === this.live) return;
+    const wasPlaying = this.playing;
+    this.pause();
+    this.live = on;
+    if (!on && this.part) { this.busy = true; this.finishMinute().finally(() => { this.busy = false; this.hooks.onChange(); }); }
+    if (wasPlaying && on) this.play();
+    this.hooks.onChange();
   }
 
   // ---------- stepping ----------
@@ -188,6 +317,11 @@ export class ReplayEngine {
   /** Reveal one minute (1m mode) or finish the next candle of the active window (bar mode). */
   async stepForward(): Promise<boolean> {
     if (!this.active || this.busy) return false;
+    if (this.part) {
+      this.busy = true;
+      try { await this.finishMinute(); } finally { this.busy = false; this.hooks.onChange(); }
+      if (this.stepMode === '1m') return true;
+    }
     this.busy = true;
     const tf = this.hooks.stepTf();
     try {
@@ -229,6 +363,7 @@ export class ReplayEngine {
   /** Step back one minute or one candle of the active window. Not allowed past an open position's entry. */
   async stepBack() {
     if (!this.active || this.busy) return;
+    if (this.part && !this.position) this.part = null;   // drop the half-played minute
     const tf = this.hooks.stepTf();
     let i = this.idx - 1;
     if (this.stepMode === '1m') {
@@ -259,6 +394,28 @@ export class ReplayEngine {
   play() {
     if (!this.active || this.playing || this.ended) return;
     this.playing = true;
+    if (this.live) {
+      let last = Date.now(), acc = 0;
+      const tick = async () => {
+        if (!this.playing || !this.live) return;
+        const now = Date.now();
+        acc += (now - last) * this.liveSpeed; last = now;
+        let n = Math.min(240, Math.floor(acc / 1000));
+        acc -= n * 1000;
+        let moved = false;
+        if (!this.busy) {
+          this.busy = true;
+          try {
+            while (n-- > 0) { if (!(await this.liveSecond())) { this.playing = false; break; } moved = true; }
+          } finally { this.busy = false; }
+        }
+        if (moved || !this.playing) this.hooks.onChange();
+        if (this.playing) this.liveTimer = window.setTimeout(tick, 100);
+      };
+      this.liveTimer = window.setTimeout(tick, 100);
+      this.hooks.onChange();
+      return;
+    }
     const tick = async () => {
       if (!this.playing) return;
       const t0 = Date.now();
@@ -271,6 +428,7 @@ export class ReplayEngine {
   pause() {
     this.playing = false;
     window.clearTimeout(this.timer);
+    window.clearTimeout(this.liveTimer);
     this.hooks.onChange();
   }
 
@@ -288,13 +446,46 @@ export class ReplayEngine {
     const target = toTick(price + dir * reward);
     this.position = {
       side: o.side, qty: o.qty, contract: o.contract, entry: price,
-      entryTime: this.cursor + MIN, entryMinute: this.cursor,
+      entryTime: this.nowMs, entryMinute: this.liveMinute(),
       stop, target, setup: o.setup, notes: o.notes, ruleBreaks: [...ruleBreaks],
     };
     this.message = '';
     this.hooks.onOverlays();
     this.hooks.onChange();
     return null;
+  }
+
+  /** Forward test: a limit or stop entry that fills when the live price gets there. */
+  placeOrder(o: OrderInput & { type: 'limit' | 'stop'; price: number }): string | null {
+    if (!this.active) return 'Replay is not running.';
+    const px = this.price;
+    if (px === null) return 'No price yet.';
+    if (!(o.stopPts > 0) || !(o.target > 0)) return 'Stop and target must be more than 0.';
+    const price = toTick(o.price);
+    const long = o.side === 'long';
+    if (o.type === 'limit' && (long ? price >= px : price <= px)) return `A ${long ? 'buy' : 'sell'} limit must be ${long ? 'below' : 'above'} the price (${px}).`;
+    if (o.type === 'stop' && (long ? price <= px : price >= px)) return `A ${long ? 'buy' : 'sell'} stop must be ${long ? 'above' : 'below'} the price (${px}).`;
+    if (this.pending.length >= 5) return 'At most 5 working orders.';
+    this.pending = [...this.pending, { ...o, price, id: newTradeId(), placed: this.nowMs }];
+    this.hooks.onOverlays();
+    this.hooks.onChange();
+    return null;
+  }
+  cancelOrder(id: string) {
+    this.pending = this.pending.filter(o => o.id !== id);
+    this.hooks.onOverlays();
+    this.hooks.onChange();
+  }
+  private openAt(o: OrderInput, fill: number, t: number, minute: number) {
+    const dir = o.side === 'long' ? 1 : -1;
+    const reward = o.targetUnit === 'R' ? o.stopPts * o.target : o.target;
+    this.position = {
+      side: o.side, qty: o.qty, contract: o.contract, entry: toTick(fill), entryTime: t, entryMinute: minute,
+      stop: toTick(fill - dir * o.stopPts), target: toTick(fill + dir * reward),
+      setup: o.setup, notes: o.notes, ruleBreaks: [],
+    };
+    this.message = `${o.side === 'long' ? 'Bought' : 'Sold'} ${o.qty} ${o.contract} @ ${toTick(fill)} (working order filled)`;
+    this.hooks.onOverlays();
   }
 
   /** Move the stop or target (from dragging the bracket); rejects levels on the wrong side of entry. */
@@ -327,7 +518,7 @@ export class ReplayEngine {
 
   closeAtMarket(reason: ExitReason = 'manual') {
     if (!this.position || this.price === null) return;
-    this.closePosition(this.price, this.cursor + MIN, reason);
+    this.closePosition(this.price, this.nowMs, reason);
     this.hooks.onChange();
   }
 
@@ -352,6 +543,7 @@ export class ReplayEngine {
   exit() {
     this.pause();
     if (this.position) this.closeAtMarket('end');
+    this.part = null; this.pending = [];
     this.active = false;
     this.hooks.onOverlays();
     this.hooks.onChange();
@@ -378,7 +570,25 @@ export class ReplayView {
     return this.cur;
   }
 
+  private liveBase: KLineData | null = null;
+  private liveT = -1;
+  /** Forward test: the playing minute grew; merge it into this window's candle. */
+  onLive(k: KLineData) {
+    const { tf, rth } = this.view();
+    const key = barTime(k.timestamp, tf, rth);
+    if (k.timestamp !== this.liveT) {
+      this.liveT = k.timestamp;
+      this.liveBase = this.cur && this.cur.timestamp === key ? this.cur : null;
+    }
+    const b = this.liveBase;
+    this.cur = b
+      ? { ...b, high: Math.max(b.high, k.high), low: Math.min(b.low, k.low), close: k.close, volume: (b.volume ?? 0) + (k.volume ?? 0) }
+      : { timestamp: key, open: k.open, high: k.high, low: k.low, close: k.close, volume: k.volume ?? 0 };
+    this.push(this.cur);
+  }
+
   onMinute(k: KLineData) {
+    this.liveT = -1;
     const { tf, rth } = this.view();
     const key = barTime(k.timestamp, tf, rth);
     if (this.cur && this.cur.timestamp === key) {
@@ -410,6 +620,19 @@ export class ReplayView {
       };
       if (this.chart.getOverlays({ id: BRACKET_ID }).length) this.chart.overrideOverlay(spec);
       else this.chart.createOverlay(spec);
+    }
+    // working entry orders (forward test) as dashed lines with a label
+    const want = new Set(eng.pending.map(o => `pending_${o.id}`));
+    for (const o of this.chart.getOverlays({ groupId: 'replay', name: 'jc_hline' })) if (!want.has(o.id)) this.chart.removeOverlay({ id: o.id });
+    for (const o of eng.pending) {
+      const id = `pending_${o.id}`;
+      if (this.chart.getOverlays({ id }).length) continue;
+      const col = o.side === 'long' ? '#089981' : '#f23645';
+      this.chart.createOverlay({
+        id, name: 'jc_hline', groupId: 'replay', paneId: PANE, lock: true,
+        points: [{ timestamp: barTime(eng.cursor, tf, rth), value: o.price }],
+        extendData: { id, tool: 'hline', points: [], color: col, width: 1, line: 'dashed', text: `${o.side === 'long' ? 'BUY' : 'SELL'} ${o.type.toUpperCase()} ${o.qty} ${o.contract}`, textColor: col },
+      } as OverlayCreate);
     }
     const shown = this.chart.getOverlays({ groupId: 'replay', name: 'jc_trade' }).length;
     if (shown !== eng.trades.length || !eng.trades.length) {

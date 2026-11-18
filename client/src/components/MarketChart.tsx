@@ -54,6 +54,9 @@ export default function MarketChart({ token, focus }: { token: string; focus?: {
   const [live, setLive] = useState<LiveStatus | null>(null);
   const [coachOpen, setCoachOpen] = useState(false);
   const [mentorOpen, setMentorOpen] = useState(false);
+  const [ftDate, setFtDate] = useState('');
+  const [ftTime, setFtTime] = useState('09:25');
+  const [ftSpeed, setFtSpeed] = useState(1);
   const [coachMsgs, setCoachMsgs] = useState<CoachMsg[]>([]);
   const [coachBusy, setCoachBusy] = useState(false);
   const [widen, setWiden] = useState<{ prev: number } | null>(null); // stop was widened: put it back or log it
@@ -108,6 +111,7 @@ export default function MarketChart({ token, focus }: { token: string; focus?: {
     stepTf: () => sRef.current.panes[sRef.current.active]?.tf ?? 5,
     onReset: () => panesOf().forEach(p => p.reset()),
     onMinute: k => panesOf().forEach(p => p.onMinute(k)),
+    onLive: k => panesOf().forEach(p => p.onLive(k)),
     onOverlays: () => panesOf().forEach(p => p.drawReplay()),
     onChange: () => setTick(n => n + 1),
     onClosed: t => { saveTradeRef.current(t); closedRef.current(t); },
@@ -288,6 +292,16 @@ export default function MarketChart({ token, focus }: { token: string; focus?: {
     if (!engine.active) panesOf().forEach(p => p.setHotkeys(true));
   };
   startReplayRef.current = startReplay;
+  /** Forward test: go back to a day and trade it as it happens, second by second. */
+  const startForward = async () => {
+    if (!ftDate) return;
+    setPanel(null);
+    await startReplay(wallToUtc(ftDate, ftTime || '09:25', s.clock));
+    if (!engine.active) return;
+    engine.liveSpeed = ftSpeed;
+    engine.setLive(true);
+    engine.play();
+  };
   const exitReplay = () => {
     engine.exit();
     panesOf().forEach(p => { p.setHotkeys(true); p.reset(); });
@@ -756,6 +770,20 @@ export default function MarketChart({ token, focus }: { token: string; focus?: {
               <button className="mc-btn mc-wide-btn" onClick={() => { setPanel(null); setReplayPick(true); }}>Select a candle on a chart</button>
               <button className="mc-btn mc-wide-btn" onClick={randomReplay}>Random date (9:00am ET)</button>
               <div className="mc-hint">All charts replay together. → / ← step one candle of the active chart (or one minute in 1m mode), Space plays. Buy / Sell from the replay bar; closed trades are saved to the journal account you choose there.</div>
+              <div className="mc-panel-title mc-sub-title">● Forward test a day</div>
+              <div className="mc-hint">Go back to a day and trade it as if it were live: candles move second by second, you can use market, limit and stop orders, and pause any time.</div>
+              <div className="mc-row">
+                <input className="mc-input" type="date" value={ftDate} onChange={e => setFtDate(e.target.value)}
+                  min={meta?.first ? fmtWall(meta.first, s.clock).slice(0, 10) : undefined}
+                  max={meta?.last ? fmtWall(meta.last, s.clock).slice(0, 10) : undefined} />
+                <input className="mc-input" type="time" value={ftTime} onChange={e => setFtTime(e.target.value)} title={`Start time (${s.clock})`} />
+              </div>
+              <div className="mc-row">
+                <select className="mc-input mc-grow" value={ftSpeed} onChange={e => setFtSpeed(Number(e.target.value))} title="Speed: market time per real second">
+                  {[1, 2, 5, 10, 20, 30, 60].map(v => <option key={v} value={v}>{v === 1 ? '1× real time (1 s = 1 s)' : v === 60 ? '60× (1 minute per second)' : `${v}× (1 minute in ${Math.round(60 / v)} s)`}</option>)}
+                </select>
+                <button className="mc-btn mc-primary" disabled={!ftDate} onClick={startForward}>Start</button>
+              </div>
             </div>
           )}
           {panel === 'goto' && (

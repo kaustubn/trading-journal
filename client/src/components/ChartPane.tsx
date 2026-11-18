@@ -37,6 +37,7 @@ export interface PaneHandle {
   tf: () => number;
   reset: () => void;                   // reload around the shared target / replay cursor / latest
   onMinute: (k: KLineData) => void;    // replay revealed a minute
+  onLive: (k: KLineData) => void;      // forward test: the playing minute grew
   drawReplay: () => void;              // bracket + trade markers
   drawFocus: () => void;
   appendLatest: () => Promise<void>;   // new bars arrived (near-live)
@@ -262,6 +263,7 @@ export default function ChartPane({ index, tf, s, active, ws, onActivate }: Prop
       tf: () => tfRef.current,
       reset: () => { localTarget.current = null; chart.resetData(); },
       onMinute: k => view.onMinute(k),
+      onLive: k => view.onLive(k),
       drawReplay: () => view.drawOverlays(),
       drawFocus,
       appendLatest: async () => {

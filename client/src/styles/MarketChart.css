@@ -536,3 +536,8 @@
 .mt-stats span { font-size: 10.5px; color: var(--mc-dim); }
 .mt-row { display: flex; justify-content: space-between; font-size: 12px; }
 @media (max-width: 1100px) { .mt-panel { width: 300px; } }
+
+/* ---------- Forward test ---------- */
+.mc-seg button.mc-live-on { color: #f23645; font-weight: 600; }
+.mc-pending { display: inline-flex; align-items: center; gap: 4px; font-size: 11.5px; border: 1px dashed currentColor; border-radius: 4px; padding: 0 2px 0 6px; white-space: nowrap; }
+.mc-pending .mc-btn { padding: 0 4px; }
