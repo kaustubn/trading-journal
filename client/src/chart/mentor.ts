@@ -1,0 +1,319 @@
+// Mentor engine: turns a course strategy into a bar-by-bar teacher.
+//   DETECTORS  — rule functions that find a strategy's setup on closed bars (no future bars)
+//   MentorFeed — walks the bars as replay reveals them and emits teaching messages:
+//                market phase changes, smart-money events, each checklist step of the
+//                strategy turning true, and the setup itself (which pauses for a quiz).
+import type { Analysis, Bars, MarketEvent, Phase, Strategy } from './mentorTypes';
+import { analyze, phaseAt } from './patterns';
+import { etMinutes } from './time';
+
+export interface Step { label: string; done: boolean; }
+export interface Signal {
+  i: number; side: 'long' | 'short'; entry: number; stop: number; t1: number; t2: number; reason: string;
+}
+export interface DetectResult { steps: Step[]; signal: Signal | null; }
+type Params = Record<string, number | string | boolean>;
+export type Detector = (bars: Bars, i: number, a: Analysis, p: Params, tfMin: number) => DetectResult;
+
+const num = (p: Params, k: string, d: number) => (typeof p[k] === 'number' ? (p[k] as number) : d);
+const tick = (v: number) => Math.round(v * 4) / 4;
+
+function emaSeries(bars: Bars, n: number): number[] {
+  const out: number[] = [];
+  const k = 2 / (n + 1);
+  let e = bars[0]?.close ?? 0;
+  bars.forEach((b, i) => { e = i === 0 ? b.close : b.close * k + e * (1 - k); out.push(e); });
+  return out;
+}
+const emaCache = new WeakMap<Bars, Map<number, number[]>>();
+function ema(bars: Bars, n: number): number[] {
+  let m = emaCache.get(bars);
+  if (!m) { m = new Map(); emaCache.set(bars, m); }
+  if (!m.has(n)) m.set(n, emaSeries(bars, n));
+  return m.get(n)!;
+}
+const recent = (a: Analysis, i: number, kinds: MarketEvent['kind'][], within: number) =>
+  [...a.events].reverse().find(e => e.i <= i && e.i >= i - within && kinds.includes(e.kind)) ?? null;
+const closeFrac = (b: Bars[number]) => { const r = b.high - b.low; return r > 0 ? (b.close - b.low) / r : 0.5; };
+function plan(i: number, side: 'long' | 'short', entry: number, stop: number, t1R: number, t2R: number, reason: string, t1?: number): Signal {
+  const risk = Math.abs(entry - stop) || 1;
+  const dir = side === 'long' ? 1 : -1;
+  // a structural target (range edge, midpoint) closer than 1R is not worth the risk: use 1R
+  const t1v = t1 !== undefined && (t1 - entry) * dir >= risk ? t1 : entry + dir * risk * Math.max(1, t1R);
+  return { i, side, entry: tick(entry), stop: tick(stop), t1: tick(t1v), t2: tick(Math.max(t2R, Math.abs(t1v - entry) / risk + 0.5) * risk * dir + entry), reason };
+}
+
+// ---------------------------------------------------------------- detectors
+export const DETECTORS: Record<string, { name: string; describe: string; fn: Detector }> = {
+  wyckoff_spring: {
+    name: 'Spring in accumulation (long)',
+    describe: 'Range after a fall, a stop-run under the range low that closes back inside, then a bar closing above the spring bar high.',
+    fn: (bars, i, a, p) => {
+      const ph = phaseAt(a, i);
+      const inAcc = !!ph && (ph.phase === 'accumulation' || ph.phase === 'range');
+      const spring = recent(a, i, ['SPRING', 'SWEEP_LO'], num(p, 'within', 12));
+      const sb = spring ? bars[spring.i] : null;
+      const confirm = !!sb && i > spring!.i && bars[i].close > sb.high && closeFrac(bars[i]) >= 0.5;
+      const steps = [
+        { label: 'Trading range after a down-move (accumulation)', done: inAcc },
+        { label: 'Spring: price runs the stops under the range low and closes back inside', done: inAcc && !!spring },
+        { label: 'Confirmation: a bar closes above the spring bar high', done: inAcc && confirm },
+      ];
+      const signal = steps.every(s => s.done) && sb && ph
+        ? plan(i, 'long', bars[i].close, Math.min(sb.low, spring!.price) - 0.25 * (a.atr[i] || 1), 1, 2, 'Spring confirmed inside accumulation', ph.hi > bars[i].close ? ph.hi : undefined)
+        : null;
+      return { steps, signal };
+    },
+  },
+  wyckoff_upthrust: {
+    name: 'Upthrust in distribution (short)',
+    describe: 'Range after a rise, a stop-run over the range high that closes back inside, then a bar closing below the upthrust bar low.',
+    fn: (bars, i, a, p) => {
+      const ph = phaseAt(a, i);
+      const inDist = !!ph && (ph.phase === 'distribution' || ph.phase === 'range');
+      const ut = recent(a, i, ['UTAD', 'UT', 'SWEEP_HI'], num(p, 'within', 12));
+      const ub = ut ? bars[ut.i] : null;
+      const confirm = !!ub && i > ut!.i && bars[i].close < ub.low && closeFrac(bars[i]) <= 0.5;
+      const steps = [
+        { label: 'Trading range after an up-move (distribution)', done: inDist },
+        { label: 'Upthrust: price runs the stops over the range high and closes back inside', done: inDist && !!ut },
+        { label: 'Confirmation: a bar closes below the upthrust bar low', done: inDist && confirm },
+      ];
+      const signal = steps.every(s => s.done) && ub && ph
+        ? plan(i, 'short', bars[i].close, Math.max(ub.high, ut!.price) + 0.25 * (a.atr[i] || 1), 1, 2, 'Upthrust confirmed inside distribution', ph.lo < bars[i].close ? ph.lo : undefined)
+        : null;
+      return { steps, signal };
+    },
+  },
+  ema_pullback: {
+    name: 'Trend pullback to the EMA',
+    describe: 'Structure trending (HH/HL or LH/LL), a pullback that touches the EMA, a rejection bar closing at least half its range away.',
+    fn: (bars, i, a, p) => {
+      const n = num(p, 'ema', 21), rej = num(p, 'rejection', 0.5);
+      const e = ema(bars, n)[i], b = bars[i], atr = a.atr[i] || 1;
+      const tr = a.trend[i];
+      const side: 'long' | 'short' | null = tr === 'up' ? 'long' : tr === 'down' ? 'short' : null;
+      const touch = side === 'long' ? b.low <= e + 0.1 * atr && b.close > e : side === 'short' ? b.high >= e - 0.1 * atr && b.close < e : false;
+      const reject = side === 'long' ? closeFrac(b) >= rej : side === 'short' ? 1 - closeFrac(b) >= rej : false;
+      const steps = [
+        { label: 'Trend: higher highs and higher lows (or lower highs and lower lows)', done: !!side },
+        { label: `Pullback reaches the EMA ${n}`, done: !!side && touch },
+        { label: `Rejection: the bar closes at least ${Math.round(rej * 100)}% of its range away from the EMA`, done: !!side && touch && reject },
+      ];
+      const signal = steps.every(s => s.done) && side
+        ? plan(i, side, b.close, side === 'long' ? b.low - 0.25 * atr : b.high + 0.25 * atr, num(p, 't1R', 2.5), num(p, 't2R', 4), `Pullback to EMA ${n} with the trend`)
+        : null;
+      return { steps, signal };
+    },
+  },
+  liquidity_sweep: {
+    name: 'Liquidity sweep reversal',
+    describe: 'A wick beyond a prior swing (stops taken) that closes back inside, not against a strong trend, confirmed by the next bar.',
+    fn: (bars, i, a, p) => {
+      const sw = recent(a, i, ['SWEEP_LO', 'SWEEP_HI', 'SPRING', 'UTAD', 'UT'], num(p, 'within', 2));
+      const side: 'long' | 'short' | null = !sw ? null : ['SWEEP_LO', 'SPRING'].includes(sw.kind) ? 'long' : 'short';
+      const strongAgainst = side === 'long' ? a.trend.slice(Math.max(0, i - 10), i + 1).filter(t => t === 'down').length >= 8
+        : side === 'short' ? a.trend.slice(Math.max(0, i - 10), i + 1).filter(t => t === 'up').length >= 8 : false;
+      const b = bars[i];
+      const confirm = !!sw && i > sw.i && (side === 'long' ? b.close > bars[sw.i].high || b.close > b.open && closeFrac(b) > 0.6 : b.close < bars[sw.i].low || b.close < b.open && closeFrac(b) < 0.4);
+      const steps = [
+        { label: 'Sweep: a wick runs beyond a prior swing and closes back inside', done: !!sw },
+        { label: 'Not against a strong trend (no 8 of the last 10 bars trending the other way)', done: !!sw && !strongAgainst },
+        { label: 'Reclaim: the next bar confirms back in the sweep-failure direction', done: !!sw && !strongAgainst && confirm },
+      ];
+      const atr = a.atr[i] || 1;
+      const signal = steps.every(s => s.done) && side && sw
+        ? plan(i, side, b.close, side === 'long' ? bars[sw.i].low - 0.15 * atr : bars[sw.i].high + 0.15 * atr, num(p, 't1R', 2), num(p, 't2R', 3), 'Failed sweep: trapped traders fuel the reversal')
+        : null;
+      return { steps, signal };
+    },
+  },
+  breakout_retest: {
+    name: 'Break of structure and retest',
+    describe: 'Price closes beyond the last swing (break of structure), comes back to test the broken level, and holds.',
+    fn: (bars, i, a, p) => {
+      const bos = recent(a, i, ['BOS_UP', 'BOS_DN', 'SOS', 'SOW'], num(p, 'within', 15));
+      const side: 'long' | 'short' | null = !bos ? null : ['BOS_UP', 'SOS'].includes(bos.kind) ? 'long' : 'short';
+      const b = bars[i], atr = a.atr[i] || 1, lvl = bos?.price ?? 0;
+      const retest = !!bos && i > bos.i + 1 && (side === 'long' ? b.low <= lvl + 0.2 * atr && b.low >= lvl - 0.6 * atr : b.high >= lvl - 0.2 * atr && b.high <= lvl + 0.6 * atr);
+      const hold = retest && (side === 'long' ? b.close > lvl && closeFrac(b) >= 0.5 : b.close < lvl && closeFrac(b) <= 0.5);
+      const steps = [
+        { label: 'Break of structure: a close beyond the last swing', done: !!bos },
+        { label: 'Retest: price comes back to the broken level', done: retest },
+        { label: 'Hold: the retest bar closes back on the breakout side', done: hold },
+      ];
+      const signal = hold && side
+        ? plan(i, side, b.close, side === 'long' ? Math.min(b.low, lvl) - 0.3 * atr : Math.max(b.high, lvl) + 0.3 * atr, num(p, 't1R', 2), num(p, 't2R', 3), 'Broken level held on the retest')
+        : null;
+      return { steps, signal };
+    },
+  },
+  range_fade: {
+    name: 'Range extreme fade',
+    describe: 'Inside a trading range, price tags the top or bottom and rejects with a long wick; fade back toward the middle.',
+    fn: (bars, i, a, p) => {
+      const ph = phaseAt(a, i);
+      const inRange = !!ph && ['range', 'accumulation', 'distribution'].includes(ph.phase);
+      const b = bars[i], atr = a.atr[i] || 1;
+      const atTop = inRange && b.high >= ph!.hi - 0.2 * atr, atBot = inRange && b.low <= ph!.lo + 0.2 * atr;
+      const side: 'long' | 'short' | null = atBot ? 'long' : atTop ? 'short' : null;
+      const wick = side === 'long' ? (Math.min(b.open, b.close) - b.low) / Math.max(1e-9, b.high - b.low) >= num(p, 'wick', 0.5) && b.close > ph!.lo
+        : side === 'short' ? (b.high - Math.max(b.open, b.close)) / Math.max(1e-9, b.high - b.low) >= num(p, 'wick', 0.5) && b.close < ph!.hi : false;
+      const steps = [
+        { label: 'A trading range is in play', done: inRange },
+        { label: 'Price reaches the range extreme', done: !!side },
+        { label: 'Wick rejection: the bar closes back inside with a long wick', done: !!side && wick },
+      ];
+      const mid = ph ? (ph.hi + ph.lo) / 2 : 0;
+      const signal = steps.every(s => s.done) && side && ph
+        ? plan(i, side, b.close, side === 'long' ? b.low - 0.2 * atr : b.high + 0.2 * atr, 1.5, 2, 'Fade at the range extreme', mid)
+        : null;
+      return { steps, signal };
+    },
+  },
+  orb: {
+    name: 'Opening range breakout',
+    describe: 'The 9:30–9:45 ET range; a bar body closes fully beyond it with size; stop back inside.',
+    fn: (bars, i, a, p) => {
+      const b = bars[i];
+      const m = etMinutes(b.timestamp);
+      let hi = -Infinity, lo = Infinity, have = false;
+      for (let j = i; j >= 0 && j > i - 200; j--) {
+        const mj = etMinutes(bars[j].timestamp);
+        if (mj < 570 && j < i) break;
+        if (mj >= 570 && mj < 585 && Math.abs(bars[j].timestamp - b.timestamp) < 8 * 3600000) { hi = Math.max(hi, bars[j].high); lo = Math.min(lo, bars[j].low); have = true; }
+      }
+      const inWindow = m >= 585 && m < 660;
+      const rng = hi - lo, okRange = have && rng >= num(p, 'minRange', 15) && rng <= num(p, 'maxRange', 80);
+      const body = Math.abs(b.close - b.open);
+      const side: 'long' | 'short' | null = Math.min(b.open, b.close) > hi ? 'long' : Math.max(b.open, b.close) < lo ? 'short' : null;
+      const steps = [
+        { label: 'Opening range 9:30–9:45 ET built (15–80 pts)', done: okRange },
+        { label: 'Inside the ORB trade window (9:45–11:00 ET)', done: okRange && inWindow },
+        { label: `Break and hold: the whole body closes outside the range (body ≥ ${num(p, 'minBody', 8)} pts)`, done: okRange && inWindow && !!side && body >= num(p, 'minBody', 8) },
+      ];
+      const signal = steps.every(s => s.done) && side
+        ? plan(i, side, b.close, side === 'long' ? hi - 3 : lo + 3, 2, 3, 'Opening range broken with a full body')
+        : null;
+      return { steps, signal };
+    },
+  },
+};
+
+// ---------------------------------------------------------------- teaching text
+export const PHASE_TEACH: Record<Phase, string> = {
+  accumulation: 'Accumulation: after a fall, price goes sideways. Big buyers absorb selling inside the range without chasing price up. Watch for a spring (stop-run under the lows) and a sign of strength.',
+  markup: 'Markup: the buyers are done filling and price trends up with higher highs and higher lows. Pullbacks to support or the EMA are the entries; do not fade it.',
+  distribution: 'Distribution: after a rise, price goes sideways. Big sellers unload into late buyers. Watch for an upthrust (stop-run over the highs) and a sign of weakness.',
+  markdown: 'Markdown: supply wins and price trends down with lower highs and lower lows. Rallies into resistance are the entries; do not buy dips blindly.',
+  range: 'Range: no clear side yet. Fade the edges or wait for a break of structure.',
+};
+
+// ---------------------------------------------------------------- feed
+export type FeedKind = 'phase' | 'event' | 'step' | 'setup' | 'info';
+export interface FeedMsg { id: number; kind: FeedKind; t: number; title: string; text: string; tag?: string; }
+
+/**
+ * Walks closed bars and reports what changed since the last call. Call `update` with the
+ * window's bars (the last one may still be forming, so it is ignored) whenever replay moves.
+ */
+export class MentorFeed {
+  private lastI = -1;
+  private lastPhase: Phase | null = null;
+  private seenEvents = new Set<string>();
+  private stepState: boolean[] = [];
+  private seq = 0;
+  private lastSignal = -1000;
+  /** A setup found by the search (practice): fire it at this bar even if this window's history differs a little. */
+  expected: (Signal & { t: number }) | null = null;
+  analysis: Analysis | null = null;
+  steps: Step[] = [];
+  constructor(public strategy: Strategy | null, public tfMin: number) {}
+
+  reset() { this.lastI = -1; this.lastPhase = null; this.seenEvents.clear(); this.stepState = []; this.analysis = null; this.steps = []; this.lastSignal = -1000; }
+
+  update(all: Bars, opts: { events: boolean } = { events: true }): { msgs: FeedMsg[]; signal: Signal | null } {
+    const bars = all.slice(0, -1);              // drop the forming candle
+    const n = bars.length;
+    const msgs: FeedMsg[] = [];
+    if (n < 30) return { msgs, signal: null };
+    if (n - 1 < this.lastI) this.reset();       // went back in time (new replay)
+    const a = analyze(bars, this.tfMin);
+    this.analysis = a;
+    const i = n - 1;
+    const first = this.lastI < 0;
+    const push = (kind: FeedKind, t: number, title: string, text: string, tag?: string) => msgs.push({ id: ++this.seq, kind, t, title, text, tag });
+
+    const ph = phaseAt(a, i);
+    if (ph && ph.phase !== this.lastPhase) {
+      push('phase', bars[i].timestamp, `Phase: ${ph.phase[0].toUpperCase()}${ph.phase.slice(1)}`, PHASE_TEACH[ph.phase]);
+      this.lastPhase = ph.phase;
+    }
+    if (opts.events) {
+      const from = first ? i - 3 : this.lastI + 1;
+      for (const e of a.events) {
+        if (e.i < from || e.i > i) continue;
+        const key = `${bars[e.i].timestamp}:${e.kind}`;
+        if (this.seenEvents.has(key)) continue;
+        this.seenEvents.add(key);
+        if (['INSIDE', 'DOJI'].includes(e.kind)) continue;   // too common to narrate
+        push('event', bars[e.i].timestamp, e.text, e.teach, e.kind);
+      }
+    }
+    let signal: Signal | null = null;
+    if (this.strategy?.detector && DETECTORS[this.strategy.detector.key]) {
+      const r = DETECTORS[this.strategy.detector.key].fn(bars, i, a, this.strategy.detector.params ?? {}, this.tfMin);
+      this.steps = r.steps;
+      r.steps.forEach((s, k) => {
+        if (s.done && !this.stepState[k]) push('step', bars[i].timestamp, `Step ${k + 1} ✓`, s.label);
+      });
+      this.stepState = r.steps.map(s => s.done);
+      if (r.signal && r.signal.i === i && i - this.lastSignal > 6) signal = r.signal;
+    }
+    const ex = this.expected;
+    if (!signal && ex && bars[i].timestamp === ex.t && i - this.lastSignal > 6) {
+      signal = { ...ex, i };
+      this.steps = this.steps.map(s => ({ ...s, done: true }));
+    }
+    if (signal && this.strategy) {
+      this.lastSignal = i;
+      if (ex && bars[i].timestamp >= ex.t) this.expected = null;
+      push('setup', bars[i].timestamp, `${this.strategy.name}: setup`, signal.reason);
+    }
+    this.lastI = i;
+    return { msgs, signal };
+  }
+}
+
+/** Every bar where a strategy's detector fires, scanning bars as they would have appeared (no future). */
+export function findSetups(bars: Bars, strategy: Strategy, tfMin: number, max = 20): Signal[] {
+  const det = strategy.detector && DETECTORS[strategy.detector.key];
+  if (!det || bars.length < 40) return [];
+  // A full pass finds candidates fast, but phases can be relabelled by later bars; so each
+  // candidate is re-checked with only the bars up to it, exactly as replay would see it.
+  const a = analyze(bars, tfMin);
+  const out: Signal[] = [];
+  for (let i = 30; i < bars.length && out.length < max; i++) {
+    const r = det.fn(bars, i, a, strategy.detector!.params ?? {}, tfMin);
+    if (!r.signal || (out.length && i - out[out.length - 1].i <= 6)) continue;
+    const upTo = bars.slice(0, i + 1);
+    const again = det.fn(upTo, i, analyze(upTo, tfMin), strategy.detector!.params ?? {}, tfMin).signal;
+    if (again) out.push(again);
+  }
+  return out;
+}
+
+/** Plain description of one bar for "Explain this bar". */
+export function explainBar(bars: Bars, i: number, a: Analysis): string[] {
+  const b = bars[i];
+  if (!b) return [];
+  const out: string[] = [];
+  const r = b.high - b.low, body = Math.abs(b.close - b.open), atr = a.atr[i] || 1;
+  out.push(`${b.close >= b.open ? 'Up' : 'Down'} bar, range ${r.toFixed(2)} pts (${(r / atr).toFixed(1)}× ATR), body ${r ? Math.round((body / r) * 100) : 0}% of range, closed in the ${closeFrac(b) > 0.66 ? 'top' : closeFrac(b) < 0.34 ? 'bottom' : 'middle'} third.`);
+  const tr = a.trend[i];
+  out.push(tr === 'up' ? 'Structure: higher highs and higher lows (buyers in control).' : tr === 'down' ? 'Structure: lower highs and lower lows (sellers in control).' : 'Structure: mixed, no clear trend.');
+  const ph = phaseAt(a, i);
+  if (ph) out.push(PHASE_TEACH[ph.phase]);
+  for (const e of a.events.filter(e => e.i === i)) out.push(`${e.text}: ${e.teach}`);
+  return out;
+}

@@ -35,6 +35,7 @@ import barsRouter from './api/bars';
 import coachReplayRouter from './api/coachReplay';
 import chartSettingsRouter from './api/chartSettings';
 import chartDrawingsRouter from './api/chartDrawings';
+import mentorRouter from './api/mentor';
 import replayRouter from './api/replay';
 import chartTradesRouter from './api/chartTrades';
 
@@ -61,6 +62,7 @@ app.use('/api/bars', barsRouter); // own auth (admin only); keep above the '/api
 app.use('/api/coach/replay', coachReplayRouter); // own auth (admin only)
 app.use('/api/chart/settings', chartSettingsRouter);
 app.use('/api/chart/drawings', chartDrawingsRouter);
+app.use('/api/mentor', mentorRouter); // own auth (admin only); keep above the '/api' mounts
 app.use('/api/replay', replayRouter);
 app.use('/api/chart/trade', chartTradesRouter);
 app.use('/api', tradingViewRouter);

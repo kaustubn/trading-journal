@@ -464,6 +464,24 @@ export async function initializeDB() {
       );
     `);
 
+    // Mentor school: courses (one JSON doc per course) and practice progress (see src/api/mentor.ts)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS mentor_courses (
+        user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        id TEXT NOT NULL CHECK (id ~ '^[a-z0-9-]{1,64}$'),
+        data JSONB NOT NULL,
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        PRIMARY KEY (user_id, id)
+      );
+    `);
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS mentor_progress (
+        user_id INT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+        data JSONB NOT NULL,
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+    `);
+
     // IANA zone the account's trade times are recorded in; NULL means New York
     await client.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS timezone VARCHAR(40);`);
 

@@ -11,6 +11,7 @@ import { DrawToolbar, DrawEditBar } from './DrawingTools';
 import { ReplayEngine, ClosedTrade } from '../chart/replay';
 import ReplayBar, { CoachHooks } from './ReplayBar';
 import CoachPanel, { CoachMsg, Verdict } from './CoachPanel';
+import MentorPanel from './MentorPanel';
 import { checkOrder, checkAfterClose, CoachRules } from '../chart/coach';
 import { buildContext, PaneData } from '../chart/coachContext';
 import type { KLineData } from 'klinecharts';
@@ -52,6 +53,7 @@ export default function MarketChart({ token, focus }: { token: string; focus?: {
   const [chartDates, setChartDates] = useState<Record<number, string>>({});
   const [live, setLive] = useState<LiveStatus | null>(null);
   const [coachOpen, setCoachOpen] = useState(false);
+  const [mentorOpen, setMentorOpen] = useState(false);
   const [coachMsgs, setCoachMsgs] = useState<CoachMsg[]>([]);
   const [coachBusy, setCoachBusy] = useState(false);
   const [widen, setWiden] = useState<{ prev: number } | null>(null); // stop was widened: put it back or log it
@@ -553,7 +555,9 @@ export default function MarketChart({ token, focus }: { token: string; focus?: {
         <button className="mc-btn" disabled={!store.canUndo} onClick={() => { ctl?.cancel(); store.undo(); }} title="Undo (Ctrl+Z)">↶</button>
         <button className="mc-btn" disabled={!store.canRedo} onClick={() => { ctl?.cancel(); store.redo(); }} title="Redo (Ctrl+Y)">↷</button>
         <span className="mc-sep" />
-        <button className={`mc-btn${coachOpen ? ' on' : ''}`} onClick={() => setCoachOpen(!coachOpen)}
+        <button className={`mc-btn${mentorOpen ? ' on' : ''}`} onClick={() => { setMentorOpen(!mentorOpen); if (!mentorOpen) setCoachOpen(false); }}
+          title="Mentor: learn a mentor's book or course bar by bar, practise real setups, Pattern Sprint game">🎓 Mentor</button>
+        <button className={`mc-btn${coachOpen ? ' on' : ''}`} onClick={() => { setCoachOpen(!coachOpen); if (!coachOpen) setMentorOpen(false); }}
           title="Coach: checks your orders against your rules, pauses the replay when you break one, and lets you ask Claude about the chart">
           Coach{coachMsgs.length ? ` · ${coachMsgs.length}` : ''}
         </button>
@@ -771,6 +775,14 @@ export default function MarketChart({ token, focus }: { token: string; focus?: {
           )}
         </div>
         {s.notesOpen && <DayNotes token={token} chartDate={chartDate} onClose={() => update({ notesOpen: false })} />}
+        {mentorOpen && (
+          <MentorPanel ws={ws} activeIdx={activeIdx} clock={s.clock}
+            setPaneTf={(i, tf) => setPane(i, { tf })}
+            startReplay={startReplay}
+            phasesOn={s.indicators.PHASES.on}
+            onPhases={on => update(cur => ({ ...cur, indicators: { ...cur.indicators, PHASES: { ...cur.indicators.PHASES, on } } }))}
+            onClose={() => setMentorOpen(false)} />
+        )}
         {coachOpen && (
           <CoachPanel rules={s.coach} onRules={setCoachRules} msgs={coachMsgs} busy={coachBusy} clock={s.clock}
             onAsk={q => { note('you', q); askClaude('ask', { question: q }); }}

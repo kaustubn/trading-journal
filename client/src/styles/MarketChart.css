@@ -488,3 +488,51 @@
 .mc-swatch-tv { background: linear-gradient(90deg, #9c9c9c 0 30%, #00bcd4 30% 50%, #9c9c9c 50% 60%, #000 60% 80%, #9c9c9c 80%); }
 .mc-swatch-journal { background: linear-gradient(90deg, #131722 0 30%, #089981 30% 50%, #131722 50% 60%, #f23645 60% 80%, #131722 80%); }
 .mc-tpl { max-width: 150px; height: 26px; }
+
+/* ---------- Mentor ---------- */
+.mt-panel { width: 360px; }
+.mt-level { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--mc-dim); }
+.mt-bar { width: 50px; height: 5px; background: var(--mc-border); border-radius: 3px; overflow: hidden; display: inline-block; }
+.mt-bar span { display: block; height: 100%; background: linear-gradient(90deg, #2962ff, #00bcd4); }
+.mt-course { padding: 0 10px; }
+.mt-course .mc-input { width: 100%; box-sizing: border-box; }
+.mt-tabs { margin: 0 10px; }
+.mt-tabs button { flex: 1; }
+.mt-body { flex: 1; overflow-y: auto; padding: 4px 10px 10px; display: flex; flex-direction: column; gap: 8px; min-height: 0; }
+.mt-practice { overflow: hidden; }
+.mt-h { font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--mc-dim); margin-top: 6px; }
+.mt-sub { font-weight: 600; font-size: 11.5px; margin-top: 6px; }
+.mt-card { border: 1px solid var(--mc-border); border-radius: 6px; padding: 6px 8px; background: var(--mc-panel); }
+.mt-card.on { border-color: var(--mc-accent); }
+.mt-card-head { all: unset; cursor: pointer; display: flex; justify-content: space-between; width: 100%; font-weight: 600; font-size: 12.5px; color: var(--mc-text); }
+.mt-sum { font-size: 12px; color: var(--mc-dim); margin: 4px 0; }
+.mt-rules { margin: 2px 0; padding-left: 16px; font-size: 12px; line-height: 1.45; }
+.mt-src { display: inline-block; margin-left: 6px; font-size: 10px; color: var(--mc-dim); border: 1px solid var(--mc-border); border-radius: 8px; padding: 0 5px; }
+.mt-q { font-size: 12.5px; margin-bottom: 6px; }
+.mt-opts { display: flex; flex-direction: column; gap: 4px; }
+.mt-opts .mc-btn { text-align: left; }
+.mc-btn.mt-good { background: rgba(8, 153, 129, 0.35); }
+.mc-btn.mt-bad { background: rgba(242, 54, 69, 0.35); }
+.mt-good-t { color: #26a69a; font-weight: 600; font-size: 12.5px; }
+.mt-bad-t { color: var(--mc-danger); font-weight: 600; font-size: 12.5px; }
+.mt-steps { border: 1px dashed var(--mc-border); border-radius: 6px; padding: 6px 8px; font-size: 12px; display: flex; flex-direction: column; gap: 3px; color: var(--mc-dim); }
+.mt-steps .done { color: #26a69a; }
+.mt-feed { flex: 1; padding: 0; }
+.mt-msg-phase { border-left: 3px solid #2962ff; }
+.mt-msg-event { border-left: 3px solid #9c27b0; }
+.mt-msg-step { border-left: 3px solid #26a69a; }
+.mt-msg-setup { border-left: 3px solid #ff9800; }
+.mt-quiz { border-color: #ff9800; background: rgba(255, 152, 0, 0.08); }
+.mt-plan { font-size: 12px; font-variant-numeric: tabular-nums; }
+.mt-sprint-start, .mt-sprint { display: flex; flex-direction: column; gap: 10px; }
+.mt-sprint-top { display: flex; justify-content: space-between; font-weight: 600; }
+.mt-timer { color: #ff9800; font-variant-numeric: tabular-nums; }
+.mt-sprint-btns { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; }
+.mt-sprint-btns .mc-btn { padding: 10px 0; font-size: 14px; font-weight: 600; }
+.mt-score { font-size: 18px; font-weight: 700; }
+.mt-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.mt-stats div { border: 1px solid var(--mc-border); border-radius: 6px; padding: 6px; text-align: center; display: flex; flex-direction: column; }
+.mt-stats b { font-size: 18px; }
+.mt-stats span { font-size: 10.5px; color: var(--mc-dim); }
+.mt-row { display: flex; justify-content: space-between; font-size: 12px; }
+@media (max-width: 1100px) { .mt-panel { width: 300px; } }

@@ -6,6 +6,7 @@
 //            contract-roll markers behind the candles
 import { registerIndicator, KLineData } from 'klinecharts';
 import { registerNqSys } from './nqsys';
+import { registerPhases } from './patterns';
 import { sessionDay, sessionOf, SessionName } from './time';
 
 export interface LevelsData {
@@ -50,6 +51,7 @@ export function registerChartIndicators() {
   if (registered) return;
   registered = true;
   registerNqSys();
+  registerPhases();
 
   registerIndicator<Row, number>({
     name: 'JC_SMA', shortName: 'SMA', series: 'price', precision: 2, calcParams: [50],

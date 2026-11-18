@@ -41,9 +41,10 @@ export function barEnd(key: number, tf: number, rth: boolean): number {
 }
 
 // ---------- indicators ----------
-export type IndKey = 'NQSYS' | 'EMA' | 'SMA' | 'VWAP' | 'BOLL' | 'VOL' | 'RSI' | 'ATR' | 'MACD';
+export type IndKey = 'NQSYS' | 'PHASES' | 'EMA' | 'SMA' | 'VWAP' | 'BOLL' | 'VOL' | 'RSI' | 'ATR' | 'MACD';
 export interface IndDef { label: string; name: string; main: boolean; def: number[]; hint: string; min: number; max: number; }
 export const INDS: Record<IndKey, IndDef> = {
+  PHASES: { label: 'Smart money phases & patterns', name: 'JC_PHASES', main: true, def: [], hint: 'Accumulation / markup / distribution / markdown, springs, upthrusts, sweeps, breaks of structure, key candles', min: 0, max: 0 },
   NQSYS: { label: 'NQ System v3 (S1/S2/S3/ORB)', name: 'JC_NQSYS', main: true, def: [], hint: 'Your TradingView NQ-SYS v3: day type, EMA21, VWAP, VAH/VAL, IB, PDH/PDL, signals, scorecard. Made for the 5-min chart.', min: 0, max: 0 },
   EMA: { label: 'EMA', name: 'EMA', main: true, def: [9, 21], hint: 'Periods, e.g. 9, 21, 50', min: 1, max: 6 },
   SMA: { label: 'SMA', name: 'JC_SMA', main: true, def: [50, 200], hint: 'Periods, e.g. 50, 200', min: 1, max: 6 },
