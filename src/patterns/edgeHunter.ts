@@ -39,7 +39,8 @@ const MODES = ['follow', 'fade'] as const;
 const TIMES = [{ k: 'any', a: 0, b: 390, label: 'any time' }, { k: 'open', a: 0, b: 60, label: '9:30-10:30' }, { k: 'morning', a: 60, b: 150, label: '10:30-12:00' },
   { k: 'midday', a: 150, b: 270, label: '12:00-14:00' }, { k: 'pm', a: 270, b: 390, label: '14:00-16:00' }];
 // day filter: weekday OR a calendar event (FOMC statement day, monthly OPEX, turn of month, 1st Friday = usual jobs report)
-const WDS = ['any day', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'FOMC day', 'monthly OPEX (3rd Fri)', 'turn of month', '1st Friday (jobs report)', 'no calendar event'];
+const WDS = ['any day', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'FOMC day', 'monthly OPEX (3rd Fri)', 'turn of month', '1st Friday (jobs report)', 'no calendar event',
+  'VIX calm (prior close < 16)', 'VIX normal (16-22)', 'VIX fearful (> 22)'];
 // FOMC statement days, federalreserve.gov/monetarypolicy/fomccalendars.htm (read 2026-11-18)
 const FOMC = new Set(['2021-01-27', '2021-03-17', '2021-04-28', '2021-06-16', '2021-07-28', '2021-09-22', '2021-11-03', '2021-12-15',
   '2022-01-26', '2022-03-16', '2022-05-04', '2022-06-15', '2022-07-27', '2022-09-21', '2022-11-02', '2022-12-14',
@@ -98,7 +99,7 @@ function walk(s: Store, idx: Int32Array, m0: number, dir: number, atr: number): 
 }
 
 /** All pattern events, day by day, using only finished candles. */
-function events(s: Store, on: Map<string, { h: number; l: number }>): { evs: Ev2[]; days: Store['days']; tags: number[][] } {
+function events(s: Store, on: Map<string, { h: number; l: number }>, vix: [string, number][]): { evs: Ev2[]; days: Store['days']; tags: number[][] } {
   const days = s.days;
   const evs: Ev2[] = [];
   // day filters each session belongs to (weekday + calendar events, or 'no calendar event')
@@ -113,6 +114,10 @@ function events(s: Store, on: Map<string, { h: number; l: number }>): { evs: Ev2
     if ((next && next.date.slice(0, 7) !== d.date.slice(0, 7)) || di - (monthFirst.get(d.date.slice(0, 7)) ?? di) < 3) t.push(8);
     if (d.wd === 4 && dom <= 7) t.push(9);
     if (t.length === 1) t.push(10);
+    // VIX regime from the PRIOR trading day's close (known before the open)
+    let lo = 0, hi = vix.length - 1, best = -1;
+    while (lo <= hi) { const mid = (lo + hi) >> 1; if (vix[mid][0] < d.date) { best = mid; lo = mid + 1; } else hi = mid - 1; }
+    if (best >= 0) { const v = vix[best][1]; t.push(v < 16 ? 11 : v <= 22 ? 12 : 13); }
     return t;
   });
   let pvah = NaN, pval = NaN, pwh = NaN, pwl = NaN, wkH = -Infinity, wkL = Infinity, wkKey = '';
@@ -323,6 +328,28 @@ export interface EdgeResult {
   scoreboard: unknown[]; tPass: number;
 }
 
+// Daily VIX closes from Cboe's public history file (cached 12 h; [ISO date, close], sorted)
+let vixCache: { at: number; rows: [string, number][] } | null = null;
+async function vixHistory(): Promise<[string, number][]> {
+  if (vixCache && Date.now() - vixCache.at < 12 * 3600 * 1000) return vixCache.rows;
+  try {
+    const r = await fetch('https://cdn.cboe.com/api/global/us_indices/daily_prices/VIX_History.csv');
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const rows: [string, number][] = [];
+    for (const line of (await r.text()).split(/\r?\n/).slice(1)) {
+      const [d, , , , c] = line.split(',');
+      const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(d || '');
+      if (m && Number(c) > 0) rows.push([`${m[3]}-${m[1]}-${m[2]}`, Number(c)]);
+    }
+    rows.sort((a, b) => (a[0] < b[0] ? -1 : 1));
+    vixCache = { at: Date.now(), rows };
+    return rows;
+  } catch (e: any) {
+    console.error('[edge] VIX download failed:', e.message);
+    return vixCache?.rows ?? []; // the search still runs, just without the VIX filters
+  }
+}
+
 let running: Promise<EdgeResult> | null = null;
 let progress = '';
 export const edgeStatus = () => ({ running: !!running, progress });
@@ -349,9 +376,11 @@ async function hunt(): Promise<EdgeResult> {
        FROM bars_1m WHERE sym = 1 AND ((ts AT TIME ZONE 'America/New_York')::time >= '18:00' OR (ts AT TIME ZONE 'America/New_York')::time < '09:30')
       GROUP BY 1`);
   const on = new Map<string, { h: number; l: number }>(onq.rows.map((r: any) => [r.d, { h: Number(r.h), l: Number(r.l) }]));
+  progress = 'Loading VIX history (Cboe)…';
+  const vix = await vixHistory();
   progress = 'Finding every pattern and walking every trade…';
   await new Promise(r => setImmediate(r));
-  const { evs, days, tags } = events(s, on);
+  const { evs, days, tags } = events(s, on, vix);
   const n = days.length, c1 = Math.floor(n * 0.5), c2 = Math.floor(n * 0.75);
   const split = (di: number): 0 | 1 | 2 => (di < c1 ? 0 : di < c2 ? 1 : 2);
   progress = `Testing ${SIZE.toLocaleString()} rule combinations on ${evs.length.toLocaleString()} events…`;
