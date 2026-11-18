@@ -1,3 +1,4 @@
+import SiteGuide from './components/SiteGuide';
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import Calendar from './components/Calendar';
@@ -43,7 +44,7 @@ import { PageHeader, SubTabs } from './components/ui';
 import {
   LayoutDashboard, Table2, NotebookPen, Trophy, Compass, BarChart3, Layers, Clock, Brain, Scale,
   CandlestickChart, FlaskConical, Workflow, ListChecks, ShieldCheck, Building2, Lock, Upload, Plus,
-  RefreshCw, LogOut, Menu, X, ChevronLeft, ChevronRight, LineChart, AlertTriangle, Flame, RotateCcw,
+  RefreshCw, LogOut, Menu, X, BookOpen, ChevronLeft, ChevronRight, LineChart, AlertTriangle, Flame, RotateCcw,
   Lightbulb, Users, Bot, Settings2, CalendarDays, PlusCircle,
 } from 'lucide-react';
 import './App.css';
@@ -162,6 +163,7 @@ export default function App() {
 
   // Mobile: the sidebar is a slide-in drawer
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [guideOpen, setGuideOpen] = useState(false);
 
   // Grouped by the daily flow: log it -> review it -> practise -> plan the next session
   const NAV_SECTIONS: { title: string; items: NavItem[] }[] = [
@@ -436,6 +438,9 @@ export default function App() {
           <button onClick={() => setShowAddTradeModal(true)} className="hdr-btn primary" title="Log a trade by hand">
             <Plus /><span className="hdr-label">Add trade</span>
           </button>
+          <button onClick={() => setGuideOpen(true)} className="hdr-btn ghost" title="Guide: what every page does and how to use it" aria-label="Open the guide">
+            <BookOpen /><span className="hdr-label">Guide</span>
+          </button>
           <button onClick={handleSync} className="hdr-icon" title="Sync now — pull the latest trades from the connected broker" aria-label="Sync now">
             <RefreshCw />
           </button>
@@ -446,6 +451,8 @@ export default function App() {
         </div>
       </header>
       {mobileNavOpen && <div className="nav-backdrop" onClick={() => setMobileNavOpen(false)} />}
+      <SiteGuide open={guideOpen} onClose={() => setGuideOpen(false)} onGo={go} isAdmin={isAdmin}
+        onTourMenu={o => { if (window.matchMedia('(max-width: 860px), (max-height: 500px) and (pointer: coarse)').matches) setMobileNavOpen(o); }} />
 
       <AddAccountModal
         isOpen={showAddModal}
@@ -515,6 +522,7 @@ export default function App() {
                   return (
                     <button
                       key={item.key}
+                      data-nav={item.key}
                       className={`nav-item ${active ? 'active' : ''}`}
                       aria-current={active ? 'page' : undefined}
                       title={navCollapsed ? item.label : undefined}
