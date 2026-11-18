@@ -68,6 +68,8 @@ body {
 
 .sidebar { width: 224px; flex-shrink: 0; position: relative; transition: width .18s ease; }
 .sidebar > .account-selector, .sidebar > .nav-menu { position: sticky; }
+/* sticky = its own stacking layer: keep the account menu (and its popover) above the nav below it */
+.sidebar > .account-selector { z-index: 20; }
 .content { flex: 1; min-width: 0; }
 
 /* ---- Left nav ---- */
