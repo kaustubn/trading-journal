@@ -32,3 +32,7 @@ Candles (same data as TradingView), timeframes incl. custom, 1–4 windows with 
 
 ## Suggested next build order
 Time sync (2) → scale in/out + hotkeys + break-even button → screenshot on save + session stats → object tree → session / visible-range volume profile + anchored VWAP → alerts → extra drawing tools bundle.
+
+## Status (2026-11-18)
+Done and live: time sync (2), scale in/out + hotkeys + break-even, screenshot on save, object tree (1),
+session + visible-range volume profile (3), anchored VWAP (4). Next in order: alerts (5), then the drawing tools bundle (6).
