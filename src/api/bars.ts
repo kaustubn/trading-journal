@@ -4,6 +4,7 @@ import pool from '../db';
 import { requireAdmin } from '../middleware/admin';
 import { SYMBOLS, Timeframe, validTimeframe, getBars, getMeta, getLevels } from '../bars/store';
 import { parseBarsCsv, insertBars, updateFromDatabento, maybeAutoUpdate, updateStatus, liveTick } from '../bars/ingest';
+import * as footprint from '../bars/footprint';
 
 const router = Router();
 router.use(verifyToken, requireAdmin);
@@ -143,6 +144,40 @@ router.get('/days', async (req: Request, res: Response) => {
     console.error('[bars/days]', e.message);
     res.status(500).json({ error: 'Failed to find days' });
   }
+});
+
+// ---- Footprint (order flow) — see src/bars/footprint.ts
+const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
+// GET /api/bars/footprint?day=YYYY-MM-DD[&cost=1] — cached data, or the status (+ the price when cost=1)
+router.get('/footprint', async (req: Request, res: Response) => {
+  try {
+    const day = String(req.query.day || '');
+    if (!DAY_RE.test(day)) return res.status(400).json({ error: 'day must be YYYY-MM-DD' });
+    const data = await footprint.getCached(day);
+    if (data) return res.json({ status: { day, cached: true, configured: footprint.footprintConfigured() }, data });
+    res.json({ status: await footprint.status(day, req.query.cost === '1'), data: null });
+  } catch (e: any) {
+    console.error('[bars/footprint]', e.message);
+    res.status(500).json({ error: 'Failed to read the footprint' });
+  }
+});
+// POST /api/bars/footprint { day, confirmUsd } — buy one session from Databento (cost-guarded) and cache it
+router.post('/footprint', async (req: Request, res: Response) => {
+  try {
+    const day = String(req.body?.day || '');
+    const confirmUsd = Number(req.body?.confirmUsd);
+    if (!DAY_RE.test(day)) return res.status(400).json({ error: 'day must be YYYY-MM-DD' });
+    if (!Number.isFinite(confirmUsd) || confirmUsd < 0) return res.status(400).json({ error: 'confirmUsd (the price you agreed to) is required' });
+    const data = await footprint.load(day, confirmUsd);
+    res.json({ data });
+  } catch (e: any) {
+    console.error('[bars/footprint load]', e.message);
+    res.status(e.status && e.status < 600 ? e.status : 500).json({ error: e.message || 'Failed to load the footprint' });
+  }
+});
+router.get('/footprint/days', async (_req: Request, res: Response) => {
+  try { res.json({ days: await footprint.listDays(), configured: footprint.footprintConfigured() }); }
+  catch (e: any) { res.status(500).json({ error: 'Failed to list footprint days' }); }
 });
 
 router.get('/levels', async (req: Request, res: Response) => {

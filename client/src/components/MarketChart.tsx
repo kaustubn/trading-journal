@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import axios from 'axios';
-import { Clock, TZ, wallToUtc, fmtWall, utcLabel, sessionDay } from '../chart/time';
+import { Clock, TZ, wallToUtc, fmtWall, utcLabel, sessionDay, etOffset } from '../chart/time';
+import FootprintBar from './FootprintBar';
+import { setFootprintCutoff } from '../chart/footprint';
 import DayNotes from './DayNotes';
 import DataPanel from './DataPanel';
 import ChartPane, { Workspace } from './ChartPane';
@@ -72,6 +74,7 @@ export default function MarketChart({ token, focus }: { token: string; focus?: {
   const [replayAcct, setReplayAcct] = useState<number | null>(null);
   const [focusTrade, setFocusTrade] = useState<FocusTrade | null>(null);
   const [chartDates, setChartDates] = useState<Record<number, string>>({});
+  const [fpPick, setFpPick] = useState<string>(''); // footprint session picked by hand (outside replay)
   const [live, setLive] = useState<LiveStatus | null>(null);
   const [coachOpen, setCoachOpen] = useState(false);
   const [mentorOpen, setMentorOpen] = useState(false);
@@ -136,9 +139,9 @@ export default function MarketChart({ token, focus }: { token: string; focus?: {
       .then(r => r.data.bars.map(toK)),
     rth: () => sRef.current.rth,
     stepTf: () => sRef.current.panes[sRef.current.active]?.tf ?? 5,
-    onReset: () => panesOf().forEach(p => p.reset()),
-    onMinute: k => { panesOf().forEach(p => p.onMinute(k)); checkRef.current(k.close, k.timestamp + 60000, k.high, k.low); },
-    onLive: k => { panesOf().forEach(p => p.onLive(k)); checkRef.current(k.close, wsRef.current?.engine.nowMs ?? k.timestamp); },
+    onReset: () => { const e = wsRef.current?.engine; setFootprintCutoff(e?.active ? e.nowMs : null); panesOf().forEach(p => p.reset()); },
+    onMinute: k => { setFootprintCutoff(k.timestamp + 60000); panesOf().forEach(p => p.onMinute(k)); checkRef.current(k.close, k.timestamp + 60000, k.high, k.low); },
+    onLive: k => { setFootprintCutoff(wsRef.current?.engine.nowMs ?? null); panesOf().forEach(p => p.onLive(k)); checkRef.current(k.close, wsRef.current?.engine.nowMs ?? k.timestamp); },
     onOverlays: () => panesOf().forEach(p => p.drawReplay()),
     onChange: () => setTick(n => n + 1),
     onClosed: t => { saveTradeRef.current(t); closedRef.current(t); },
@@ -403,6 +406,7 @@ export default function MarketChart({ token, focus }: { token: string; focus?: {
   };
   const exitReplay = () => {
     engine.exit();
+    setFootprintCutoff(null);
     panesOf().forEach(p => { p.setHotkeys(true); p.reset(); });
   };
   /** A random weekday at 9:00am ET — half an hour before the New York open. */
@@ -639,6 +643,9 @@ export default function MarketChart({ token, focus }: { token: string; focus?: {
 
   const typed = tfKeys ? parseTfInput(tfKeys) : null;
   const replayOn = engine.active;
+  // Footprint session: follows the replay; otherwise the one picked, else the active chart's date
+  const etDay = (ms: number) => new Date(ms + etOffset(ms)).toISOString().slice(0, 10);
+  const fpDay = replayOn && engine.cursor ? etDay(engine.cursor) : fpPick || chartDates[activeIdx] || (meta?.last ? etDay(meta.last) : '');
   const activeInds = IND_KEYS.filter(k => s.indicators[k].on).length;
   const activeTf = s.panes[activeIdx].tf;
   const busy = Object.values(busyPanes).some(Boolean);
@@ -723,6 +730,9 @@ export default function MarketChart({ token, focus }: { token: string; focus?: {
           stay={s.stayDrawing} onStay={v => update({ stayDrawing: v })} />
           : <button className="mc-draw-show" title="Show the drawing toolbar" onClick={() => update({ drawBar: true })}>›</button>}
         {s.favBar && <FavBar ctl={ctl} tools={s.favTools} onClose={() => update({ favBar: false })} />}
+        {s.indicators.FP?.on && (
+          <FootprintBar auth={auth} day={fpDay} onDay={d => setFpPick(d)} onLoaded={() => panesOf().forEach(p => p.chart.overrideIndicator({ name: 'JC_FP' }))} />
+        )}
         <div className="mc-stage">
           <div className={`mc-grid mc-grid-${s.layout}`}>
             {ready && s.panes.slice(0, count).map((p, i) => (

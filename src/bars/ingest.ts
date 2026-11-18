@@ -135,7 +135,7 @@ export function updateStatus() {
   return { configured: !!process.env.DATABENTO_API_KEY, lastAttempt: lastAttempt || null, lastResult };
 }
 
-async function dbGet(path: string, params: Record<string, string>): Promise<Response> {
+export async function dbGet(path: string, params: Record<string, string>): Promise<Response> {
   const key = process.env.DATABENTO_API_KEY!;
   const url = `${DB_BASE}/${path}?${new URLSearchParams(params)}`;
   const res = await fetch(url, { headers: { Authorization: `Basic ${Buffer.from(`${key}:`).toString('base64')}` } });

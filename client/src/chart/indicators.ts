@@ -8,6 +8,7 @@ import { registerIndicator, KLineData } from 'klinecharts';
 import { registerNqSys } from './nqsys';
 import { registerPhases } from './patterns';
 import { registerProfiles } from './profiles';
+import { registerFootprint } from './footprint';
 import { sessionDay, sessionOf, SessionName, etMinutes } from './time';
 
 export interface LevelsData {
@@ -55,6 +56,7 @@ export function registerChartIndicators() {
   registerNqSys();
   registerPhases();
   registerProfiles();
+  registerFootprint();
 
   // Heikin Ashi candles (chart type), drawn over the hidden real candles
   registerIndicator<Row, number, { up: string; down: string; wickUp: string; wickDown: string; borderUp: string; borderDown: string }>({
