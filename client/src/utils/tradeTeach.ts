@@ -117,6 +117,20 @@ export const PLAYBOOKS: Record<string, Playbook> = {
     manage: ['No breakeven.'],
     tested: 'Research year: 203 signals, −$2,790; test period −0.098R per trade → dropped.',
   },
+  own: {
+    key: 'own', name: 'Your trade', who: 'You took this one. The lesson checks it against your entry checklist (ENTRY_CHECKLIST.md) and the market at that moment.',
+    looks: [
+      'Prime time: the first 2 hours of New York (9:30–11:30 ET) or power hour (15:00–16:00). No lunch chop (12:00–13:00).',
+      'Day type at 10:00: trend / expansion → S1 pullback or ORB. Range / reversal → S2 fade or S3 sweep.',
+      'A real level for the entry: VWAP, POC, VAH / VAL, previous day high / low, overnight high / low, a prior swing, a round number.',
+      'Stop decided before the entry, and risk : reward at least the setup minimum (S1 2.5, S2 1.5, S3 2).',
+    ],
+    entry: ['Name the setup (S1 / S2 / S3 / ORB) before you click.', 'Entry at the level, on the trigger candle, in the direction of the 15m trend for S1.'],
+    stop: 'Beyond the level that proves the idea wrong (rejection wick, sweep wick, or swing), never moved further away.',
+    target: 'The next level (VWAP / POC / opposite extreme), at least the setup’s minimum R.',
+    manage: ['Partials at T1, stop to break-even only after T1 or a clear structure break, no widening the stop.'],
+    tested: 'Keep reviewing: grade each trade A / B / C and tag how you felt, so the Setups and Emotions pages can show which of your trades make money.',
+  },
   bbe: {
     key: 'bbe', name: 'BBE (Big Bar Engulfing)', who: 'Your BBE rule, coded by Claude (BBE Lab research scanner).',
     looks: ['Trend on 15m and 5m: last candle above a rising EMA18 = up, below a falling one = down (logged in the notes as 15m / 5m: 1 = with the trade, −1 = against, 0 = flat).'],
@@ -138,6 +152,8 @@ export function playbookFor(t: TeachTrade): Playbook | null {
   if (tag === 'S3 Sweep Reversal') return PLAYBOOKS.s3;
   if (tag === 'ORB') return PLAYBOOKS.orb;
   if (/^BBE stop [AB]/.test(tag)) return PLAYBOOKS.bbe;
+  // any other NQ trade with a stop: the general lesson against the trader's own checklist
+  if (t.stop_loss != null && /(^|[^A-Z])M?NQ/i.test(t.symbol || '')) return PLAYBOOKS.own;
   return null;
 }
 
@@ -234,6 +250,7 @@ export interface Facts {
   pnl: number | null; entryMs: number; exitMs: number | null; holdSec: number | null;
   outcome: 'target' | 'stop' | 'breakeven' | 'time' | 'open';
   notes: NoteFacts;
+  notesText?: string | null;
 }
 
 export function baseFacts(t: TeachTrade, side: 'long' | 'short' | null, entryMs: number, exitMs: number | null): Facts {
@@ -263,7 +280,7 @@ export function baseFacts(t: TeachTrade, side: 'long' | 'short' | null, entryMs:
   }
   return {
     dir, entry, exit, stop, target, qty, pv, riskPts, rewardPts, rr, riskUsd, rewardUsd, beWin, resultR, pnl,
-    entryMs, exitMs, holdSec: exitMs != null ? Math.max(0, (exitMs - entryMs) / 1000) : null, outcome, notes,
+    entryMs, exitMs, holdSec: exitMs != null ? Math.max(0, (exitMs - entryMs) / 1000) : null, outcome, notes, notesText: t.notes,
   };
 }
 
@@ -373,7 +390,17 @@ export function buildSteps(pb: Playbook, f: Facts, m: Market | null, setupTag: s
 
   // 3. Why it entered here
   const why: string[] = ['The rule, in order:', ...pb.entry.map((x, i) => `${i + 1}. ${x}`), 'On this trade:'];
-  if (pb.key === 'nqp' && m) {
+  if (pb.key === 'own') {
+    const setup = (setupTag || '').trim();
+    why.push(setup ? `• Setup tagged: ${setup}.` : '• No setup tagged. Name it (S1 / S2 / S3 / ORB) or it is a C-grade trade.');
+    const firstNote = (f.notes.rule ? '' : (f.notesText || '').split('\n').find(x => x.trim() && !/^Bar replay ·/.test(x) && !/^Rule breaks:/.test(x))) || '';
+    if (firstNote) why.push(`• Your note: “${firstNote.slice(0, 160)}”`);
+    const mins = etMinutes(f.entryMs);
+    const prime = (mins >= 570 && mins < 690) || (mins >= 900 && mins < 960);
+    why.push(prime ? `• ${etTime(f.entryMs)} ET is inside your prime time ✔` : `• ${etTime(f.entryMs)} ET is OUTSIDE your prime time (9:30–11:30, 15:00–16:00) ✘`);
+    if (m?.t15) why.push(`• 15m trend: ${trendWord(m.t15.trend, f.dir)}.`);
+    if (m?.near[0]) why.push(`• Nearest level: ${m.near[0].name} ${p(m.near[0].price, 2)}, ${p(Math.abs(m.near[0].dist), 1)} pt away${Math.abs(m.near[0].dist) <= 5 ? ' ✔ (at the level)' : Math.abs(m.near[0].dist) > 20 ? ' ✘ (not at a level)' : ''}.`);
+  } else if (pb.key === 'nqp' && m) {
     if (m.nyOpen != null) {
       const mv = f.entry - m.nyOpen;
       why.push(`• Price was ${pts(Math.abs(mv))} ${mv >= 0 ? 'above' : 'below'} the 9:30 open → ${mv * f.dir > 0 ? `it went ${dirWord}, with the move ✔` : `it went ${dirWord}, against the move (unusual)`}.`);
@@ -446,6 +473,16 @@ export function buildSteps(pb: Playbook, f: Facts, m: Market | null, setupTag: s
       ? `A typical win: about ${pts(f.rewardPts)} in seconds. But the stop was ${pts(f.riskPts)}. One loss like this trade’s stop costs about ${f.rr ? Math.round(1 / f.rr) : 7} wins like this.`
       : `This is the hidden cost of a 94% win rate: one loss (${usd(f.pnl)}) erases many small wins. Always ask "how big is the average loss?", not only "how often does it win?".`);
     lesson.push('Precision bots like this live or die on fills: 2 points of slippage per trade would cut its profit by about a third. 10:00 ET is also when economic news is released.');
+  } else if (pb.key === 'own') {
+    const mins = etMinutes(f.entryMs);
+    const prime = (mins >= 570 && mins < 690) || (mins >= 900 && mins < 960);
+    if (!prime) lesson.push('Outside prime time. Most of your rule breaks in replay are trades taken outside 9:30–11:30 / 15:00–16:00 ET.');
+    if (!setupTag) lesson.push('No setup named. If you cannot name the setup before the click, it is not a trade.');
+    if (m?.atr5 && f.riskPts && f.riskPts < 0.75 * m.atr5) lesson.push(`Stop ${p(f.riskPts, 1)} pt is only ${p(f.riskPts / m.atr5, 1)}× the 5-minute ATR (${p(m.atr5, 1)} pt): normal noise can hit it. Put the stop beyond a real level, and cut the size instead of the stop.`);
+    if (f.rr != null && f.rr < 1.5) lesson.push(`Planned reward only ${p(f.rr, 2)}× the risk. Your setups need at least 1.5–2.5R; skip trades whose target is closer than that.`);
+    if (m?.t15 && m.t15.trend !== 'flat' && (m.t15.trend === 'up') !== (f.dir > 0)) lesson.push('This was against the 15m trend. For S1 that breaks the rule; for S2 / S3 it needs a clear rejection at a real level.');
+    if (f.outcome === 'stop' && m?.mfe != null && f.riskPts && m.mfe / f.riskPts >= 1) lesson.push('It went 1R in your favour before stopping out. Take partials at T1 or move the stop to break-even after T1 next time.');
+    if (win && f.outcome === 'target') lesson.push('Planned and executed: the target was hit. Grade it A or B and note what you saw, so you can repeat it.');
   } else {
     if (!win && m?.t15 && m.t15.trend !== 'flat' && (m.t15.trend === 'up') !== (f.dir > 0)) lesson.push('The 15m trend was against this trade. Trading against the higher timeframe is the most common reason pullback trades fail.');
     if (setupTag === 'S1 (filtered out)') lesson.push(win ? 'It won, but this type of trade lost money over the year. One win does not make a setup good. Judge the rule over hundreds of trades.' : 'This is the type of trade the morning filter removes, and this loss is why.');

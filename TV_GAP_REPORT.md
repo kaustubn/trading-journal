@@ -34,5 +34,14 @@ Candles (same data as TradingView), timeframes incl. custom, 1–4 windows with 
 Time sync (2) → scale in/out + hotkeys + break-even button → screenshot on save + session stats → object tree → session / visible-range volume profile + anchored VWAP → alerts → extra drawing tools bundle.
 
 ## Status (2026-11-18)
-Done and live: time sync (2), scale in/out + hotkeys + break-even, screenshot on save, object tree (1),
-session + visible-range volume profile (3), anchored VWAP (4). Next in order: alerts (5), then the drawing tools bundle (6).
+Chart gaps — done and live: object tree (1), time sync (2), session + visible-range volume profile (3),
+anchored VWAP (4), alerts on price / lines / zones / time (5), drawing tools bundle (6: ray, extended line,
+info line, Fib extension, ellipse, callout, price label, arrow marks, XABCD, head and shoulders, Elliott
+1-5 and ABC), chart types (7: candles, hollow, OHLC bars, Heikin Ashi, line, area), clone / bring to front /
+send to back (8).
+Not built: compare symbols (9) — needs ES / YM bars, which the journal does not have (Databento key needed).
+
+Backtesting / forward-test — done and live: scale in / out + break-even (1), hotkeys B S A H E F (2),
+chart screenshot saved with every replay trade (3), session stats + equity curve (4), day finder (5: trend,
+range, gap up / down, big / quiet range, my losing days), 9:25 and Next day jumps (6), quick tags at exit (7).
+Not possible: order flow (8) — 1-minute bars have no bid / ask volume.
