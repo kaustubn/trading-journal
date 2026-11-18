@@ -771,6 +771,13 @@ export default function MarketChart({ token, focus }: { token: string; focus?: {
             <ReplayBar engine={engine} clock={s.clock} accounts={accounts} accountId={replayAcct}
               onAccount={setReplayAcct} onRetry={t => saveTradeRef.current(t)} onExit={exitReplay} coach={coachHooks}
               onJump={startReplay}
+              atr={(() => {
+                const p = ws.panes.get(activeIdx); const d = p?.chart.getDataList();
+                if (!p || !d || d.length < 16) return null;
+                let sum = 0;
+                for (let i = d.length - 15; i < d.length - 1; i++) sum += Math.max(d[i].high - d[i].low, Math.abs(d[i].high - d[i - 1].close), Math.abs(d[i].low - d[i - 1].close));
+                return { value: sum / 14, tf: tfLabel(p.tf()) };
+              })()}
               onTags={async (t, tags) => {
                 if (!t.dbId) return 'Not saved to the journal yet.';
                 try { await axios.put(`/api/trades/${t.dbId}`, { tags }, auth()); engine.markSaved(t.id, t.saved, t.error, { tags }); return null; }

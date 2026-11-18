@@ -651,3 +651,5 @@
 .mc-df-row { display: grid; grid-template-columns: 1.6fr 1fr 1fr; gap: 6px; text-align: left; padding: 4px 6px; border: 0; background: transparent;
   color: inherit; font-size: 12px; cursor: pointer; border-radius: 4px; }
 .mc-df-row:hover { background: rgba(128,128,128,.15); }
+
+.mc-hint.mc-warn { color: #f7a600; }

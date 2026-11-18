@@ -63,6 +63,7 @@ interface Props {
   coach: CoachHooks;
   onJump: (t: number) => Promise<void>;                                     // restart replay at time t
   onTags: (t: ClosedTrade, tags: string[]) => Promise<string | null>;       // write tags to the saved journal trade
+  atr?: { value: number; tf: string } | null;                               // ATR(14) of the active chart, for the stop check
 }
 export interface CoachHooks {
   rules: CoachRules;
@@ -77,6 +78,25 @@ type Stage =
 
 // Order ticket defaults are a per-browser convenience
 const DEF_KEY = 'mc.replay.order';
+const SIZE_KEY = 'mc.replay.sizing';
+interface Sizing { mode: 'fixed' | 'risk'; balance: number; riskPct: number; dailyPct: number; halfAfter: number }
+function loadSizing(): Sizing {
+  const d: Sizing = { mode: 'fixed', balance: 50000, riskPct: 0.5, dailyPct: 3, halfAfter: 2 };
+  try {
+    const s = JSON.parse(localStorage.getItem(SIZE_KEY) || 'null');
+    if (s && typeof s === 'object') {
+      if (s.mode === 'fixed' || s.mode === 'risk') d.mode = s.mode;
+      for (const k of ['balance', 'riskPct', 'dailyPct', 'halfAfter'] as const) if (Number.isFinite(s[k]) && s[k] >= 0) d[k] = s[k];
+    }
+  } catch { /* storage unavailable */ }
+  return d;
+}
+/** Losing trades in a row at the end of the session, and the session P&L. */
+function sessionState(trades: ClosedTrade[]) {
+  let streak = 0;
+  for (let i = trades.length - 1; i >= 0 && trades[i].pnl < 0; i--) streak++;
+  return { streak, pnl: trades.reduce((s, t) => s + t.pnl, 0) };
+}
 type Defaults = Omit<OrderInput, 'side' | 'notes'>;
 function loadDefaults(): Defaults {
   const d: Defaults = { qty: 1, contract: 'NQ', stopPts: 20, target: 2, targetUnit: 'R', setup: '' };
@@ -94,7 +114,13 @@ function loadDefaults(): Defaults {
   return d;
 }
 
-export default function ReplayBar({ engine: e, clock, accounts, accountId, onAccount, onRetry, onExit, coach, onJump, onTags }: Props) {
+export default function ReplayBar({ engine: e, clock, accounts, accountId, onAccount, onRetry, onExit, coach, onJump, onTags, atr }: Props) {
+  const [sizing, setSizingState] = useState<Sizing>(loadSizing);
+  const setSizing = (patch: Partial<Sizing>) => setSizingState(cur => {
+    const next = { ...cur, ...patch };
+    try { localStorage.setItem(SIZE_KEY, JSON.stringify(next)); } catch { /* ignore */ }
+    return next;
+  });
   const [tagFor, setTagFor] = useState<string | null>(null);   // id of the just-closed trade asking for quick tags
   const [tagErr, setTagErr] = useState('');
   const [jumping, setJumping] = useState(false);
@@ -198,7 +224,8 @@ export default function ReplayBar({ engine: e, clock, accounts, accountId, onAcc
   const submit = (ev: React.FormEvent) => {
     ev.preventDefault();
     if (!ticket || stage) return;
-    const o: OrderInput = { ...form, side: ticket };
+    const o: OrderInput = { ...form, side: ticket, qty: qtyNow };
+    if (sizing.mode === 'risk' && qtyNow < 1) { setErr(`Stop too wide for ${fmtUsd(riskUsd)} risk with ${form.contract}: switch to MNQ or use a closer level.`); return; }
     if (!Number.isInteger(o.qty) || o.qty < 1 || o.qty > 100) { setErr('Quantity must be 1–100.'); return; }
     if (!(o.stopPts > 0) || !(o.target > 0)) { setErr('Stop and target must be above 0.'); return; }
     if (e.live && otype !== 'market') {
@@ -210,6 +237,7 @@ export default function ReplayBar({ engine: e, clock, accounts, accountId, onAcc
       return;
     }
     const breaks = coach.check(o);
+    if (pastDaily) breaks.push(`Past your daily loss limit (${fmtUsd(-dailyLimit)}): the plan says stop for the day`);
     if (breaks.length && coach.rules.pauseOnBreak) { e.pause(); setStage({ kind: 'breaks', o, breaks }); return; }
     if (aiOnTrades) { runReview(o, breaks); return; }
     place(o, breaks);
@@ -218,6 +246,15 @@ export default function ReplayBar({ engine: e, clock, accounts, accountId, onAcc
 
   const reward = form.targetUnit === 'R' ? form.stopPts * form.target : form.target;
   const pv = form.contract === 'NQ' ? 20 : 2;
+  // ---- risk-based size with a drawdown throttle ----
+  const ss = sessionState(e.trades);
+  const throttled = sizing.halfAfter > 0 && ss.streak >= sizing.halfAfter;
+  const dailyLimit = sizing.balance * sizing.dailyPct / 100;
+  const pastDaily = sizing.dailyPct > 0 && ss.pnl <= -dailyLimit;
+  const riskUsd = sizing.balance * sizing.riskPct / 100 * (throttled ? 0.5 : 1);
+  const riskQty = form.stopPts > 0 ? Math.floor(riskUsd / (form.stopPts * pv)) : 0;
+  const qtyNow = sizing.mode === 'risk' ? riskQty : form.qty;
+  const tightStop = atr && atr.value > 0 && form.stopPts > 0 && form.stopPts < 0.75 * atr.value;
 
   return (
     <div className="mc-replay" onMouseDown={ev => ev.stopPropagation()}>
@@ -241,13 +278,28 @@ export default function ReplayBar({ engine: e, clock, accounts, accountId, onAcc
             </div>
           )}
           <div className="mc-row">
-            <label className="mc-field">Qty
-              <input className="mc-input" type="number" min={1} max={100} step={1} value={Number.isFinite(form.qty) ? form.qty : ''}
-                onChange={ev => setForm(f => ({ ...f, qty: Math.round(num(ev.target.value)) }))} />
-            </label>
+            <div className="mc-seg" title="Fixed contracts, or size from the money you risk to the stop">
+              <button type="button" className={sizing.mode === 'fixed' ? 'on' : ''} onClick={() => setSizing({ mode: 'fixed' })}>Fixed</button>
+              <button type="button" className={sizing.mode === 'risk' ? 'on' : ''} onClick={() => setSizing({ mode: 'risk' })}>By risk</button>
+            </div>
+            {sizing.mode === 'fixed' ? (
+              <label className="mc-field">Qty
+                <input className="mc-input" type="number" min={1} max={100} step={1} value={Number.isFinite(form.qty) ? form.qty : ''}
+                  onChange={ev => setForm(f => ({ ...f, qty: Math.round(num(ev.target.value)) }))} />
+              </label>
+            ) : (
+              <>
+                <label className="mc-field">Account $
+                  <input className="mc-input" type="number" min={1000} step={1000} value={sizing.balance} onChange={ev => setSizing({ balance: Math.max(0, num(ev.target.value) || 0) })} />
+                </label>
+                <label className="mc-field">Risk %
+                  <input className="mc-input" type="number" min={0.1} max={5} step={0.1} value={sizing.riskPct} onChange={ev => setSizing({ riskPct: Math.max(0, num(ev.target.value) || 0) })} />
+                </label>
+              </>
+            )}
             <div className="mc-seg" title="Contract">
               {(['NQ', 'MNQ'] as Contract[]).map(c => (
-                <button type="button" key={c} className={form.contract === c ? 'on' : ''} onClick={() => setForm(f => ({ ...f, contract: c }))}>{c}</button>
+                <button type="button" key={c} className={form.contract === c ? 'on' : ''} onClick={() => { setForm(f => ({ ...f, contract: c })); setErr(''); }}>{c}</button>
               ))}
             </div>
           </div>
@@ -266,9 +318,12 @@ export default function ReplayBar({ engine: e, clock, accounts, accountId, onAcc
               ))}
             </div>
           </div>
-          {Number.isFinite(reward) && Number.isFinite(form.stopPts) && Number.isFinite(form.qty) && (
-            <div className="mc-hint">Risk {fmtUsd(form.stopPts * pv * form.qty)} · reward {fmtUsd(reward * pv * form.qty)} · {(reward / form.stopPts).toFixed(2)}R</div>
+          {Number.isFinite(reward) && Number.isFinite(form.stopPts) && Number.isFinite(qtyNow) && (
+            <div className="mc-hint">{sizing.mode === 'risk' ? `${qtyNow} ${form.contract} · ` : ''}Risk {fmtUsd(form.stopPts * pv * qtyNow)} · reward {fmtUsd(reward * pv * qtyNow)} · {(reward / form.stopPts).toFixed(2)}R</div>
           )}
+          {sizing.mode === 'risk' && throttled && <div className="mc-hint mc-warn">{ss.streak} losses in a row: size cut to half ({fmtUsd(riskUsd)} risk) until a win.</div>}
+          {pastDaily && <div className="mc-hint mc-bad">Session P&amp;L {fmtUsd(ss.pnl)} is past your daily loss limit ({sizing.dailyPct}% = {fmtUsd(-dailyLimit)}). Your plan says stop for today.</div>}
+          {tightStop && atr && <div className="mc-hint mc-warn">Stop {form.stopPts} pt is only {(form.stopPts / atr.value).toFixed(1)}× the {atr.tf} ATR ({atr.value.toFixed(1)} pt): normal noise can hit it. Use a level further away and cut the size instead.</div>}
           <div className="mc-row">
             <label className="mc-field mc-grow">Setup
               <select className="mc-input" value={form.setup} onChange={ev => setForm(f => ({ ...f, setup: ev.target.value }))}>
@@ -314,7 +369,7 @@ export default function ReplayBar({ engine: e, clock, accounts, accountId, onAcc
           {!stage && <div className="mc-row mc-row-end">
             <button type="button" className="mc-btn" onClick={() => { setTicket(null); setErr(''); }}>Cancel</button>
             <button type="submit" className={`mc-btn ${ticket === 'long' ? 'mc-buy' : 'mc-sell'}`}>
-              {ticket === 'long' ? 'Buy' : 'Sell'} {form.qty} {form.contract}
+              {ticket === 'long' ? 'Buy' : 'Sell'} {qtyNow} {form.contract}
             </button>
           </div>}
         </form>
