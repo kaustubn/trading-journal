@@ -37,7 +37,7 @@ function verdict(r: any): { label: string; cls: string } {
   return { label: 'Thin edge', cls: 'warn' };
 }
 
-export default function Setups({ token, account_id, from, to }: SetupsProps) {
+export default function Setups({ token, account_id, from, to, attempt }: SetupsProps & { attempt?: number | null }) {
   const [rows, setRows] = useState<SetupRow[]>([]);
   const [groupBy, setGroupBy] = useState<'setup' | 'tag' | 'grade'>('setup');
   const [loading, setLoading] = useState(true);
@@ -46,6 +46,7 @@ export default function Setups({ token, account_id, from, to }: SetupsProps) {
     setLoading(true);
     try {
       const params = new URLSearchParams({ groupBy });
+      if (attempt) params.set('attempt', String(attempt));
       if (from) params.set('from', from);
       if (to) params.set('to', to);
       const res = await axios.get(`/api/setups/${account_id}?${params.toString()}`, {
@@ -56,12 +57,12 @@ export default function Setups({ token, account_id, from, to }: SetupsProps) {
     finally { setLoading(false); }
   };
 
-  useEffect(() => { load(); }, [account_id, groupBy, from, to]);
+  useEffect(() => { load(); }, [account_id, groupBy, from, to, attempt]);
 
   return (
     <div className="setups">
       <div className="setups-header">
-        <span className="scope-note">All runs in this account · uses the dates above</span>
+        <span className="scope-note">{attempt ? 'The run selected on the Dashboard' : 'All runs in this account'} · uses the dates above</span>
         <div className="view-toggle">
           <button className={`view-btn ${groupBy === 'setup' ? 'active' : ''}`} onClick={() => setGroupBy('setup')}>By Setup</button>
           <button className={`view-btn ${groupBy === 'grade' ? 'active' : ''}`} onClick={() => setGroupBy('grade')}>By Grade</button>

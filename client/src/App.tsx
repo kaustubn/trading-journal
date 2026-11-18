@@ -658,22 +658,22 @@ export default function App() {
 
           {/* ---- SINGLE-VIEW SECTIONS ---- */}
           {token && selectedAccount && view === 'analytics' && (
-            <ErrorBoundary name="Analytics"><Analytics token={token} account_id={selectedAccount} isAdmin={isAdmin} onNavigate={go} /></ErrorBoundary>
+            <ErrorBoundary name="Analytics"><Analytics token={token} account_id={selectedAccount} isAdmin={isAdmin} onNavigate={go} attempt={selectedAttempt} /></ErrorBoundary>
           )}
           {token && selectedAccount && view === 'setups' && (
-            <ErrorBoundary name="Setup Performance"><Setups token={token} account_id={selectedAccount} from={range.from} to={range.to} /></ErrorBoundary>
+            <ErrorBoundary name="Setup Performance"><Setups token={token} account_id={selectedAccount} from={range.from} to={range.to} attempt={selectedAttempt} /></ErrorBoundary>
           )}
           {token && selectedAccount && view === 'breakdown' && (
-            <ErrorBoundary name="Breakdown"><Breakdown token={token} account_id={selectedAccount} from={range.from} to={range.to} /></ErrorBoundary>
+            <ErrorBoundary name="Breakdown"><Breakdown token={token} account_id={selectedAccount} from={range.from} to={range.to} attempt={selectedAttempt} /></ErrorBoundary>
           )}
           {token && view === 'compare' && (
             <ErrorBoundary name="Paper vs Real"><Compare token={token} accounts={accounts} /></ErrorBoundary>
           )}
           {token && selectedAccount && view === 'discipline' && (
-            <ErrorBoundary name="Discipline"><Discipline token={token} account_id={selectedAccount} /></ErrorBoundary>
+            <ErrorBoundary name="Discipline"><Discipline token={token} account_id={selectedAccount} attempt={selectedAttempt} /></ErrorBoundary>
           )}
           {token && selectedAccount && view === 'report' && (
-            <ErrorBoundary name="Report"><Report token={token} account_id={selectedAccount} from={range.from} to={range.to} label={range.label} /></ErrorBoundary>
+            <ErrorBoundary name="Report"><Report token={token} account_id={selectedAccount} from={range.from} to={range.to} label={range.label} attempt={selectedAttempt} /></ErrorBoundary>
           )}
           {view === 'checklist' && (
             <ErrorBoundary name="Checklist"><Checklist /></ErrorBoundary>
@@ -710,7 +710,7 @@ export default function App() {
             <ErrorBoundary name="Pre-Market"><PreMarket token={token} /></ErrorBoundary>
           )}
           {token && selectedAccount && view === 'charts' && (
-            <ErrorBoundary name="Charts"><Charts token={token} account_id={selectedAccount} /></ErrorBoundary>
+            <ErrorBoundary name="Charts"><Charts token={token} account_id={selectedAccount} attempt={selectedAttempt} /></ErrorBoundary>
           )}
           {token && selectedAccount && view === 'risk' && (
             <ErrorBoundary name="Risk Management"><RiskManagement token={token} account_id={selectedAccount} /></ErrorBoundary>

@@ -28,7 +28,7 @@ interface AnalyticsProps {
   onNavigate?: (view: string) => void;
 }
 
-export default function Analytics({ token, account_id, isAdmin, onNavigate }: AnalyticsProps) {
+export default function Analytics({ token, account_id, isAdmin, onNavigate, attempt }: AnalyticsProps & { attempt?: number | null }) {
   const [stats, setStats] = useState<Stats | null>(null);
   const [monthlyData, setMonthlyData] = useState<any[]>([]);
   const [dailyData, setDailyData] = useState<any[]>([]);
@@ -39,20 +39,20 @@ export default function Analytics({ token, account_id, isAdmin, onNavigate }: An
     if (account_id) {
       fetchAnalytics();
     }
-  }, [account_id, token]);
+  }, [account_id, token, attempt]);
 
   const fetchAnalytics = async () => {
     if (!account_id) return;
     setLoading(true);
     try {
       const [statsRes, monthlyRes, dailyRes] = await Promise.all([
-        axios.get(`/api/analytics/stats/${account_id}`, {
+        axios.get(`/api/analytics/stats/${account_id}`, { params: { attempt: attempt || undefined }, 
           headers: { Authorization: `Bearer ${token}` }
         }),
-        axios.get(`/api/analytics/monthly/${account_id}`, {
+        axios.get(`/api/analytics/monthly/${account_id}`, { params: { attempt: attempt || undefined }, 
           headers: { Authorization: `Bearer ${token}` }
         }),
-        axios.get(`/api/analytics/daily/${account_id}`, {
+        axios.get(`/api/analytics/daily/${account_id}`, { params: { attempt: attempt || undefined }, 
           headers: { Authorization: `Bearer ${token}` }
         })
       ]);
@@ -83,7 +83,7 @@ export default function Analytics({ token, account_id, isAdmin, onNavigate }: An
     <>
       <div className="analytics">
         <div className="analytics-header">
-          <span className="scope-note">All trades in this account · every run, all dates</span>
+          <span className="scope-note">{attempt ? 'The run selected on the Dashboard · all dates' : 'All trades in this account · every run, all dates'}</span>
           <div className="view-toggle">
             {([['stats', 'Summary'], ['monthly', 'By month'], ['daily', 'By day']] as const).map(([k, l]) => (
               <button key={k} className={`view-btn ${view === k ? 'active' : ''}`} onClick={() => setView(k)}>{l}</button>

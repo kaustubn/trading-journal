@@ -13,7 +13,7 @@ interface ReportProps {
   label?: string;
 }
 
-export default function Report({ token, account_id, from, to, label }: ReportProps) {
+export default function Report({ token, account_id, from, to, label, attempt }: ReportProps & { attempt?: number | null }) {
   const [ov, setOv] = useState<any>(null);
   const [setups, setSetups] = useState<any[]>([]);
   const [bd, setBd] = useState<any>(null);
@@ -22,6 +22,7 @@ export default function Report({ token, account_id, from, to, label }: ReportPro
   useEffect(() => {
     setLoading(true);
     const q = new URLSearchParams();
+    if (attempt) q.set('attempt', String(attempt));
     if (from) q.set('from', from);
     if (to) q.set('to', to);
     const H = { headers: { Authorization: `Bearer ${token}` } };
@@ -30,7 +31,7 @@ export default function Report({ token, account_id, from, to, label }: ReportPro
       axios.get(`/api/setups/${account_id}?groupBy=setup&${q}`, H).then(r => r.data.data).catch(() => []),
       axios.get(`/api/breakdown/${account_id}?${q}`, H).then(r => r.data.data).catch(() => null),
     ]).then(([o, s, b]) => { setOv(o); setSetups(s || []); setBd(b); }).finally(() => setLoading(false));
-  }, [account_id, from, to]);
+  }, [account_id, from, to, attempt]);
 
   if (loading) return <div className="report loading">Building report…</div>;
   if (!ov || !ov.hasData) return <div className="report"><p className="empty">No trades in this period. Pick a wider range above (for example <b>All time</b>).</p></div>;

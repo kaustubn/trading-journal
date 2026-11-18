@@ -7,15 +7,15 @@ import '../styles/Discipline.css';
 
 interface DisciplineProps { token: string; account_id: number; }
 
-export default function Discipline({ token, account_id }: DisciplineProps) {
+export default function Discipline({ token, account_id, attempt }: DisciplineProps & { attempt?: number | null }) {
   const [d, setD] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     setLoading(true);
-    axios.get(`/api/discipline?account_id=${account_id}`, { headers: { Authorization: `Bearer ${token}` } })
+    axios.get(`/api/discipline?account_id=${account_id}${attempt ? `&attempt=${attempt}` : ''}`, { headers: { Authorization: `Bearer ${token}` } })
       .then(r => setD(r.data.data)).catch(() => setD(null)).finally(() => setLoading(false));
-  }, [account_id]);
+  }, [account_id, attempt]);
 
   if (loading) return <div className="discipline loading">Loading…</div>;
   if (!d) return <div className="discipline"><p className="empty">No discipline data yet.</p></div>;

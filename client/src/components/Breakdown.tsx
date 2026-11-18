@@ -36,7 +36,7 @@ function PnlBars({ rows, empty }: { rows: Row[]; empty?: string }) {
   );
 }
 
-export default function Breakdown({ token, account_id, from, to }: BreakdownProps) {
+export default function Breakdown({ token, account_id, from, to, attempt }: BreakdownProps & { attempt?: number | null }) {
   const [d, setD] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [f, setF] = useState<{ session: string; test_type: string; timeframe: string; tf_align: string }>({
@@ -48,6 +48,7 @@ export default function Breakdown({ token, account_id, from, to }: BreakdownProp
     setLoading(true);
     try {
       const params = new URLSearchParams();
+      if (attempt) params.set('attempt', String(attempt));
       if (from) params.set('from', from);
       if (to) params.set('to', to);
       Object.entries(f).forEach(([k, v]) => { if (v) params.set(k, v); });
@@ -56,7 +57,7 @@ export default function Breakdown({ token, account_id, from, to }: BreakdownProp
     } catch { setD(null); }
     finally { setLoading(false); }
   };
-  useEffect(() => { load(); }, [account_id, from, to, f.session, f.test_type, f.timeframe, f.tf_align]);
+  useEffect(() => { load(); }, [account_id, from, to, attempt, f.session, f.test_type, f.timeframe, f.tf_align]);
 
   const set = (k: keyof typeof f, v: string) => setF(prev => ({ ...prev, [k]: prev[k] === v ? '' : v }));
   const anyFilter = Object.values(f).some(Boolean);

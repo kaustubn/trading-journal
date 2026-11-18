@@ -3,6 +3,9 @@ import pool from '../db';
 
 const router = Router();
 
+/** Optional ?attempt=<run id>: limit to one run (the run picked on the Dashboard). */
+const attemptOf = (req: Request): number | null => { const n = Number(req.query.attempt); return Number.isInteger(n) && n > 0 ? n : null; };
+
 // Test endpoint
 router.get('/test', (req: Request, res: Response) => {
   res.json({ message: 'analytics router is working' });
@@ -36,20 +39,20 @@ router.get('/stats/:account_id', async (req: Request, res: Response) => {
         MIN(pnl) as worst_trade,
         STDDEV(pnl) as pnl_stddev
        FROM trades
-       WHERE account_id = $1 AND exit_time IS NOT NULL`,
-      [account_id]
+       WHERE account_id = $1 AND ($2::int IS NULL OR attempt_id = $2) AND exit_time IS NOT NULL`,
+      [account_id, attemptOf(req)]
     );
 
     const stats = result.rows[0];
     const winRate = stats.total_trades > 0 ? (stats.wins / stats.total_trades * 100).toFixed(2) : '0';
 
     const winSum = await pool.query(
-      'SELECT SUM(pnl) as sum FROM trades WHERE account_id = $1 AND pnl > 0',
-      [account_id]
+      'SELECT SUM(pnl) as sum FROM trades WHERE account_id = $1 AND ($2::int IS NULL OR attempt_id = $2) AND pnl > 0',
+      [account_id, attemptOf(req)]
     );
     const lossSum = await pool.query(
-      'SELECT ABS(SUM(pnl)) as sum FROM trades WHERE account_id = $1 AND pnl < 0',
-      [account_id]
+      'SELECT ABS(SUM(pnl)) as sum FROM trades WHERE account_id = $1 AND ($2::int IS NULL OR attempt_id = $2) AND pnl < 0',
+      [account_id, attemptOf(req)]
     );
 
     const totalWins = parseFloat(winSum.rows[0].sum || 0);
@@ -101,11 +104,11 @@ router.get('/monthly/:account_id', async (req: Request, res: Response) => {
         SUM(CASE WHEN pnl < 0 THEN 1 ELSE 0 END) as losses,
         SUM(pnl) as monthly_pnl
        FROM trades
-       WHERE account_id = $1 AND exit_time IS NOT NULL
+       WHERE account_id = $1 AND ($2::int IS NULL OR attempt_id = $2) AND exit_time IS NOT NULL
        GROUP BY TO_CHAR(entry_time, 'YYYY-MM')
        ORDER BY month DESC
        LIMIT 12`,
-      [account_id]
+      [account_id, attemptOf(req)]
     );
 
     res.json({
@@ -147,11 +150,11 @@ router.get('/daily/:account_id', async (req: Request, res: Response) => {
         SUM(CASE WHEN pnl < 0 THEN 1 ELSE 0 END) as losses,
         SUM(pnl) as daily_pnl
        FROM trades
-       WHERE account_id = $1 AND exit_time IS NOT NULL
+       WHERE account_id = $1 AND ($2::int IS NULL OR attempt_id = $2) AND exit_time IS NOT NULL
        GROUP BY DATE(entry_time)
        ORDER BY trade_date DESC
        LIMIT 30`,
-      [account_id]
+      [account_id, attemptOf(req)]
     );
 
     res.json({

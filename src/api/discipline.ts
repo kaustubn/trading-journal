@@ -27,8 +27,8 @@ router.get('/discipline', async (req: Request, res: Response) => {
       if (own.rows.length === 0) return res.status(403).json({ error: 'Account not found' });
       const tr = await pool.query(
         `SELECT grade, to_char(entry_time,'IYYY-IW') AS wk FROM trades
-         WHERE account_id = $1 AND grade IS NOT NULL`,
-        [account_id]
+         WHERE account_id = $1 AND ($2::int IS NULL OR attempt_id = $2) AND grade IS NOT NULL`,
+        [account_id, Number.isInteger(Number(req.query.attempt)) && Number(req.query.attempt) > 0 ? Number(req.query.attempt) : null]
       );
       for (const r of tr.rows) {
         gradedTotal++;

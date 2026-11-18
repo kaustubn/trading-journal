@@ -14,7 +14,7 @@ interface ChartsProps {
   account_id: number | null;
 }
 
-export default function Charts({ token, account_id }: ChartsProps) {
+export default function Charts({ token, account_id, attempt }: ChartsProps & { attempt?: number | null }) {
   const [dailyPnLData, setDailyPnLData] = useState<ChartData[]>([]);
   const [monthlyPnLData, setMonthlyPnLData] = useState<ChartData[]>([]);
   const [drawdownData, setDrawdownData] = useState<ChartData[]>([]);
@@ -25,17 +25,17 @@ export default function Charts({ token, account_id }: ChartsProps) {
     if (account_id) {
       fetchChartData();
     }
-  }, [account_id, token]);
+  }, [account_id, token, attempt]);
 
   const fetchChartData = async () => {
     if (!account_id) return;
     setLoading(true);
     try {
       const [dailyRes, monthlyRes] = await Promise.all([
-        axios.get(`/api/analytics/daily/${account_id}`, {
+        axios.get(`/api/analytics/daily/${account_id}`, { params: { attempt: attempt || undefined }, 
           headers: { Authorization: `Bearer ${token}` }
         }),
-        axios.get(`/api/analytics/monthly/${account_id}`, {
+        axios.get(`/api/analytics/monthly/${account_id}`, { params: { attempt: attempt || undefined }, 
           headers: { Authorization: `Bearer ${token}` }
         })
       ]);
@@ -100,7 +100,7 @@ export default function Charts({ token, account_id }: ChartsProps) {
   return (
     <div className="charts">
       <div className="charts-header">
-        <span className="scope-note">All trades in this account · every run</span>
+        <span className="scope-note">{attempt ? 'The run selected on the Dashboard' : 'All trades in this account · every run'}</span>
         <div className="chart-toggle">
           {([['daily', 'Daily P&L'], ['monthly', 'Monthly P&L'], ['drawdown', 'Drawdown']] as const).map(([k, l]) => (
             <button key={k} className={`chart-btn ${activeChart === k ? 'active' : ''}`} onClick={() => setActiveChart(k)}>{l}</button>
