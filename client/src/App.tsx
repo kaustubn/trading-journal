@@ -39,6 +39,7 @@ import UpgradeWall from './components/UpgradeWall';
 import ErrorBoundary from './components/ErrorBoundary';
 import BacktestLab from './components/BacktestLab';
 import S1Practice from './components/S1Practice';
+import PatternFinder from './components/PatternFinder';
 import { setChartLinkEnabled, OPEN_CHART_EVENT } from './utils/chartLink';
 import FocusPanel from './components/FocusPanel';
 import { PageHeader, SubTabs } from './components/ui';
@@ -46,7 +47,7 @@ import {
   LayoutDashboard, Table2, NotebookPen, Trophy, Compass, BarChart3, Layers, Clock, Brain, Scale,
   CandlestickChart, FlaskConical, Workflow, ListChecks, ShieldCheck, Building2, Lock, Upload, Plus,
   RefreshCw, LogOut, Menu, X, BookOpen, ChevronLeft, ChevronRight, LineChart, AlertTriangle, Flame, RotateCcw,
-  Lightbulb, Users, Bot, Settings2, CalendarDays, PlusCircle, Target,
+  Lightbulb, Users, Bot, Settings2, CalendarDays, PlusCircle, Target, ScanSearch,
 } from 'lucide-react';
 import './App.css';
 
@@ -65,6 +66,7 @@ const PAGE_META: Record<string, { title: string; sub: string; icon: React.Compon
   discipline: { title: 'Mindset', icon: Brain, sub: 'Did you follow your plan, and what did your emotions cost you?' },
   compare: { title: 'Paper vs Real', icon: Scale, sub: 'Put a practice account next to a live one to see what changes when real money is on the line.' },
   s1practice: { title: 'S1 Practice', icon: Target, sub: '25 replay days for S1. Every replay trade is checked against the S1 bot rules and compared with what the bot did that day.' },
+  patterns: { title: 'Pattern Finder', icon: ScanSearch, sub: 'Test your exact trade (target $ / stop $) at every time of day and weekday over 5 years of NQ, with a train / test split so luck is not mistaken for an edge.' },
   backtestlab: { title: 'Backtest Lab', icon: FlaskConical, sub: 'Stress-test a run before risking money: equity, drawdown, prop-challenge pass rate and reshuffled-order risk.' },
   strategy: { title: 'Strategy Rules', icon: Workflow, sub: 'Write down each strategy’s entry, exit and risk rules so you trade it the same way every time.' },
   checklist: { title: 'Entry Checklist', icon: ListChecks, sub: 'Run this before every entry. If any gate fails, there is no trade. The score decides A, B or C.' },
@@ -191,7 +193,7 @@ export default function App() {
     },
     {
       title: 'Practice', items: [
-        ...(isAdmin ? [{ key: 'marketchart', label: 'Market Chart', icon: CandlestickChart }, { key: 's1practice', label: 'S1 Practice', icon: Target }] : []),
+        ...(isAdmin ? [{ key: 'marketchart', label: 'Market Chart', icon: CandlestickChart }, { key: 's1practice', label: 'S1 Practice', icon: Target }, { key: 'patterns', label: 'Pattern Finder', icon: ScanSearch }] : []),
         { key: 'backtestlab', label: 'Backtest Lab', icon: FlaskConical },
         { key: 'strategy', label: 'Strategy Rules', icon: Workflow },
       ]
@@ -717,6 +719,9 @@ export default function App() {
                 onChanged={() => { fetchAttempts(); fetchDailySummaries(); }}
               />
             </ErrorBoundary>
+          )}
+          {token && isAdmin && view === 'patterns' && (
+            <ErrorBoundary name="Pattern Finder"><PatternFinder token={token} /></ErrorBoundary>
           )}
           {token && isAdmin && view === 's1practice' && (
             <ErrorBoundary name="S1 Practice"><S1Practice token={token} /></ErrorBoundary>

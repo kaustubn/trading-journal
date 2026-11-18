@@ -37,6 +37,7 @@ import chartSettingsRouter from './api/chartSettings';
 import chartDrawingsRouter from './api/chartDrawings';
 import mentorRouter from './api/mentor';
 import replayRouter from './api/replay';
+import patternsRouter from './api/patterns';
 import chartTradesRouter from './api/chartTrades';
 
 const app = express();
@@ -68,6 +69,7 @@ app.use('/api/chart/settings', chartSettingsRouter);
 app.use('/api/chart/drawings', chartDrawingsRouter);
 app.use('/api/mentor', mentorRouter); // own auth (admin only); keep above the '/api' mounts
 app.use('/api/replay', replayRouter);
+app.use('/api/patterns', patternsRouter);
 app.use('/api/chart/trade', chartTradesRouter);
 app.use('/api', tradingViewRouter);
 app.use('/api', verifyToken, tradesRouter);

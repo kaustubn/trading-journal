@@ -1,0 +1,22 @@
+/* Pattern finder (on top of BacktestLab.css) */
+.pf-run { display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: var(--radius-sm); border: 0; background: var(--brand-2); color: #fff; font-weight: 600; cursor: pointer; margin: 4px 0 8px; }
+.pf-run:disabled { opacity: .6; cursor: default; }
+.pf-luck { font-size: 11px; font-weight: 500; color: var(--text-dim); margin-left: 4px; }
+.pf-verdict { margin: 4px 0 8px; padding: 8px 12px; border-radius: 8px; font-size: 13px; font-weight: 600; }
+.pf-verdict.ok { background: rgba(38,166,154,.15); color: var(--green); }
+.pf-verdict.no { background: rgba(247,166,0,.14); color: #f7a600; }
+.pf-seg { display: inline-flex; border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; flex-wrap: wrap; }
+.pf-seg button { background: var(--card); color: var(--text-dim); border: 0; padding: 5px 9px; font-size: 12px; cursor: pointer; }
+.pf-seg button.on { background: var(--brand-2); color: #fff; }
+.pf-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.pf-grid { border-collapse: separate; border-spacing: 2px; font-size: 12px; font-variant-numeric: tabular-nums; min-width: 520px; width: 100%; }
+.pf-grid th { color: var(--text-dim); font-weight: 600; font-size: 11px; padding: 4px; text-align: center; }
+.pf-slot { color: var(--text-dim); padding-right: 6px; white-space: nowrap; text-align: right; }
+.pf-cell { text-align: center; padding: 4px 3px; border-radius: 4px; cursor: pointer; background: var(--card); white-space: nowrap; }
+.pf-cell:hover { outline: 1px solid var(--text-dim); }
+.pf-cell.pass { outline: 2px solid var(--green); }
+.pf-cell.sel { outline: 2px solid var(--brand-2); }
+.pf-days { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 4px; max-height: 360px; overflow-y: auto; }
+.pf-day { display: grid; grid-template-columns: 90px 44px 1fr 60px auto; align-items: center; gap: 6px; font-size: 12.5px; padding: 3px 6px; background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-sm); font-variant-numeric: tabular-nums; }
+.pf-day .bl-dim { margin: 0; }
+.pf-note { display: flex; gap: 8px; align-items: center; color: var(--text-dim); font-size: 13px; }
