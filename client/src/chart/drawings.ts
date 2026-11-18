@@ -8,7 +8,7 @@ import { etOffset } from './time';
 export type Tool =
   | 'trend' | 'hline' | 'hray' | 'vline' | 'rect' | 'fib'
   | 'channel' | 'text' | 'arrow' | 'long' | 'short'
-  | 'path' | 'brush' | 'highlight' | 'daterange' | 'dprange' | 'gann' | 'vprofile';
+  | 'path' | 'brush' | 'highlight' | 'daterange' | 'dprange' | 'gann' | 'vprofile' | 'avwap';
 export type LineStyle = 'solid' | 'dashed' | 'dotted';
 export type Contract = 'NQ' | 'MNQ';
 
@@ -62,6 +62,7 @@ export const TOOLS: Record<Tool, ToolDef> = {
   dprange: { label: 'Date and price range', overlay: 'jc_dprange', steps: 3, color: '#2962ff', width: 1 },
   gann: { label: 'Gann square', overlay: 'jc_gann', steps: 3, color: 'rgba(21, 56, 153, 0.8)', width: 2 },
   vprofile: { label: 'Fixed range volume profile', overlay: 'jc_vprofile', steps: 3, color: '#2962ff', width: 1 },
+  avwap: { label: 'Anchored VWAP', hint: 'click the bar to start from', overlay: 'jc_avwap', steps: 2, color: '#ff9800', width: 2 },
 };
 export const FREEHAND: Tool[] = ['brush', 'highlight'];
 export const TOOL_KEYS = Object.keys(TOOLS) as Tool[];

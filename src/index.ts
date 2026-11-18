@@ -49,7 +49,11 @@ app.use(cors({
 }));
 app.use(express.json({ limit: '25mb' })); // CSV imports can be several MB
 app.use(express.text({ type: 'text/*', limit: '25mb' })); // TradingView alerts often POST text/plain
-app.use('/api', rateLimit(100, 60 * 1000)); // 100 requests per minute
+// Render sits in front of the app: trust its proxy so req.ip is the visitor, not the proxy
+// (otherwise every visitor shares one rate-limit bucket)
+app.set('trust proxy', 1);
+// 600 requests per minute per visitor: one dashboard load alone makes ~60-90 requests
+app.use('/api', rateLimit(600, 60 * 1000));
 
 // Serve frontend static files
 const publicPath = path.join(process.cwd(), 'public');

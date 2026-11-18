@@ -4,6 +4,7 @@
 import { registerOverlay } from 'klinecharts';
 import type { OverlayFigure, Coordinate, Chart, Overlay, KLineData, OverlayTemplate } from 'klinecharts';
 import { Drawing, TICK, POINT_VALUE, fmtPrice, fmtUsd, fmtSpan, signed } from './drawings';
+import { anchoredVwap } from './profiles';
 
 type O = Overlay<Drawing>;
 type Fig = OverlayFigure;
@@ -514,6 +515,29 @@ const templates: OverlayTemplate<Drawing>[] = [
         figs.push(line([a, { x: b.x, y: Y(f) }], d, { ignoreEvent: true, styles: thin }));
         figs.push(line([a, { x: X(f), y: b.y }], d, { ignoreEvent: true, styles: thin }));
       }
+      return figs;
+    },
+  },
+  // ---------- anchored VWAP: one click on the bar to start from (a swing, the open, news) ----------
+  {
+    ...base('jc_avwap', 2), needDefaultYAxisFigure: false,
+    createPointFigures: ({ chart, overlay, coordinates, xAxis, yAxis }) => {
+      const t = overlay.points[0]?.timestamp;
+      if (!coordinates.length || typeof t !== 'number' || !xAxis || !yAxis) return [];
+      const d = overlay.extendData;
+      const data = chart.getDataList();
+      const range = chart.getVisibleRange();
+      const anchor = firstAfter(data, t - 1);
+      if (anchor >= data.length) return [];
+      const rows = anchoredVwap(data, anchor).filter(r => r[0] >= range.from - 1 && r[0] <= range.to);
+      if (rows.length < 1) return [];
+      const pt = (r: [number, number, number, number], k: 1 | 2 | 3) => ({ x: xAxis.convertToPixel(r[0]), y: yAxis.convertToPixel(r[k]) });
+      const figs: Fig[] = [line(rows.map(r => pt(r, 1)), d, { ignoreEvent: true })];
+      // ±1 standard deviation bands, faint
+      const band = { ...lineStyle(d), color: rgba(lineStyle(d).color, 0.4), style: 'dashed', dashedValue: [3, 3], size: 1 };
+      figs.push(line(rows.map(r => pt(r, 2)), d, { ignoreEvent: true, styles: band }), line(rows.map(r => pt(r, 3)), d, { ignoreEvent: true, styles: band }));
+      const last = rows[rows.length - 1];
+      figs.push(label(pt(last, 1).x - 4, pt(last, 1).y - 11, `AVWAP ${fmtPrice(last[1])}`, lineStyle(d).color, 'right'));
       return figs;
     },
   },

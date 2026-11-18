@@ -7,6 +7,7 @@
 import { registerIndicator, KLineData } from 'klinecharts';
 import { registerNqSys } from './nqsys';
 import { registerPhases } from './patterns';
+import { registerProfiles } from './profiles';
 import { sessionDay, sessionOf, SessionName, etMinutes } from './time';
 
 export interface LevelsData {
@@ -53,6 +54,7 @@ export function registerChartIndicators() {
   registered = true;
   registerNqSys();
   registerPhases();
+  registerProfiles();
 
   registerIndicator<Row, number>({
     name: 'JC_SMA', shortName: 'SMA', series: 'price', precision: 2, calcParams: [50],

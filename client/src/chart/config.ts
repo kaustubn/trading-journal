@@ -43,7 +43,7 @@ export function barEnd(key: number, tf: number, rth: boolean): number {
 }
 
 // ---------- indicators ----------
-export type IndKey = 'NQSYS' | 'PHASES' | 'EMA' | 'SMA' | 'VWAP' | 'BOLL' | 'VOL' | 'RSI' | 'ATR' | 'MACD';
+export type IndKey = 'NQSYS' | 'PHASES' | 'EMA' | 'SMA' | 'VWAP' | 'SVP' | 'VRVP' | 'BOLL' | 'VOL' | 'RSI' | 'ATR' | 'MACD';
 export interface IndDef { label: string; name: string; main: boolean; def: number[]; hint: string; min: number; max: number; }
 export const INDS: Record<IndKey, IndDef> = {
   PHASES: { label: 'Smart money phases & patterns', name: 'JC_PHASES', main: true, def: [], hint: 'Accumulation / markup / distribution / markdown, springs, upthrusts, sweeps, breaks of structure, key candles', min: 0, max: 0 },
@@ -51,6 +51,8 @@ export const INDS: Record<IndKey, IndDef> = {
   EMA: { label: 'EMA', name: 'EMA', main: true, def: [9, 21], hint: 'Periods, e.g. 9, 21, 50', min: 1, max: 6 },
   SMA: { label: 'SMA', name: 'JC_SMA', main: true, def: [50, 200], hint: 'Periods, e.g. 50, 200', min: 1, max: 6 },
   VWAP: { label: 'VWAP', name: 'JC_VWAP', main: true, def: [], hint: 'Resets at the 6pm ET session open', min: 0, max: 0 },
+  SVP: { label: 'Volume profile: session', name: 'JC_SVP', main: true, def: [24], hint: 'Rows per day. Real POC / VAH / VAL for each 6pm ET trading day. Lower timeframes give a finer profile.', min: 1, max: 1 },
+  VRVP: { label: 'Volume profile: visible range', name: 'JC_VRVP', main: true, def: [40], hint: 'Rows. Profile of the candles on screen, updates as you scroll.', min: 1, max: 1 },
   BOLL: { label: 'Bollinger Bands', name: 'BOLL', main: true, def: [20, 2], hint: 'Period, deviations', min: 2, max: 2 },
   VOL: { label: 'Volume', name: 'VOL', main: false, def: [], hint: 'Moving average period (empty = no average, like your TradingView)', min: 0, max: 1 },
   RSI: { label: 'RSI', name: 'RSI', main: false, def: [14], hint: 'Period', min: 1, max: 1 },

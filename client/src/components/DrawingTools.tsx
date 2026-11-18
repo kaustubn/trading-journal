@@ -29,6 +29,7 @@ const ICONS: Record<Tool | 'cursor' | 'measure' | 'magnet' | 'lock' | 'eye' | 'e
   daterange: <Icon><path {...S} d="M5 5v14M19 5v14M7 12h10" /><path {...S} d="M14 9l3 3-3 3" /></Icon>,
   dprange: <Icon><rect {...S} x="4" y="5" width="16" height="14" rx="1" /><path {...S} d="M12 7v10M7 12h10" /></Icon>,
   gann: <Icon><rect {...S} x="4" y="4" width="16" height="16" /><path {...S} d="M4 20L20 4M4 20L20 12M4 20L12 4" /></Icon>,
+  avwap: <Icon><path {...S} d="M3 18c4-1 5-9 9-9s5 5 9 3" /><circle cx="3.5" cy="18" r="1.6" fill="currentColor" /></Icon>,
   vprofile: <Icon><path {...S} d="M4 4v16" /><path stroke="currentColor" strokeWidth="2.5" d="M5 6h5M5 9h9M5 12h14M5 15h8M5 18h4" /></Icon>,
   measure: <Icon><path {...S} d="M4 16L16 4l4 4L8 20z" /><path {...S} d="M8 12l2 2M11 9l2 2M14 6l2 2" /></Icon>,
   magnet: <Icon><path {...S} d="M6 4v8a6 6 0 0012 0V4h-4v8a2 2 0 01-4 0V4z" /><path {...S} d="M6 8h4M14 8h4" /></Icon>,
@@ -42,7 +43,7 @@ const GROUPS: Tool[][] = [
   ['trend', 'hline', 'hray', 'vline', 'path'],
   ['rect', 'channel', 'fib', 'gann'],
   ['brush', 'highlight', 'text', 'arrow'],
-  ['long', 'short', 'daterange', 'dprange', 'vprofile'],
+  ['long', 'short', 'daterange', 'dprange', 'vprofile', 'avwap'],
 ];
 const MAGNET_NEXT: Record<Magnet, Magnet> = { off: 'weak', weak: 'strong', strong: 'off' };
 const MAGNET_LABEL: Record<Magnet, string> = { off: 'Magnet off', weak: 'Weak magnet', strong: 'Strong magnet' };
