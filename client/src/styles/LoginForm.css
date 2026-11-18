@@ -4,14 +4,14 @@
   align-items: center;
   min-height: 100vh;
   background:
-    radial-gradient(1200px 500px at 50% -10%, rgba(99,102,241,.14), transparent 60%),
-    #0e0f13;
+    radial-gradient(1200px 500px at 50% -10%, rgba(91,108,240,.14), transparent 60%),
+    var(--bg);
   padding: 20px;
 }
 
 .login-box {
-  background: #171920;
-  border: 1px solid #2a2e3a;
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 16px;
   padding: 40px 36px;
   width: 100%;
@@ -22,7 +22,7 @@
 .login-box h1 {
   font-size: 24px;
   font-weight: 700;
-  color: #e6e8ec;
+  color: var(--text);
   text-align: center;
   letter-spacing: -0.02em;
   display: flex;
@@ -36,13 +36,13 @@
   width: 12px;
   height: 12px;
   border-radius: 50%;
-  background: #6366f1;
-  box-shadow: 0 0 14px rgba(99,102,241,.8);
+  background: var(--accent);
+  box-shadow: 0 0 14px rgba(91,108,240,.8);
 }
 
 .subtitle {
   text-align: center;
-  color: #9aa0ac;
+  color: var(--text-dim);
   font-size: 13px;
   margin: 8px 0 28px;
 }
@@ -54,9 +54,9 @@
 }
 
 .login-form input {
-  background: #0e0f13;
-  color: #e6e8ec;
-  border: 1px solid #2a2e3a;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
   border-radius: 8px;
   padding: 12px 14px;
   font-size: 14px;
@@ -65,14 +65,14 @@
 }
 
 .login-form input:focus {
-  border-color: #6366f1;
-  box-shadow: 0 0 0 3px rgba(99,102,241,.18);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(91,108,240,.18);
 }
 
-.login-form input::placeholder { color: #6b7280; }
+.login-form input::placeholder { color: var(--muted); }
 
 .submit-btn {
-  background: #6366f1;
+  background: var(--accent);
   color: #fff;
   border: none;
   padding: 12px;
@@ -84,7 +84,7 @@
   transition: background .15s ease;
 }
 
-.submit-btn:hover { background: #818cf8; }
+.submit-btn:hover { background: var(--accent-hover); }
 .submit-btn:disabled { opacity: .6; cursor: not-allowed; }
 
 .error-message {
@@ -98,7 +98,7 @@
 
 .toggle-mode {
   text-align: center;
-  color: #9aa0ac;
+  color: var(--text-dim);
   font-size: 13px;
   margin-top: 20px;
 }
@@ -106,7 +106,7 @@
 .toggle-mode button {
   background: none;
   border: none;
-  color: #818cf8;
+  color: var(--accent-hover);
   cursor: pointer;
   font-size: 13px;
   font-weight: 600;

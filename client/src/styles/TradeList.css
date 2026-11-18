@@ -2,7 +2,7 @@
 
 .trade-list.loading, .trade-list.empty {
   text-align: center;
-  color: #6b7280;
+  color: var(--muted);
   padding: 40px 20px;
   font-size: 14px;
 }
@@ -13,51 +13,53 @@
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
-  background: linear-gradient(180deg, rgba(99,102,241,.14), #171920);
-  border: 1px solid rgba(99,102,241,.35);
+  background: linear-gradient(180deg, rgba(91,108,240,.14), var(--surface));
+  border: 1px solid rgba(91,108,240,.35);
   border-radius: 10px;
   padding: 10px 14px;
   margin-bottom: 12px;
 }
-.bulk-count { font-weight: 700; color: #c7d2fe; font-size: 13px; margin-right: 6px; }
-.bulk-lbl { color: #9aa0ac; font-size: 12px; margin-left: 6px; }
+.bulk-count { font-weight: 700; color: var(--accent-ink); font-size: 13px; margin-right: 6px; }
+.bulk-lbl { color: var(--text-dim); font-size: 12px; margin-left: 6px; }
 .bulk-chip {
-  background: #232733; border: 1px solid #363b49; color: #e6e8ec;
+  background: var(--raised-2); border: 1px solid var(--border-strong); color: var(--text);
   padding: 5px 11px; border-radius: 7px; font-size: 12px; font-weight: 700; cursor: pointer;
 }
-.bulk-chip:hover { background: #6366f1; border-color: #6366f1; }
-.bulk-chip.grade-A:hover { background: #22c55e; border-color: #22c55e; }
-.bulk-chip.grade-B:hover { background: #f5a623; border-color: #f5a623; }
-.bulk-chip.grade-C:hover { background: #ef4444; border-color: #ef4444; }
-.bulk-clear { margin-left: auto; background: transparent; border: none; color: #9aa0ac; cursor: pointer; font-size: 12px; font-weight: 600; }
+.bulk-chip:hover { background: var(--accent); border-color: var(--accent); }
+.bulk-chip.grade-A:hover { background: var(--success); border-color: var(--success); }
+.bulk-chip.grade-B:hover { background: var(--warning); border-color: var(--warning); }
+.bulk-chip.grade-C:hover { background: var(--danger); border-color: var(--danger); }
+.bulk-clear { margin-left: auto; background: transparent; border: none; color: var(--text-dim); cursor: pointer; font-size: 12px; font-weight: 600; }
 
 /* Table */
 .trades-table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .trades-table thead th {
-  text-align: left; color: #6b7280; font-size: 11px; text-transform: uppercase;
-  letter-spacing: .04em; font-weight: 600; padding: 8px 10px; border-bottom: 1px solid #2a2e3a;
+  text-align: left; color: var(--muted); font-size: 11px; text-transform: uppercase;
+  letter-spacing: .04em; font-weight: 600; padding: 8px 10px; border-bottom: 1px solid var(--border);
 }
-.trades-table td { padding: 8px 10px; border-bottom: 1px solid #23262f; color: #cbd0d8; cursor: pointer; }
+.trades-table td { padding: 8px 10px; border-bottom: 1px solid var(--raised-2); color: var(--text-dim); cursor: pointer; }
 .trade-row:hover { background: rgba(255,255,255,.02); }
-.trade-row.sel { background: rgba(99,102,241,.08); }
-.trades-table .positive { color: #22c55e; font-weight: 600; }
-.trades-table .negative { color: #ef4444; font-weight: 600; }
+.trade-row.sel { background: rgba(91,108,240,.08); }
+.trades-table .positive { color: var(--success); font-weight: 600; }
+.trades-table .negative { color: var(--danger); font-weight: 600; }
 .col-check { width: 34px; cursor: default; }
-.col-check input { cursor: pointer; accent-color: #6366f1; }
+.col-check input { cursor: pointer; accent-color: var(--accent); }
 
 /* Inline row chips (setup + grade quick-tag) */
 .row-chips { display: flex; gap: 3px; }
 .row-chip {
-  background: #1a1d24; border: 1px solid #2a2e3a; color: #6b7280;
+  background: var(--raised); border: 1px solid var(--border); color: var(--muted);
   padding: 3px 7px; border-radius: 6px; font-size: 11px; font-weight: 700; cursor: pointer; transition: all .1s ease;
 }
-.row-chip:hover { color: #e6e8ec; border-color: #4b5163; }
-.row-chip.on { background: #6366f1; border-color: #6366f1; color: #fff; }
-.row-chip.grade-A.on { background: #22c55e; border-color: #22c55e; color: #04220f; }
-.row-chip.grade-B.on { background: #f5a623; border-color: #f5a623; color: #241800; }
-.row-chip.grade-C.on { background: #ef4444; border-color: #ef4444; color: #fff; }
+.row-chip:hover { color: var(--text); border-color: #4b5163; }
+.row-chip.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+.row-chip.grade-A.on { background: var(--success); border-color: var(--success); color: #04220f; }
+.row-chip.grade-B.on { background: var(--warning); border-color: var(--warning); color: #241800; }
+.row-chip.grade-C.on { background: var(--danger); border-color: var(--danger); color: #fff; }
 
 @media (max-width: 700px) {
   .trades-table { font-size: 12px; }
   .row-chip { padding: 2px 5px; }
 }
+.tl-shot { margin-left: 6px; color: var(--muted); }
+.trades-table .trade-row td { cursor: pointer; }

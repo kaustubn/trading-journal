@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { num, money } from '../utils/format';
 import { useOptions, values } from '../utils/options';
+import { Clock, CalendarDays, Package, Filter, Globe, Crosshair, Timer, Layers, Scale } from 'lucide-react';
 import '../styles/Breakdown.css';
 
 interface Row { key: string; trades: number; wins: number; winRate: number; pnl: number; }
@@ -77,13 +78,13 @@ export default function Breakdown({ token, account_id, from, to }: BreakdownProp
       {/* Filters — narrow every chart below */}
       <div className="bd-filters">
         <div className="bd-filters-head">
-          <h3>🔎 Filter</h3>
+          <h3><Filter className="ic-sm" /> Filter by how you tagged trades</h3>
           {anyFilter && <button className="bd-clear" onClick={() => setF({ session: '', test_type: '', timeframe: '', tf_align: '' })}>Clear all</button>}
         </div>
         <FilterRow label="Session" k="session" opts={values(opts, 'session')} />
-        <FilterRow label="Testing type" k="test_type" opts={values(opts, 'test_type')} />
+        <FilterRow label="Entry type" k="test_type" opts={values(opts, 'test_type')} />
         <FilterRow label="Timeframe" k="timeframe" opts={values(opts, 'timeframe')} />
-        <FilterRow label="TF Align" k="tf_align" opts={['1', '2', '3', '4', '5']} />
+        <FilterRow label="TFs agreeing" k="tf_align" opts={['1', '2', '3', '4', '5']} />
       </div>
 
       {loading ? (
@@ -112,53 +113,60 @@ export default function Breakdown({ token, account_id, from, to }: BreakdownProp
 
           <div className="bd-grid">
             <div className="bd-section">
-              <h3>🌏 By Session</h3>
+              <h3><Clock className="ic-sm" /> By hour of day</h3>
+              <p className="bd-hint">Hour the trade was entered, in the clock your trades were recorded in.</p>
+              <PnlBars rows={d.hours} />
+            </div>
+            <div className="bd-section">
+              <h3><CalendarDays className="ic-sm" /> By day of week</h3>
+              <p className="bd-hint">Green bars made money, red bars lost it. Long red bars are the days to trade smaller.</p>
+              <PnlBars rows={d.dows} />
+            </div>
+          </div>
+
+          {(d.symbols || []).length > 1 && (
+            <div className="bd-section">
+              <h3><Package className="ic-sm" /> By instrument</h3>
+              <p className="bd-hint">Which markets make or lose you money.</p>
+              <PnlBars rows={d.symbols} />
+            </div>
+          )}
+
+          <h3 className="bd-group-title">By how you tagged the trade</h3>
+          <div className="bd-grid">
+            <div className="bd-section">
+              <h3><Globe className="ic-sm" /> By session</h3>
               <PnlBars rows={d.sessions} empty="No trades tagged with a session yet — set it in the trade popup." />
             </div>
             <div className="bd-section">
-              <h3>🎯 By Testing Type</h3>
-              <PnlBars rows={d.testTypes} empty="No trades tagged with a testing type yet." />
+              <h3><Crosshair className="ic-sm" /> By entry type</h3>
+              <PnlBars rows={d.testTypes} empty="No trades tagged with an entry type yet." />
             </div>
           </div>
 
           <div className="bd-grid">
             <div className="bd-section">
-              <h3>⏱ By Timeframe</h3>
+              <h3><Timer className="ic-sm" /> By timeframe</h3>
               <PnlBars rows={d.timeframes} empty="No trades tagged with a timeframe yet." />
             </div>
             <div className="bd-section">
-              <h3>🧭 By TF Align</h3>
-              <PnlBars rows={d.tfAligns} empty="No trades tagged with TF align yet." />
+              <h3><Layers className="ic-sm" /> By timeframes agreeing</h3>
+              <PnlBars rows={d.tfAligns} empty="No trades tagged with timeframes agreeing yet." />
             </div>
           </div>
 
           {d.rrs && d.rrs.length > 0 && (
             <div className="bd-section">
-              <h3>⚖️ By Planned R:R</h3>
+              <h3><Scale className="ic-sm" /> By planned reward:risk</h3>
               <PnlBars rows={d.rrs} />
             </div>
           )}
 
-          <div className="bd-section">
-            <h2>📦 By Instrument</h2>
-            <p className="bd-hint">Which underlyings make or lose you money.</p>
-            <PnlBars rows={d.symbols} />
-          </div>
 
-          <div className="bd-grid">
-            <div className="bd-section">
-              <h3>📅 By Day of Week</h3>
-              <PnlBars rows={d.dows} />
-            </div>
-            <div className="bd-section">
-              <h3>🕐 By Hour of Day</h3>
-              <PnlBars rows={d.hours} />
-            </div>
-          </div>
 
           {d.taggedCount === 0 && (
             <p className="bd-hint bd-nudge">
-              Tip: open any trade and set <b>Session / Testing type / Timeframe / TF Align</b> — then these
+              Tip: open any trade and set <b>Session / Entry type / Timeframe / Timeframes agreeing</b> — then these
               charts and filters come alive. Use the checkboxes on the trades list to tag many at once.
             </p>
           )}

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { X } from 'lucide-react';
 import axios from 'axios';
 import '../styles/Advanced.css';
 
@@ -133,7 +134,7 @@ export default function Advanced({ token, user_id }: AdvancedProps) {
   return (
     <div className="advanced">
       <div className="advanced-header">
-        <h2>📊 Advanced Analytics</h2>
+        <h2>Advanced analytics</h2>
         <div className="tabs">
           <button className={`tab ${activeTab === 'portfolio' ? 'active' : ''}`} onClick={() => setActiveTab('portfolio')}>
             Portfolio
@@ -261,7 +262,7 @@ export default function Advanced({ token, user_id }: AdvancedProps) {
                 <div key={alert.id} className={`alert alert-${alert.severity}`}>
                   <div className="alert-header">
                     <span className="type">{alert.alert_type}</span>
-                    <button onClick={() => markAlertRead(alert.id)} className="btn-dismiss">✕</button>
+                    <button onClick={() => markAlertRead(alert.id)} className="btn-dismiss" aria-label="Dismiss"><X className="ic-sm" /></button>
                   </div>
                   <p>{alert.message}</p>
                 </div>

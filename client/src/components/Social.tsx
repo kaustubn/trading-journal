@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Medal, ThumbsUp, X } from 'lucide-react';
 import axios from 'axios';
 import '../styles/Social.css';
 
@@ -144,7 +145,7 @@ export default function Social({ token, user_id }: SocialProps) {
   return (
     <div className="social">
       <div className="social-header">
-        <h2>🌐 Social</h2>
+        <h2>Social</h2>
         <div className="social-tabs">
           <button
             className={`tab ${activeTab === 'leaderboard' ? 'active' : ''}`}
@@ -183,7 +184,7 @@ export default function Social({ token, user_id }: SocialProps) {
                   <td className="rank">
                     {entry.rank <= 3 ? (
                       <span className={`medal medal-${entry.rank}`}>
-                        {entry.rank === 1 ? '🥇' : entry.rank === 2 ? '🥈' : '🥉'}
+                        <Medal className="ic-sm" style={{ color: entry.rank === 1 ? '#f5c542' : entry.rank === 2 ? '#c0c6d0' : '#cd8a4f' }} />
                       </span>
                     ) : (
                       <span className="rank-number">#{entry.rank}</span>
@@ -266,7 +267,7 @@ export default function Social({ token, user_id }: SocialProps) {
                     setSelectedUserId(null);
                   }}
                 >
-                  ✕
+                  <X className="ic-sm" />
                 </button>
               </div>
             </div>
@@ -296,7 +297,7 @@ export default function Social({ token, user_id }: SocialProps) {
                     className="btn-like"
                     onClick={() => handleLike(trade.id, false)}
                   >
-                    👍 {trade.likes}
+                    <ThumbsUp className="ic-sm" /> {trade.likes}
                   </button>
                 </div>
               </div>

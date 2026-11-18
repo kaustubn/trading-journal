@@ -21,7 +21,7 @@
 
 .btn-create {
   padding: 10px 16px;
-  background: #5a67d8;
+  background: var(--accent);
   color: white;
   border: none;
   border-radius: 6px;
@@ -63,7 +63,7 @@
 }
 
 .form-new-bot button:first-of-type {
-  background: #5a67d8;
+  background: var(--accent);
   color: white;
 }
 
@@ -96,7 +96,7 @@
 }
 
 .bot-card:hover {
-  border-color: #5a67d8;
+  border-color: var(--accent);
   box-shadow: 0 2px 8px rgba(90, 103, 216, 0.1);
 }
 

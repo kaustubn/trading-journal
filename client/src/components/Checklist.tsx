@@ -4,10 +4,7 @@ import '../styles/Checklist.css';
 export default function Checklist() {
   return (
     <div className="checklist">
-      <div className="cl-head">
-        <h2>✅ NQ Entry Checklist & Ranking</h2>
-        <p>Top-down: Universal gates → Day type → Setup criteria → Score & rank. Any gate fails → NO TRADE.</p>
-      </div>
+      <p className="cl-flow">Work top-down: <b>1</b> universal gates → <b>2</b> day type → <b>3</b> setup criteria → <b>4</b> score &amp; rank. Any gate fails → no trade.</p>
 
       <div className="cl-card">
         <h3>1 · Universal Gates <span className="cl-note">(all must pass)</span></h3>

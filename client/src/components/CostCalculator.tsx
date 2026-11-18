@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Calculator } from 'lucide-react';
 import { FIRMS, PRICES, Price } from '../data/propfirms';
 
 type Size = '25K' | '50K';
@@ -43,7 +44,7 @@ export default function CostCalculator({ size }: { size: Size }) {
 
   return (
     <div className="pf-card cost-calc">
-      <h3>💰 Cost-to-Funded Calculator — {size}</h3>
+      <h3><Calculator className="ic-sm" /> What it really costs to get funded · {size}</h3>
       <p className="cc-sub">Prop firms bill in <b>USD</b>. Edit prices are USD; the <b>Total</b> shows in your chosen currency. Ballpark defaults — plug in your real checkout price.</p>
 
       <div className="cc-currency">

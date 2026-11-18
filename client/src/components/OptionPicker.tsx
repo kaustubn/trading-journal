@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Pencil, X } from 'lucide-react';
 import { useOptions, addOption, removeOption } from '../utils/options';
 import './OptionPicker.css';
 
@@ -35,7 +36,7 @@ export default function OptionPicker({ field, label, hint, value, onChange, allo
         {label} {hint && <span className="hint">{hint}</span>}
         <button type="button" className={`op-manage ${manage ? 'on' : ''}`}
           title={manage ? 'Done editing list' : 'Edit this list'}
-          onClick={() => setManage(m => !m)}>{manage ? 'Done' : '✎'}</button>
+          onClick={() => setManage(m => !m)} aria-label={manage ? 'Done editing options' : 'Edit options'}>{manage ? 'Done' : <Pencil className="ic-sm" />}</button>
       </label>
 
       <div className="chip-row">
@@ -60,7 +61,7 @@ export default function OptionPicker({ field, label, hint, value, onChange, allo
                                 if (e.key === 'Escape') { setDraft(''); setAdding(false); } }}
               placeholder={`New ${label.toLowerCase()}…`} className="op-input" />
             <button type="button" className="op-save" onClick={submit}>Add</button>
-            <button type="button" className="op-cancel" onClick={() => { setDraft(''); setAdding(false); }}>✕</button>
+            <button type="button" className="op-cancel" onClick={() => { setDraft(''); setAdding(false); }} aria-label="Cancel"><X className="ic-sm" /></button>
           </span>
         ) : (
           <button type="button" className="op-addbtn" onClick={() => setAdding(true)}>+ Add</button>

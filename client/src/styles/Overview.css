@@ -3,22 +3,22 @@
 /* Performance score card */
 .ov-score {
   display: flex; align-items: center; gap: 22px;
-  background: #171920; border: 1px solid #2a2e3a; border-radius: 12px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg);
   padding: 16px 20px; margin-bottom: 12px;
 }
 .ov-score-gauge { flex-shrink: 0; width: 120px; }
 .ov-score-svg { width: 120px; height: 120px; }
-.ov-score-num { font-size: 34px; font-weight: 800; }
-.ov-score-grade { font-size: 15px; font-weight: 700; fill: #9aa0ac; }
+.ov-score-num { font-size: 32px; font-weight: 700; }
+.ov-score-grade { font-size: 15px; font-weight: 700; fill: var(--text-dim); }
 .ov-score-parts { flex: 1; min-width: 0; }
-.ov-score-title { font-size: 13px; font-weight: 650; color: #e6e8ec; margin-bottom: 10px; }
-.ov-score-title span { color: #6b7180; font-weight: 400; }
+.ov-score-title { font-size: 13px; font-weight: 650; color: var(--text); margin-bottom: 10px; }
+.ov-score-title span { color: var(--muted); font-weight: 400; }
 .ov-score-row { display: grid; grid-template-columns: 110px 1fr 30px 34px; align-items: center; gap: 8px; margin-bottom: 6px; }
-.ov-score-plabel { font-size: 12px; color: #9aa0ac; }
-.ov-score-bar { height: 7px; background: #0e0f13; border-radius: 999px; overflow: hidden; }
+.ov-score-plabel { font-size: 12px; color: var(--text-dim); }
+.ov-score-bar { height: 7px; background: var(--bg); border-radius: 999px; overflow: hidden; }
 .ov-score-fill { height: 100%; border-radius: 999px; transition: width .3s ease; }
-.ov-score-pval { font-size: 12px; font-weight: 600; color: #e6e8ec; text-align: right; }
-.ov-score-w { font-size: 11px; color: #6b7180; text-align: right; }
+.ov-score-pval { font-size: 12px; font-weight: 600; color: var(--text); text-align: right; }
+.ov-score-w { font-size: 11px; color: var(--muted); text-align: right; }
 @media (max-width: 640px) {
   .ov-score { flex-direction: column; gap: 12px; align-items: stretch; }
   .ov-score-gauge { align-self: center; }
@@ -26,10 +26,10 @@
 }
 
 .overview.loading, .overview.empty-ov {
-  background: #171920; border: 1px solid #2a2e3a; border-radius: 12px;
-  padding: 24px; color: #9aa0ac;
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg);
+  padding: 24px; color: var(--text-dim);
 }
-.overview.empty-ov h3 { color: #e6e8ec; margin-bottom: 6px; }
+.overview.empty-ov h3 { color: var(--text); margin-bottom: 6px; }
 
 /* KPI strip */
 .ov-kpis {
@@ -39,54 +39,71 @@
   margin-bottom: 14px;
 }
 .ov-kpi {
-  background: #171920; border: 1px solid #2a2e3a; border-radius: 12px; padding: 14px 16px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg); padding: 14px 16px;
 }
-.ov-kpi.big { background: linear-gradient(180deg, #1b1e27, #171920); }
-.ov-label { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: #9aa0ac; font-weight: 600; }
-.ov-value { font-size: 26px; font-weight: 720; color: #e6e8ec; margin-top: 4px; letter-spacing: -0.02em; }
-.ov-kpi.big .ov-value { font-size: 30px; }
-.ov-value.positive { color: #22c55e; }
-.ov-value.negative { color: #ef4444; }
-.ov-sub { font-size: 11.5px; color: #6b7280; margin-top: 3px; }
+.ov-kpi.big { background: var(--surface); }
+.ov-label { display: flex; align-items: center; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); font-weight: 600; }
+.ov-value { font-size: 24px; font-weight: 650; color: var(--text); margin-top: 4px; letter-spacing: -0.02em; }
+.ov-kpi.big .ov-value { font-size: 28px; }
+.ov-value.positive { color: var(--success); }
+.ov-value.negative { color: var(--danger); }
+.ov-sub { font-size: 11.5px; color: var(--muted); margin-top: 3px; }
 
 /* Equity curve */
 .ov-curve {
-  background: #171920; border: 1px solid #2a2e3a; border-radius: 12px; padding: 16px 18px; margin-bottom: 14px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg); padding: 16px 18px; margin-bottom: 14px;
 }
 .ov-curve-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 10px; }
-.ov-curve-head h3 { font-size: 14px; color: #e6e8ec; }
-.ov-curve-note { font-size: 12px; color: #6b7280; }
-.ov-cost { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #9aa0ac; }
+.ov-curve-head h3 { font-size: 14px; color: var(--text); }
+.ov-curve-note { font-size: 12px; color: var(--muted); }
+.ov-cost { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-dim); }
 .ov-cost input {
-  background: #0e0f13; border: 1px solid #363b49; color: #e6e8ec;
+  background: var(--bg); border: 1px solid var(--border-strong); color: var(--text);
   border-radius: 6px; padding: 5px 8px; font-size: 12px; outline: none;
 }
 .ov-cost-btn {
-  background: #232733; border: 1px solid #363b49; color: #c7d2fe;
+  background: var(--raised-2); border: 1px solid var(--border-strong); color: var(--accent-ink);
   padding: 5px 10px; border-radius: 7px; font-size: 12px; font-weight: 600; cursor: pointer;
 }
-.ov-cost-btn:hover { background: #2b3040; }
-.ov-cost-save { background: #6366f1; color: #fff; border: none; padding: 5px 10px; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; }
-.ov-cost-cancel { background: transparent; border: none; color: #9aa0ac; cursor: pointer; font-size: 13px; }
+.ov-cost-btn:hover { background: var(--raised-2); }
+.ov-cost-save { background: var(--accent); color: #fff; border: none; padding: 5px 10px; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; }
+.ov-cost-cancel { background: transparent; border: none; color: var(--text-dim); cursor: pointer; font-size: 13px; }
 .eq-svg { width: 100%; height: 220px; display: block; }
-.eq-empty { color: #6b7280; font-size: 13px; padding: 20px 0; }
+.eq-empty { color: var(--muted); font-size: 13px; padding: 20px 0; }
 
 /* Mini stat cards */
 .ov-mini {
   display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px;
 }
 .ov-mini-card {
-  background: #171920; border: 1px solid #2a2e3a; border-radius: 10px; padding: 12px 14px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px;
   display: flex; flex-direction: column; gap: 3px;
 }
-.ov-mini-card.positive-b { border-left: 3px solid #22c55e; }
-.ov-mini-card.negative-b { border-left: 3px solid #ef4444; }
-.m-label { font-size: 11px; color: #9aa0ac; text-transform: uppercase; letter-spacing: .03em; font-weight: 600; }
-.m-value { font-size: 16px; font-weight: 650; color: #e6e8ec; }
-.m-value.positive { color: #22c55e; }
-.m-value.negative { color: #ef4444; }
-.m-sub { font-size: 11px; color: #6b7280; }
+.ov-mini-card.positive-b { border-left: 3px solid var(--success); }
+.ov-mini-card.negative-b { border-left: 3px solid var(--danger); }
+.m-label { display: flex; align-items: center; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .03em; font-weight: 600; }
+.m-value { font-size: 16px; font-weight: 650; color: var(--text); }
+.m-value.positive { color: var(--success); }
+.m-value.negative { color: var(--danger); }
+.m-sub { font-size: 11px; color: var(--muted); }
 
 @media (max-width: 900px) {
   .ov-kpis { grid-template-columns: 1fr 1fr; }
+}
+
+/* Equity curve + score side by side */
+.ov-row { display: grid; grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr); gap: 12px; margin-bottom: 12px; }
+.ov-row .ov-curve, .ov-row .ov-score { margin-bottom: 0; }
+.ov-row .ov-score { flex-direction: column; align-items: stretch; gap: 10px; padding: 16px; }
+.ov-row .ov-score-gauge { align-self: center; width: 110px; }
+.ov-row .ov-score-svg { width: 110px; height: 110px; }
+.ov-row .ov-score-row { grid-template-columns: 96px 1fr 26px 30px; }
+.ov-curve-head h3 { display: flex; align-items: baseline; gap: 8px; }
+.ov-cost-btn { display: inline-flex; align-items: center; gap: 5px; }
+.ov-cost-cancel { display: inline-flex; }
+@media (max-width: 1100px) { .ov-row { grid-template-columns: 1fr; } }
+@media (max-width: 520px) {
+  .ov-kpis { grid-template-columns: 1fr 1fr; }
+  .ov-kpi.big { grid-column: 1 / -1; }
+  .ov-curve-head { flex-direction: column; gap: 8px; }
 }

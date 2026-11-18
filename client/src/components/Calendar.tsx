@@ -1,3 +1,4 @@
+import { Flame, ChevronLeft, ChevronRight } from 'lucide-react';
 import React from 'react';
 import { money, num } from '../utils/format';
 import '../styles/Calendar.css';
@@ -100,14 +101,14 @@ export default function Calendar({
   return (
     <div className="calendar">
       <div className="calendar-filters">
-        <button className="cal-nav" onClick={handlePrevMonth}>&lt;</button>
+        <button className="cal-nav" onClick={handlePrevMonth} aria-label="Previous month"><ChevronLeft /></button>
         <select value={month} onChange={(e) => onMonthChange(Number(e.target.value))} className="cal-select">
           {MONTHS.map((m, i) => <option key={i} value={i + 1}>{m}</option>)}
         </select>
         <select value={year} onChange={(e) => onYearChange(Number(e.target.value))} className="cal-select">
           {YEARS.map(y => <option key={y} value={y}>{y}</option>)}
         </select>
-        <button className="cal-nav" onClick={handleNextMonth}>&gt;</button>
+        <button className="cal-nav" onClick={handleNextMonth} aria-label="Next month"><ChevronRight /></button>
         <div className="cal-spacer" />
         <label className="cal-jump">
           Jump to:
@@ -140,7 +141,7 @@ export default function Calendar({
               {day && (
                 <>
                   <div className="day-number">{day}</div>
-                  {dayData?.blown && <div className="day-blown">💥 blown</div>}
+                  {dayData?.blown && <div className="day-blown"><Flame className="ic-sm" /> blown</div>}
                   {dayData && (
                     <>
                       <div className="day-pnl">{money(dayData.daily_pnl, 0)}</div>

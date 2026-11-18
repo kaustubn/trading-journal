@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import axios from 'axios';
 import TradeDetail from './TradeDetail';
+import { Image as ImageIcon } from 'lucide-react';
 import { money } from '../utils/format';
 import '../styles/TradeList.css';
 
@@ -93,7 +94,7 @@ export default function TradeList({ trades, loading, token, onTradeSaved }: Trad
               <td className="col-check" onClick={e => e.stopPropagation()}>
                 <input type="checkbox" checked={sel.has(trade.id)} onChange={() => toggle(trade.id)} />
               </td>
-              <td onClick={() => setSelectedTrade(trade)}>{trade.symbol}{trade.has_screenshot ? ' 📷' : ''}</td>
+              <td onClick={() => setSelectedTrade(trade)}>{trade.symbol}{trade.has_screenshot ? <ImageIcon className="ic-sm tl-shot" aria-label="has screenshot" /> : null}</td>
               <td onClick={() => setSelectedTrade(trade)}>{new Date(trade.entry_time).toLocaleTimeString()}</td>
               <td onClick={() => setSelectedTrade(trade)}>{trade.exit_time ? new Date(trade.exit_time).toLocaleTimeString() : '-'}</td>
               <td onClick={() => setSelectedTrade(trade)}>{money(trade.entry_price)}{trade.exit_price ? ` → ${money(trade.exit_price)}` : ''}</td>

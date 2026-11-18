@@ -66,8 +66,8 @@
 }
 
 .tab.active {
-  color: #5a67d8;
-  border-bottom-color: #5a67d8;
+  color: var(--accent);
+  border-bottom-color: var(--accent);
 }
 
 .patterns-section,
@@ -96,7 +96,7 @@
 }
 
 .pattern-card:hover {
-  border-color: #5a67d8;
+  border-color: var(--accent);
   box-shadow: 0 2px 8px rgba(90, 103, 216, 0.1);
 }
 
@@ -166,7 +166,7 @@
 }
 
 .win-rate strong {
-  color: #22c55e;
+  color: var(--success);
   font-weight: 700;
 }
 
@@ -195,22 +195,22 @@
 }
 
 .recommendation-card.rec-pattern {
-  border-left-color: #5a67d8;
+  border-left-color: var(--accent);
   background: rgba(90, 103, 216, 0.05);
 }
 
 .recommendation-card.rec-recommendation {
-  border-left-color: #f59e0b;
+  border-left-color: var(--warning);
   background: rgba(245, 158, 11, 0.05);
 }
 
 .recommendation-card.rec-anomaly {
-  border-left-color: #ef4444;
+  border-left-color: var(--danger);
   background: rgba(239, 68, 68, 0.05);
 }
 
 .recommendation-card.rec-opportunity {
-  border-left-color: #22c55e;
+  border-left-color: var(--success);
   background: rgba(34, 197, 94, 0.05);
 }
 

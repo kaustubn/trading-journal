@@ -48,14 +48,14 @@
 }
 
 .chart-btn:hover {
-  border-color: #5a67d8;
-  color: #5a67d8;
+  border-color: var(--accent);
+  color: var(--accent);
 }
 
 .chart-btn.active {
-  background: #5a67d8;
+  background: var(--accent);
   color: white;
-  border-color: #5a67d8;
+  border-color: var(--accent);
 }
 
 .chart-container {
@@ -88,7 +88,7 @@
 
 .bar {
   width: 100%;
-  background: #5a67d8;
+  background: var(--accent);
   border-radius: 4px 4px 0 0;
   transition: all 0.3s;
   min-height: 2px;
@@ -100,11 +100,11 @@
 }
 
 .bar.positive {
-  background: #22c55e;
+  background: var(--success);
 }
 
 .bar.negative {
-  background: #ef4444;
+  background: var(--danger);
 }
 
 .bar-label {
@@ -156,7 +156,7 @@
 
 .drawdown-bar {
   width: 100%;
-  background: linear-gradient(180deg, #ef4444 0%, #dc2626 100%);
+  background: linear-gradient(180deg, var(--danger) 0%, #dc2626 100%);
   border-radius: 4px 4px 0 0;
   transition: all 0.3s;
   min-height: 2px;
@@ -178,7 +178,7 @@
 
 .chart-info .max-drawdown {
   font-weight: 600;
-  color: #ef4444;
+  color: var(--danger);
 }
 
 @media (max-width: 768px) {
@@ -207,3 +207,21 @@
     min-height: 300px;
   }
 }
+
+/* ---- Redesigned SVG charts (zero baseline, axis, sparse labels) ---- */
+.app .chart-caption { font-size: var(--fs-md); color: var(--text-dim); margin: 0 0 var(--sp-3); }
+.pnl-chart { display: flex; flex-direction: column; gap: 8px; }
+.chart-summary { display: flex; gap: var(--sp-5); flex-wrap: wrap; font-size: var(--fs-md); color: var(--text-dim); font-variant-numeric: tabular-nums; }
+.chart-summary b { font-weight: 650; }
+.chart-hover { margin-left: auto; color: var(--muted); }
+.pnl-svg { width: 100%; display: block; overflow: visible; }
+.axis-grid { stroke: var(--border); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.axis-zero { stroke: var(--border-strong); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+.axis-text { fill: var(--muted); font-size: 11px; font-family: var(--font); }
+.bar-rect.up { fill: var(--success); }
+.bar-rect.down { fill: var(--danger); }
+.bar-rect.hl { opacity: .75; }
+.dd-area { fill: var(--danger-soft); }
+.dd-line { fill: none; stroke: var(--danger); stroke-width: 1.75; vector-effect: non-scaling-stroke; }
+.chart-empty { color: var(--muted); padding: var(--sp-6) 0; text-align: center; }
+@media (max-width: 600px) { .chart-hover { margin-left: 0; } }

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Lightbulb } from 'lucide-react';
 import axios from 'axios';
 import '../styles/AddAccountModal.css';
 
@@ -127,10 +128,11 @@ export default function AddAccountModal({ isOpen, onClose, onAccountAdded, token
           </div>
 
           <div style={{
-            background: 'rgba(99,102,241,.08)', border: '1px solid rgba(99,102,241,.25)',
-            borderRadius: 8, padding: '10px 12px', margin: '4px 0 12px', fontSize: 12.5, color: '#c7d2fe',
+            background: 'var(--accent-soft)', border: '1px solid rgba(91,108,240,.3)',
+            borderRadius: 8, padding: '10px 12px', margin: '4px 0 12px', fontSize: 12.5, color: 'var(--accent-ink)',
+            display: 'flex', gap: 8, alignItems: 'flex-start',
           }}>
-            💡 No API key needed — you'll load trades by <strong>Import CSV</strong>. API credentials below are optional (only for future auto-sync).
+            <Lightbulb className="ic-sm" style={{ marginTop: 2 }} /><span>No API key needed — you'll load trades by <strong>Import CSV</strong>. API credentials below are optional (only for future auto-sync).</span>
           </div>
 
           <details style={{ marginBottom: 8 }}>

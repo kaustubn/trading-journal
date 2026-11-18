@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Check, X } from 'lucide-react';
 import axios from 'axios';
 import { TradeLite, metrics, dailySeries, propSim, monteCarlo, PropRules, Metrics } from '../utils/backtestStats';
 import '../styles/BacktestLab.css';
@@ -130,7 +131,6 @@ export default function BacktestLab({ token, account_id, attempt }: Props) {
     <div className="bl">
       <div className="bl-head">
         <div>
-          <h2>Backtest Lab</h2>
           <p className="bl-dim">{acct?.account_name ?? 'Account'} · {trades.length} trades · {m.tradingDays} days</p>
         </div>
         <div className="bl-filters">
@@ -286,8 +286,8 @@ function SimResult({ sim }: { sim: ReturnType<typeof propSim> }) {
         <Tile label="Starts tested" v={String(s.runs)} />
       </div>
       <div className="bl-bar" role="img" aria-label={`${s.pass} passed, ${s.fail} failed, ${s.open} still open`}>
-        {s.pass > 0 && <div className="bl-bar-pass" style={{ width: w(s.pass) }} title={`Passed: ${s.pass}`}>✓ {s.pass}</div>}
-        {s.fail > 0 && <div className="bl-bar-fail" style={{ width: w(s.fail) }} title={`Failed: ${s.fail}`}>✕ {s.fail}</div>}
+        {s.pass > 0 && <div className="bl-bar-pass" style={{ width: w(s.pass) }} title={`Passed: ${s.pass}`}><Check className="ic-sm" /> {s.pass}</div>}
+        {s.fail > 0 && <div className="bl-bar-fail" style={{ width: w(s.fail) }} title={`Failed: ${s.fail}`}><X className="ic-sm" /> {s.fail}</div>}
         {s.open > 0 && <div className="bl-bar-open" style={{ width: w(s.open) }} title={`Still open: ${s.open}`}>… {s.open}</div>}
       </div>
       <table className="bl-table">

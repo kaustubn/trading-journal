@@ -40,7 +40,7 @@
 }
 
 .tab.active {
-  background: #5a67d8;
+  background: var(--accent);
   color: white;
 }
 
@@ -123,7 +123,7 @@
 
 .allocation-bar .fill {
   height: 100%;
-  background: linear-gradient(90deg, #5a67d8, #b794f6);
+  background: linear-gradient(90deg, var(--accent), #b794f6);
   transition: width 0.3s;
 }
 
@@ -137,7 +137,7 @@
 
 .btn-generate {
   padding: 10px 16px;
-  background: #5a67d8;
+  background: var(--accent);
   color: white;
   border: none;
   border-radius: 6px;

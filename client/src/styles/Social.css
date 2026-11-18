@@ -40,7 +40,7 @@
 }
 
 .social-tabs .tab.active {
-  background: #5a67d8;
+  background: var(--accent);
   color: white;
 }
 
@@ -97,7 +97,7 @@
 
 .email {
   font-weight: 600;
-  color: #5a67d8;
+  color: var(--accent);
 }
 
 .email.clickable:hover {
@@ -117,7 +117,7 @@
 
 .btn-follow {
   padding: 6px 12px;
-  background: #5a67d8;
+  background: var(--accent);
   color: white;
   border: none;
   border-radius: 4px;
@@ -243,7 +243,7 @@
 }
 
 .trade-card:hover {
-  border-color: #5a67d8;
+  border-color: var(--accent);
   background: white;
 }
 
@@ -306,8 +306,8 @@
 }
 
 .btn-like:hover {
-  border-color: #5a67d8;
-  color: #5a67d8;
+  border-color: var(--accent);
+  color: var(--accent);
 }
 
 @media (max-width: 768px) {

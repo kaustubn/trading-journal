@@ -57,6 +57,8 @@ router.get('/setups/:account_id', requirePro('Setup Performance'), async (req: R
     let dateFilter = '';
     if (from) { params.push(from); dateFilter += ` AND DATE(entry_time) >= $${params.length}`; }
     if (to) { params.push(to); dateFilter += ` AND DATE(entry_time) <= $${params.length}`; }
+    // Optional: limit to one attempt/run (used by the dashboard focus panel)
+    if (req.query.attempt) { params.push(Number(req.query.attempt)); dateFilter += ` AND attempt_id = $${params.length}`; }
 
     const tr = await pool.query(
       `SELECT setup_tag, tags, grade, pnl, entry_price, stop_loss, quantity

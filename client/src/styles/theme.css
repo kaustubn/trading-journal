@@ -5,33 +5,64 @@
    ============================================================ */
 
 :root {
-  /* Surfaces */
-  --bg:        #0e0f13;
-  --panel:     #171920;
-  --card:      #1e2129;
-  --card-2:    #232733;
-  --border:    #2a2e3a;
-  --border-2:  #363b49;
+  /* ===== Design tokens (single source of truth) =====
+     Calm, data-dense fintech dark theme. Components should use these
+     tokens instead of hard-coded hex values. */
+
+  /* Surfaces: bg (page) < surface (panels) < raised (cards/inputs) */
+  --bg:            #0b0d12;
+  --surface:       #12151c;
+  --raised:        #181c25;
+  --raised-2:      #1f2430;
+  --border:        #252a36;
+  --border-strong: #323847;
 
   /* Text */
-  --text:      #e6e8ec;
-  --text-dim:  #9aa0ac;
-  --text-mute: #6b7280;
+  --text:          #e7e9ee;
+  --text-dim:      #a3a9b6;   /* secondary text */
+  --muted:         #737b8c;   /* labels, captions (AA on --surface) */
 
-  /* Brand + semantic */
-  --brand:     #6366f1;
-  --brand-2:   #818cf8;
-  --brand-ink: #c7d2fe;
-  --green:     #22c55e;
+  /* Accent + semantic */
+  --accent:        #5b6cf0;
+  --accent-hover:  #7180f5;
+  --accent-ink:    #c3cbff;
+  --accent-soft:   rgba(91,108,240,.14);
+  --success:       #22c55e;
+  --success-soft:  rgba(34,197,94,.12);
+  --danger:        #ef4444;
+  --danger-soft:   rgba(239,68,68,.12);
+  --warning:       #f5a623;
+  --warning-soft:  rgba(245,166,35,.12);
+
+  /* Spacing scale (4px base) */
+  --sp-1: 4px; --sp-2: 8px; --sp-3: 12px; --sp-4: 16px; --sp-5: 20px; --sp-6: 24px; --sp-8: 32px;
+
+  /* Radii — small and consistent */
+  --r-sm: 6px; --r-md: 8px; --r-lg: 10px;
+  --radius:    var(--r-lg);
+  --radius-sm: var(--r-md);
+
+  /* One shadow (popovers/modals use it; cards are flat) */
+  --shadow: 0 8px 28px rgba(0,0,0,.45);
+
+  /* Typography */
+  --font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --fs-xs: 11px; --fs-sm: 12px; --fs-md: 13px; --fs-base: 14px; --fs-lg: 16px; --fs-xl: 20px; --fs-2xl: 24px;
+
+  /* Legacy aliases — older stylesheets still reference these names */
+  --panel:     var(--surface);
+  --card:      var(--raised);
+  --card-2:    var(--raised-2);
+  --border-2:  var(--border-strong);
+  --text-mute: var(--muted);
+  --brand:     var(--accent);
+  --brand-2:   var(--accent-hover);
+  --brand-ink: var(--accent-ink);
+  --green:     var(--success);
   --green-dim: #16a34a;
-  --red:       #ef4444;
+  --red:       var(--danger);
   --red-dim:   #dc2626;
-  --yellow:    #f5a623;
-
-  --radius:    12px;
-  --radius-sm: 8px;
-  --shadow:    0 1px 3px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.25);
-  --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --yellow:    var(--warning);
 }
 
 * { box-sizing: border-box; }
@@ -40,17 +71,32 @@ html, body, #root {
   background: var(--bg);
   color: var(--text);
   font-family: var(--font);
+  font-size: var(--fs-base);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  font-feature-settings: 'cv11', 'ss01';
 }
 
 body { margin: 0; }
+
+/* Numbers line up in columns: money, percentages, counts */
+.app table, .app .num, .app [class*="value"], .app [class*="-val"], .app [class*="pnl"],
+.app .stat-value, .app .metric-value, .app input[type="number"] { font-variant-numeric: tabular-nums; }
+
+/* Lucide icons: one size + stroke everywhere (override with .ic-lg etc.) */
+:where(svg.lucide) { width: 16px; height: 16px; stroke-width: 1.75; flex-shrink: 0; vertical-align: -3px; }
+:where(svg.lucide).ic-sm { width: 14px; height: 14px; }
+:where(svg.lucide).ic-lg { width: 18px; height: 18px; }
+:where(svg.lucide).ic-xl { width: 22px; height: 22px; }
+
+/* Focus ring for keyboard users */
+.app :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 /* ---------- Scrollbar ---------- */
 .app ::-webkit-scrollbar { width: 10px; height: 10px; }
 .app ::-webkit-scrollbar-track { background: transparent; }
 .app ::-webkit-scrollbar-thumb { background: var(--border-2); border-radius: 8px; }
-.app ::-webkit-scrollbar-thumb:hover { background: #454b5c; }
+.app ::-webkit-scrollbar-thumb:hover { background: var(--muted); }
 
 /* ---------- Headings ---------- */
 .app h2 { font-size: 18px; font-weight: 650; letter-spacing: -0.01em; color: var(--text); }
@@ -169,7 +215,7 @@ body { margin: 0; }
   padding: 8px 14px; border-radius: var(--radius-sm); font-weight: 550; font-size: 13px; cursor: pointer;
   transition: all .15s ease;
 }
-.app .btn-secondary:hover, .app .btn-settings:hover { border-color: #4b5163; background: #2b3040; }
+.app .btn-secondary:hover, .app .btn-settings:hover { border-color: var(--muted); background: var(--raised-2); }
 
 .app .btn-danger, .app .btn-close-position {
   background: transparent; color: var(--red); border: 1px solid rgba(239,68,68,.35);
@@ -201,7 +247,7 @@ body { margin: 0; }
   transition: border-color .15s ease, box-shadow .15s ease;
 }
 .app input:focus, .app select:focus, .app textarea:focus {
-  border-color: var(--brand); box-shadow: 0 0 0 3px rgba(99,102,241,.18);
+  border-color: var(--brand); box-shadow: 0 0 0 3px rgba(91,108,240,.18);
 }
 .app label { color: var(--text-dim); font-size: 12px; font-weight: 550; }
 .app select option { background: var(--panel); color: var(--text); }
@@ -294,7 +340,7 @@ body { margin: 0; }
 /* Empty states + text selection on dark */
 .app .empty { background: var(--card) !important; color: var(--text-mute) !important;
   border: 1px solid var(--border); border-radius: var(--radius-sm); text-align: center; padding: 24px; }
-.app ::selection { background: rgba(99,102,241,.4); color: #fff; }
+.app ::selection { background: rgba(91,108,240,.4); color: #fff; }
 
 /* ============================================================
    Catch-all dark overrides for leftover light backgrounds
@@ -327,7 +373,7 @@ body { margin: 0; }
   background: var(--card-2) !important; color: var(--text) !important;
   border: 1px solid var(--border) !important;
 }
-.app .idea-card:hover, .app .trade-card:hover { background: #262a35 !important; }
+.app .idea-card:hover, .app .trade-card:hover { background: var(--raised-2) !important; }
 
 /* Inline code / webhook URL chips */
 .app code, .app .webhook-info code {
@@ -344,7 +390,7 @@ body { margin: 0; }
   background: var(--card-2) !important; color: var(--text) !important;
   border: 1px solid var(--border-2) !important;
 }
-.app .btn-cancel:hover, .app .cancel-btn:hover { background: #2b3040 !important; }
+.app .btn-cancel:hover, .app .cancel-btn:hover { background: var(--raised-2) !important; }
 
 /* Highlight / warning cells */
 .app .tax-table .highlight { background: rgba(245,166,35,.15) !important; color: var(--yellow) !important; }
@@ -355,7 +401,7 @@ body { margin: 0; }
 
 /* ---------- TradeDetail: tags, stars, R badge ---------- */
 .trade-detail .td-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-.trade-detail .hint { color: #6b7280; font-weight: 400; font-size: 11px; }
+.trade-detail .hint { color: var(--muted); font-weight: 400; font-size: 11px; }
 .trade-detail .r-badge {
   display: inline-block; margin-left: 10px; padding: 2px 8px; border-radius: 999px;
   font-size: 12px; font-weight: 700; background: var(--card-2); border: 1px solid var(--border);
@@ -363,8 +409,8 @@ body { margin: 0; }
 .trade-detail .r-badge.positive { color: var(--green); border-color: rgba(34,197,94,.35); }
 .trade-detail .r-badge.negative { color: var(--red); border-color: rgba(239,68,68,.35); }
 .trade-detail .star-row { display: flex; gap: 4px; font-size: 20px; }
-.trade-detail .star { color: #3a3f4c; cursor: pointer; transition: color .1s ease; }
-.trade-detail .star:hover, .trade-detail .star.on { color: #f5a623; }
+.trade-detail .star { color: var(--border-strong); cursor: pointer; transition: color .1s ease; }
+.trade-detail .star:hover, .trade-detail .star.on { color: var(--warning); }
 
 /* Setup + grade chips */
 .trade-detail .chip-row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
@@ -372,16 +418,16 @@ body { margin: 0; }
   background: var(--card-2); border: 1px solid var(--border-2); color: var(--text-dim);
   padding: 7px 14px; border-radius: 8px; font-size: 13px; font-weight: 650; cursor: pointer; transition: all .12s ease;
 }
-.trade-detail .chip:hover { color: var(--text); border-color: #4b5163; }
+.trade-detail .chip:hover { color: var(--text); border-color: var(--muted); }
 .trade-detail .chip.on { background: var(--brand); border-color: var(--brand); color: #fff; }
-.trade-detail .chip.grade-A.on { background: #22c55e; border-color: #22c55e; color: #04220f; }
-.trade-detail .chip.grade-B.on { background: #f5a623; border-color: #f5a623; color: #241800; }
-.trade-detail .chip.grade-C.on { background: #ef4444; border-color: #ef4444; color: #fff; }
+.trade-detail .chip.grade-A.on { background: var(--success); border-color: var(--success); color: #04220f; }
+.trade-detail .chip.grade-B.on { background: var(--warning); border-color: var(--warning); color: #241800; }
+.trade-detail .chip.grade-C.on { background: var(--danger); border-color: var(--danger); color: #fff; }
 
 /* Screenshots — one slot per timeframe */
 .trade-detail .tf-shots { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
 .trade-detail .tf-slot { display: flex; flex-direction: column; gap: 5px; }
-.trade-detail .tf-label { font-size: 11px; font-weight: 700; color: #c7d2fe; text-transform: uppercase; letter-spacing: .04em; }
+.trade-detail .tf-label { font-size: 11px; font-weight: 700; color: var(--accent-ink); text-transform: uppercase; letter-spacing: .04em; }
 .trade-detail .tf-upload {
   display: flex; align-items: center; justify-content: center; height: 90px;
   background: var(--bg); border: 1px dashed var(--border-2); border-radius: 8px;
@@ -394,3 +440,20 @@ body { margin: 0; }
   position: absolute; top: 5px; right: 5px; background: rgba(6,7,10,.85); color: #fff;
   border: 1px solid var(--border-2); border-radius: 5px; width: 22px; height: 22px; font-size: 11px; cursor: pointer; line-height: 1;
 }
+
+/* ---------- Shared: verdict pills, numeric cells, labels with tooltips ---------- */
+.app .verdict { display: inline-block; font-size: var(--fs-xs); font-weight: 700; padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
+.app .verdict.v-good { background: var(--success-soft); color: var(--success); }
+.app .verdict.v-bad { background: var(--danger-soft); color: var(--danger); }
+.app .verdict.v-warn { background: var(--warning-soft); color: var(--warning); }
+.app .verdict.v-muted { background: var(--raised-2); color: var(--muted); }
+.app .verdict.v-info { background: var(--accent-soft); color: var(--accent-ink); }
+.app th.num, .app td.num { text-align: right; font-variant-numeric: tabular-nums; }
+.app .stat-label, .app .metric-label { display: flex; align-items: center; }
+.app thead th .info-tip { margin-left: 3px; }
+.app thead .info-tip-pop { bottom: auto; top: calc(100% + 8px); text-transform: none; letter-spacing: 0; }
+.app .modal-sub { font-size: var(--fs-md); color: var(--text-dim); margin: -6px 0 14px; }
+.app .scope-note svg { color: var(--accent-ink); }
+.app .cmp-diverge h3, .app .cmp-diag h3, .app .cost-calc h3, .app .pf-card h3 { display: flex; align-items: center; gap: 7px; }
+.app td.pos, .app .pos { color: var(--success); }
+.app td.neg, .app .neg { color: var(--danger); }

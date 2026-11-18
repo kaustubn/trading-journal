@@ -141,7 +141,7 @@ export default function StrategyBuilder({ token, account_id }: StrategyBuilderPr
   return (
     <div className="strategy-builder">
       <div className="strategy-header">
-        <h2>Strategy Builder</h2>
+        <span className="scope-note">One card per strategy · entry, exit and risk rules</span>
         <button className="btn-primary" onClick={() => setShowForm(true)}>
           + New Strategy
         </button>

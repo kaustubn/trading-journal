@@ -1,7 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import '../styles/Analytics.css';
-import { money } from '../utils/format';
+import { money, num } from '../utils/format';
+import { BarChart3 } from 'lucide-react';
+import { InfoTip, EmptyState } from './ui';
+import FocusPanel from './FocusPanel';
 
 interface Stats {
   total_trades: number;
@@ -21,9 +24,11 @@ interface Stats {
 interface AnalyticsProps {
   token: string;
   account_id: number | null;
+  isAdmin?: boolean;
+  onNavigate?: (view: string) => void;
 }
 
-export default function Analytics({ token, account_id }: AnalyticsProps) {
+export default function Analytics({ token, account_id, isAdmin, onNavigate }: AnalyticsProps) {
   const [stats, setStats] = useState<Stats | null>(null);
   const [monthlyData, setMonthlyData] = useState<any[]>([]);
   const [dailyData, setDailyData] = useState<any[]>([]);
@@ -61,158 +66,130 @@ export default function Analytics({ token, account_id }: AnalyticsProps) {
       setLoading(false);
     }
   };
-
   if (!account_id) {
     return <div className="analytics empty">Select an account to view analytics</div>;
   }
 
   if (loading) {
-    return <div className="analytics loading">Loading analytics...</div>;
+    return <div className="analytics loading">Loading analytics…</div>;
   }
 
+  const pf = parseFloat(stats?.profit_factor || '0') || 0;
+  const aw = Math.abs(num(stats?.avg_win)), al = Math.abs(num(stats?.avg_loss));
+  const breakeven = aw + al > 0 ? (al / (aw + al)) * 100 : 0;
+  const wr = parseFloat(String(stats?.win_rate || '0')) || 0;
+
   return (
-    <div className="analytics">
-      <div className="analytics-header">
-        <h2>Performance Analytics</h2>
-        <div className="view-toggle">
-          <button
-            className={`view-btn ${view === 'stats' ? 'active' : ''}`}
-            onClick={() => setView('stats')}
-          >
-            Overview
-          </button>
-          <button
-            className={`view-btn ${view === 'monthly' ? 'active' : ''}`}
-            onClick={() => setView('monthly')}
-          >
-            Monthly
-          </button>
-          <button
-            className={`view-btn ${view === 'daily' ? 'active' : ''}`}
-            onClick={() => setView('daily')}
-          >
-            Daily
-          </button>
+    <>
+      <div className="analytics">
+        <div className="analytics-header">
+          <span className="scope-note">All trades in this account · every run, all dates</span>
+          <div className="view-toggle">
+            {([['stats', 'Summary'], ['monthly', 'By month'], ['daily', 'By day']] as const).map(([k, l]) => (
+              <button key={k} className={`view-btn ${view === k ? 'active' : ''}`} onClick={() => setView(k)}>{l}</button>
+            ))}
+          </div>
         </div>
+
+        {view === 'stats' && !stats && (
+          <EmptyState icon={BarChart3} title="No closed trades yet">Import a CSV or add a trade, then come back for your numbers.</EmptyState>
+        )}
+
+        {view === 'stats' && stats && (
+          <div className="stats-grid">
+            <div className="stat-card">
+              <div className="stat-label">Net P&L<InfoTip term="netPnl" align="left" /></div>
+              <div className={`stat-value ${num(stats.total_pnl) >= 0 ? 'positive' : 'negative'}`}>{money(stats.total_pnl, 0)}</div>
+              <div className="stat-detail">{num(stats.total_trades).toLocaleString()} trades</div>
+            </div>
+            <div className="stat-card">
+              <div className="stat-label">Win rate<InfoTip term="winRate" /></div>
+              <div className="stat-value">{stats.win_rate}</div>
+              <div className="stat-detail">{num(stats.wins).toLocaleString()} won · {num(stats.losses).toLocaleString()} lost</div>
+            </div>
+            <div className="stat-card">
+              <div className="stat-label">Profit factor<InfoTip term="profitFactor" /></div>
+              <div className={`stat-value ${pf >= 1 ? 'positive' : 'negative'}`}>{stats.profit_factor}</div>
+              <div className="stat-detail">{pf >= 1.5 ? 'Healthy — above 1.5' : pf >= 1 ? 'Profitable but thin' : 'Below 1.0 — losing overall'}</div>
+            </div>
+            <div className="stat-card">
+              <div className="stat-label">Expectancy<InfoTip term="expectancy" /></div>
+              <div className={`stat-value ${num(stats.avg_pnl) >= 0 ? 'positive' : 'negative'}`}>{money(stats.avg_pnl)}</div>
+              <div className="stat-detail">average per trade</div>
+            </div>
+            <div className="stat-card">
+              <div className="stat-label">Avg win / avg loss<InfoTip term="payoff" /></div>
+              <div className="stat-value">{money(aw, 0)} / {money(al, 0)}</div>
+              <div className="stat-detail">ratio {al > 0 ? (aw / al).toFixed(2) : '—'} · above 1.0 is good</div>
+            </div>
+            <div className="stat-card">
+              <div className="stat-label">Break-even win rate<InfoTip text="The win rate you need just to break even with your current average win and loss sizes: avg loss ÷ (avg win + avg loss). Your real win rate should be comfortably above it." align="right" /></div>
+              <div className={`stat-value ${wr >= breakeven ? 'positive' : 'negative'}`}>{breakeven.toFixed(1)}%</div>
+              <div className="stat-detail">you win {wr.toFixed(1)}% — {wr >= breakeven ? `${(wr - breakeven).toFixed(1)} pts of margin` : `${(breakeven - wr).toFixed(1)} pts short`}</div>
+            </div>
+            <div className="stat-card">
+              <div className="stat-label">Best trade<InfoTip term="largest" align="left" /></div>
+              <div className="stat-value positive">{money(stats.best_trade)}</div>
+            </div>
+            <div className="stat-card">
+              <div className="stat-label">Worst trade</div>
+              <div className="stat-value negative">{money(stats.worst_trade)}</div>
+              <div className="stat-detail">{al > 0 ? `${(Math.abs(num(stats.worst_trade)) / al).toFixed(1)}× your average loss` : ''}</div>
+            </div>
+          </div>
+        )}
+
+        {view === 'monthly' && (
+          monthlyData.length === 0 ? <EmptyState icon={BarChart3} title="No months to show yet" /> :
+          <div className="performance-table">
+            <table>
+              <thead>
+                <tr><th>Month</th><th className="num">Trades</th><th className="num">Won</th><th className="num">Lost</th><th className="num">Win rate</th><th className="num">P&L</th></tr>
+              </thead>
+              <tbody>
+                {monthlyData.map((row, i) => (
+                  <tr key={i}>
+                    <td>{row.month}</td>
+                    <td className="num">{row.trades}</td>
+                    <td className="num">{row.wins}</td>
+                    <td className="num">{row.losses}</td>
+                    <td className="num">{row.win_rate}</td>
+                    <td className={`num ${parseFloat(row.pnl) > 0 ? 'positive' : 'negative'}`}>{money(row.pnl)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {view === 'daily' && (
+          dailyData.length === 0 ? <EmptyState icon={BarChart3} title="No days to show yet" /> :
+          <div className="performance-table">
+            <table>
+              <thead>
+                <tr><th>Date</th><th className="num">Trades</th><th className="num">Won</th><th className="num">Lost</th><th className="num">Win rate</th><th className="num">P&L</th></tr>
+              </thead>
+              <tbody>
+                {dailyData.map((row, i) => (
+                  <tr key={i}>
+                    <td>{row.date}</td>
+                    <td className="num">{row.trades}</td>
+                    <td className="num">{row.wins}</td>
+                    <td className="num">{row.losses}</td>
+                    <td className="num">{row.win_rate}</td>
+                    <td className={`num ${parseFloat(row.pnl) > 0 ? 'positive' : 'negative'}`}>{money(row.pnl)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
-      {view === 'stats' && stats && (
-        <div className="stats-grid">
-          <div className="stat-card">
-            <div className="stat-label">Total Trades</div>
-            <div className="stat-value">{stats.total_trades}</div>
-          </div>
-
-          <div className="stat-card">
-            <div className="stat-label">Win Rate</div>
-            <div className="stat-value">{stats.win_rate}</div>
-            <div className="stat-detail">
-              {stats.wins}W / {stats.losses}L
-            </div>
-          </div>
-
-          <div className="stat-card">
-            <div className="stat-label">Total P&L</div>
-            <div className={`stat-value ${parseFloat(stats.total_pnl) > 0 ? 'positive' : 'negative'}`}>
-              {money(stats.total_pnl)}
-            </div>
-          </div>
-
-          <div className="stat-card">
-            <div className="stat-label">Profit Factor</div>
-            <div className="stat-value">{stats.profit_factor}</div>
-          </div>
-
-          <div className="stat-card">
-            <div className="stat-label">Avg P&L</div>
-            <div className={`stat-value ${parseFloat(stats.avg_pnl) > 0 ? 'positive' : 'negative'}`}>
-              {money(stats.avg_pnl)}
-            </div>
-          </div>
-
-          <div className="stat-card">
-            <div className="stat-label">Best Trade</div>
-            <div className="stat-value positive">{money(stats.best_trade)}</div>
-          </div>
-
-          <div className="stat-card">
-            <div className="stat-label">Worst Trade</div>
-            <div className="stat-value negative">{money(stats.worst_trade)}</div>
-          </div>
-
-          <div className="stat-card">
-            <div className="stat-label">Avg Win</div>
-            <div className="stat-value positive">{money(stats.avg_win)}</div>
-          </div>
-
-          <div className="stat-card">
-            <div className="stat-label">Avg Loss</div>
-            <div className="stat-value negative">{money(stats.avg_loss)}</div>
-          </div>
-        </div>
+      {view === 'stats' && stats && onNavigate && (
+        <FocusPanel token={token} account_id={account_id} title="What your numbers say"
+          rangeLabel="whole account" isAdmin={isAdmin} onNavigate={onNavigate} />
       )}
-
-      {view === 'monthly' && (
-        <div className="performance-table">
-          <table>
-            <thead>
-              <tr>
-                <th>Month</th>
-                <th>Trades</th>
-                <th>Wins</th>
-                <th>Losses</th>
-                <th>Win Rate</th>
-                <th>P&L</th>
-              </tr>
-            </thead>
-            <tbody>
-              {monthlyData.map((row, i) => (
-                <tr key={i}>
-                  <td>{row.month}</td>
-                  <td>{row.trades}</td>
-                  <td className="win">{row.wins}</td>
-                  <td className="loss">{row.losses}</td>
-                  <td>{row.win_rate}</td>
-                  <td className={parseFloat(row.pnl) > 0 ? 'positive' : 'negative'}>
-                    {money(row.pnl)}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {view === 'daily' && (
-        <div className="performance-table">
-          <table>
-            <thead>
-              <tr>
-                <th>Date</th>
-                <th>Trades</th>
-                <th>Wins</th>
-                <th>Losses</th>
-                <th>Win Rate</th>
-                <th>P&L</th>
-              </tr>
-            </thead>
-            <tbody>
-              {dailyData.map((row, i) => (
-                <tr key={i}>
-                  <td>{row.date}</td>
-                  <td>{row.trades}</td>
-                  <td className="win">{row.wins}</td>
-                  <td className="loss">{row.losses}</td>
-                  <td>{row.win_rate}</td>
-                  <td className={parseFloat(row.pnl) > 0 ? 'positive' : 'negative'}>
-                    {money(row.pnl)}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </div>
+    </>
   );
 }

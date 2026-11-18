@@ -77,7 +77,8 @@ export default function AddTradeModal({
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-        <h2>Add Trade from TradingView</h2>
+        <h2>Add a trade</h2>
+        <p className="modal-sub">Log a closed trade by hand. For many trades, use Import in the top bar instead.</p>
         {error && <div className="error-message">{error}</div>}
 
         <form onSubmit={handleSubmit}>

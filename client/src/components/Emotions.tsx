@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { money } from '../utils/format';
+import { HeartPulse, TrendingUp, TrendingDown } from 'lucide-react';
+import { EmptyState } from './ui';
 import './Emotions.css';
 
 interface Props { token: string; account_id: number; attempt?: number | null; }
@@ -26,16 +28,12 @@ export default function Emotions({ token, account_id, attempt }: Props) {
 
   return (
     <div className="emo">
-      <div className="emo-head">
-        <h2>🎭 Emotions</h2>
-        <p>What your feelings cost you. Tag trades with emotion chips (revenge, FOMO, disciplined…) in the trade popup, then see the damage here.</p>
-      </div>
+      <p className="emo-intro">What your feelings cost you. Tag trades with how you felt (revenge, FOMO, disciplined…) in the trade popup, then see the result here. The tags are your data; this page only adds them up.</p>
 
       {s.tagged === 0 ? (
-        <div className="emo-empty">
-          <h3>No emotion tags yet</h3>
-          <p>Open any trade → tap an emotion chip (Revenge, FOMO, Disciplined…) → Save. Come back to see how much each emotion helps or hurts.</p>
-        </div>
+        <EmptyState icon={HeartPulse} title="No emotion tags yet">
+          Open any trade, tap how you felt (Revenge, FOMO, Disciplined…) and save. After about 10 tagged trades you will see which feelings cost you money and which ones pay.
+        </EmptyState>
       ) : (
         <>
           {/* Headline cards */}
@@ -59,11 +57,11 @@ export default function Emotions({ token, account_id, attempt }: Props) {
 
           <div className="emo-cols">
             <div className="emo-colbox">
-              <h3 className="emo-col-title bad">⚠ Leaks</h3>
+              <h3 className="emo-col-title bad"><TrendingDown className="ic-sm" /> Costing you</h3>
               {leaks.length === 0 ? <div className="emo-none">None tagged</div> : leaks.map(r => <EmoRow key={r.key} r={r} />)}
             </div>
             <div className="emo-colbox">
-              <h3 className="emo-col-title good">✅ Strengths</h3>
+              <h3 className="emo-col-title good"><TrendingUp className="ic-sm" /> Paying you</h3>
               {strengths.length === 0 ? <div className="emo-none">None tagged</div> : strengths.map(r => <EmoRow key={r.key} r={r} />)}
             </div>
           </div>

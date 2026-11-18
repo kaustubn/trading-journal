@@ -20,7 +20,7 @@
 }
 
 .add-idea-btn {
-  background: #667eea;
+  background: var(--accent);
   color: white;
   border: none;
   padding: 8px 16px;
@@ -58,12 +58,12 @@
 .idea-form input:focus,
 .idea-form textarea:focus {
   outline: none;
-  border-color: #667eea;
+  border-color: var(--accent);
   box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
 }
 
 .submit-btn {
-  background: #667eea;
+  background: var(--accent);
   color: white;
   border: none;
   padding: 10px 16px;
@@ -168,7 +168,7 @@
 
 .idea-meta .symbol {
   background: #f0f4ff;
-  color: #667eea;
+  color: var(--accent);
   padding: 4px 8px;
   border-radius: 3px;
   font-weight: 600;
@@ -186,7 +186,7 @@
   margin: 10px 0;
   padding: 10px;
   background: white;
-  border-left: 3px solid #667eea;
+  border-left: 3px solid var(--accent);
   border-radius: 3px;
 }
 

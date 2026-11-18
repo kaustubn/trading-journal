@@ -18,7 +18,19 @@ export function setCurrency(code?: string) { _symbol = curSymbol(code); }
 export function money(value: unknown, decimals = 2, symbol?: string): string {
   const s = symbol ?? _symbol;
   const n = num(value);
-  return `${n < 0 ? '-' : ''}${s}${Math.abs(n).toFixed(decimals)}`;
+  const abs = Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+  // Avoid "-$0" when a tiny negative rounds to zero
+  const neg = n < 0 && Number(Math.abs(n).toFixed(decimals)) !== 0;
+  return `${neg ? '-' : ''}${s}${abs}`;
+}
+
+/** Active currency symbol ($ or ₹) for labels like "charges $/trade". */
+export function currencySymbol(): string { return _symbol; }
+
+/** Signed money: "+$1,250" / "-$300" — for P&L deltas. */
+export function signedMoney(value: unknown, decimals = 0): string {
+  const n = num(value);
+  return `${n > 0 ? '+' : ''}${money(n, decimals)}`;
 }
 
 export function pct(value: unknown, decimals = 1): string {

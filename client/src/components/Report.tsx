@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { num, money } from '../utils/format';
+import { Printer, Target } from 'lucide-react';
+import { buildInsights } from '../utils/coaching';
 import '../styles/Report.css';
 
 interface ReportProps {
@@ -31,32 +33,29 @@ export default function Report({ token, account_id, from, to, label }: ReportPro
   }, [account_id, from, to]);
 
   if (loading) return <div className="report loading">Building report…</div>;
-  if (!ov || !ov.hasData) return <div className="report"><p className="empty">No trades in this period.</p></div>;
+  if (!ov || !ov.hasData) return <div className="report"><p className="empty">No trades in this period. Pick a wider range above (for example <b>All time</b>).</p></div>;
 
   const topSetups = [...setups].sort((a, b) => b.totalPnl - a.totalPnl).slice(0, 3);
   const symbols = bd?.symbols || [];
   const bestSym = symbols[0];
   const worstSym = symbols[symbols.length - 1];
 
-  // Focus takeaway
-  let focus = 'Keep taking A-grade setups and journaling every trade.';
-  if (num(ov.netAfterCharges) < 0) {
-    if (worstSym && num(worstSym.pnl) < 0) focus = `Your biggest leak is ${worstSym.key} (${money(worstSym.pnl, 0)}). Cut or fix it.`;
-    else focus = 'Net negative this period — tighten entries to A-grade only.';
-  } else {
-    if (bestSym) focus = `${bestSym.key} is carrying you (${money(bestSym.pnl, 0)}). Do more of what works.`;
-  }
+  // Focus takeaway: the top rule-based insight for this period
+  const coach = buildInsights({ overview: ov, setups, breakdown: bd });
+  const top = coach.insights[0];
+  const focus = top ? top.title + '. ' + top.action : 'Keep taking A-grade setups and journaling every trade.';
+  const symCls = (v: any) => (num(v) >= 0 ? 'positive' : 'negative');
 
   return (
     <div className="report">
       <div className="rep-head">
-        <h2>📅 Report — {label || 'Selected period'}</h2>
-        <button className="rep-print" onClick={() => window.print()}>🖨 Print / PDF</button>
+        <h2>Report · {label || 'Selected period'}</h2>
+        <button className="rep-print" onClick={() => window.print()}><Printer className="ic-sm" /> Print / save PDF</button>
       </div>
 
       <div className="rep-kpis">
         <div className="rep-kpi"><div className="rk-l">Net P&L</div><div className={`rk-v ${num(ov.netAfterCharges) >= 0 ? 'positive' : 'negative'}`}>{money(ov.netAfterCharges, 0)}</div></div>
-        <div className="rep-kpi"><div className="rk-l">Trades</div><div className="rk-v">{ov.totalTrades}</div></div>
+        <div className="rep-kpi"><div className="rk-l">Trades</div><div className="rk-v">{num(ov.totalTrades).toLocaleString()}</div></div>
         <div className="rep-kpi"><div className="rk-l">Win rate</div><div className="rk-v">{num(ov.winRate).toFixed(0)}%</div></div>
         <div className="rep-kpi"><div className="rk-l">Profit factor</div><div className="rk-v">{num(ov.profitFactor).toFixed(2)}</div></div>
         <div className="rep-kpi"><div className="rk-l">Expectancy</div><div className={`rk-v ${num(ov.expectancy) >= 0 ? 'positive' : 'negative'}`}>{money(ov.expectancy, 0)}</div></div>
@@ -70,8 +69,8 @@ export default function Report({ token, account_id, from, to, label }: ReportPro
           <div className="rep-row"><span>Largest win</span><span className="positive">{money(ov.largestWin, 0)}</span></div>
           <div className="rep-row"><span>Largest loss</span><span className="negative">{money(ov.largestLoss, 0)}</span></div>
           <div className="rep-row"><span>Max drawdown</span><span className="negative">{money(ov.maxDrawdown, 0)}</span></div>
-          {bestSym && <div className="rep-row"><span>Best instrument</span><span className="positive">{bestSym.key} {money(bestSym.pnl, 0)}</span></div>}
-          {worstSym && worstSym !== bestSym && <div className="rep-row"><span>Worst instrument</span><span className="negative">{worstSym.key} {money(worstSym.pnl, 0)}</span></div>}
+          {bestSym && <div className="rep-row"><span>{symbols.length > 1 ? 'Best instrument' : 'Instrument'}</span><span className={symCls(bestSym.pnl)}>{bestSym.key} {money(bestSym.pnl, 0)}</span></div>}
+          {worstSym && worstSym !== bestSym && <div className="rep-row"><span>Worst instrument</span><span className={symCls(worstSym.pnl)}>{worstSym.key} {money(worstSym.pnl, 0)}</span></div>}
         </div>
 
         <div className="rep-card">
@@ -87,8 +86,9 @@ export default function Report({ token, account_id, from, to, label }: ReportPro
       </div>
 
       <div className="rep-focus">
-        <span className="rf-label">🎯 Focus for next period</span>
+        <span className="rf-label"><Target className="ic-sm" /> Focus for next period</span>
         <span className="rf-text">{focus}</span>
+        {coach.insights.length > 1 && <ul className="rf-more">{coach.insights.slice(1, 3).map(i => <li key={i.id}>{i.title}</li>)}</ul>}
       </div>
     </div>
   );

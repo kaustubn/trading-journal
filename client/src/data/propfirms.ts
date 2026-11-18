@@ -57,7 +57,7 @@ export const FIRMS: Firm[] = [
         available: true, profitTarget: '$1,500 (6%)', maxDrawdown: '$1,500 trailing', contracts: '4 minis / 40 micros (eval)',
         scaling: 'Funded: start HALF (2 of 4). Full 4 unlocks at ~$26,600 (start + $1,500 DD + $100), where drawdown also freezes',
         dailyLoss: 'None (Intraday) / yes (EOD)', consistency: 'None to pass · 50% to withdraw', minDays: 'None — pass in 1 day', split: 'Tiered → 100% later', cost: 'One-time (promo)',
-        payoutMin: '$500', payoutCap: '$1,000 per payout', payoutCount: '⚠ Max ~$6,000 total, then account CLOSES', daysBetween: '~', firstPayout: 'Trade 8 days + 5 qualifying days ($100–300 each) + 50% consistency',
+        payoutMin: '$500', payoutCap: '$1,000 per payout', payoutCount: 'Warning: max ~$6,000 total, then account CLOSES', daysBetween: '~', firstPayout: 'Trade 8 days + 5 qualifying days ($100–300 each) + 50% consistency',
         note: 'The 25K is a small starter — low payout ceiling. Good to learn the rules, not to scale.',
       },
       '50K': {
@@ -150,7 +150,7 @@ export const FIRMS: Firm[] = [
   {
     id: 'tpt', name: 'Take Profit Trader', variant: 'PRO / PRO+',
     tagline: 'No daily loss, no consistency — but funded drawdown turns intraday.',
-    url: 'https://takeprofittrader.com/', drawdownType: 'EOD in eval → ⚠ INTRADAY on funded (harsher)',
+    url: 'https://takeprofittrader.com/', drawdownType: 'EOD in eval → INTRADAY on funded (harsher)',
     rating: 4.4, tags: ['no-daily-loss', 'no-consistency'],
     discount: { code: 'seasonal', off: 'varies', verified: 'Jun 2026', source: 'https://saveonpropfirms.com/promos' },
     sizes: {
@@ -167,7 +167,7 @@ export const FIRMS: Firm[] = [
       },
     },
     pros: ['No daily loss limit', 'No consistency rule', 'Withdraw from day 1', 'PRO+ = 90/10'],
-    cons: ['⚠ Funded drawdown becomes INTRADAY (harsh)', 'PRO base split only 80/20', 'Early payouts limited'],
+    cons: ['Funded drawdown becomes INTRADAY (harsh)', 'PRO base split only 80/20', 'Early payouts limited'],
   },
   {
     id: 'alpha', name: 'Alpha Futures', variant: 'Zero / Standard',
@@ -281,12 +281,12 @@ export const ACCOUNT_TYPES: Record<string, AccountVariant[]> = {
 };
 
 export const STYLES = [
-  { key: 'scalper', label: '🔪 I scalp (tight stops)', why: 'No daily loss limit + intraday drawdown you understand.' },
-  { key: 'no-consistency', label: '🚫 Hate consistency rules', why: 'Funded plans with no best-day cap.' },
-  { key: 'payout-fast', label: '⚡ Fast payouts', why: 'On-demand / ~15-min payouts.' },
-  { key: 'beginner', label: '🌱 Clearest rules', why: 'Best structure to learn.' },
-  { key: 'cheap', label: '💸 Cheapest entry', why: 'Low one-time fee, no activation.' },
-  { key: 'no-daily-loss', label: '🛡️ No daily loss limit', why: 'A bad session won\'t auto-fail you.' },
+  { key: 'scalper', label: 'I scalp (tight stops)', why: 'No daily loss limit + intraday drawdown you understand.' },
+  { key: 'no-consistency', label: 'Hate consistency rules', why: 'Funded plans with no best-day cap.' },
+  { key: 'payout-fast', label: 'Fast payouts', why: 'On-demand / ~15-min payouts.' },
+  { key: 'beginner', label: 'Clearest rules', why: 'Best structure to learn.' },
+  { key: 'cheap', label: 'Cheapest entry', why: 'Low one-time fee, no activation.' },
+  { key: 'no-daily-loss', label: 'No daily loss limit', why: 'A bad session won\'t auto-fail you.' },
 ];
 
 export const GLOSSARY = [

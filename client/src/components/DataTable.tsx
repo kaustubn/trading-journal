@@ -3,6 +3,9 @@ import { canOpenOnChart, openOnChart } from '../utils/chartLink';
 import axios from 'axios';
 import { money, num } from '../utils/format';
 import { useOptions, values } from '../utils/options';
+import { Download, CandlestickChart, ArrowUp, ArrowDown, Table2 } from 'lucide-react';
+import TradeDetail from './TradeDetail';
+import { EmptyState } from './ui';
 import './DataTable.css';
 
 interface Props {
@@ -24,7 +27,7 @@ const COLS: { key: SortKey | string; label: string; sortable?: boolean; right?: 
   { key: 'setup_tag', label: 'Setup', sortable: true },
   { key: 'grade', label: 'Grade', sortable: true },
   { key: 'session', label: 'Session', sortable: true },
-  { key: 'test_type', label: 'Testing type', sortable: true },
+  { key: 'test_type', label: 'Entry type', sortable: true },
   { key: 'timeframe', label: 'TF', sortable: true },
   { key: 'tf_align', label: 'Align', right: true },
   { key: 'planned_rr', label: 'R:R' },
@@ -39,6 +42,8 @@ export default function DataTable({ token, account_id, accountName, attempt }: P
   const [f, setF] = useState<Record<string, string>>({ session: '', test_type: '', timeframe: '', setup_tag: '', grade: '', result: '' });
   const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 }>({ key: 'entry_time', dir: -1 });
   const opts = useOptions();
+  const [open, setOpen] = useState<any | null>(null);   // trade open in the review popup
+  const [reload, setReload] = useState(0);
 
   useEffect(() => {
     setLoading(true);
@@ -49,7 +54,7 @@ export default function DataTable({ token, account_id, accountName, attempt }: P
       .then(r => setRows(r.data.data || []))
       .catch(() => setRows([]))
       .finally(() => setLoading(false));
-  }, [account_id, attempt, token]);
+  }, [account_id, attempt, token, reload]);
 
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase();
@@ -125,14 +130,11 @@ export default function DataTable({ token, account_id, accountName, attempt }: P
   return (
     <div className="datatable">
       <div className="dt-head">
-        <div>
-          <h2>🗄️ All Trades</h2>
-          <p className="dt-sub">
-            Every trade in {accountName || 'this account'}{attempt ? ' (selected run)' : ''} — search, filter, sort, export.
-          </p>
-        </div>
+        <p className="dt-sub">
+          {accountName || 'This account'}{attempt ? ' · the run selected on the Dashboard' : ' · all runs'}. Click any row to review and tag that trade.
+        </p>
         <button className="dt-export" onClick={downloadCsv} disabled={filtered.length === 0}>
-          ⬇ Export CSV ({filtered.length})
+          <Download className="ic-sm" /> Export CSV ({filtered.length.toLocaleString()})
         </button>
       </div>
 
@@ -140,7 +142,7 @@ export default function DataTable({ token, account_id, accountName, attempt }: P
         <input className="dt-search" value={q} onChange={e => setQ(e.target.value)}
           placeholder="Search pair, setup, notes, tags…" />
         <Chips label="Session" k="session" list={values(opts, 'session')} />
-        <Chips label="Testing type" k="test_type" list={values(opts, 'test_type')} />
+        <Chips label="Entry type" k="test_type" list={values(opts, 'test_type')} />
         <Chips label="Timeframe" k="timeframe" list={values(opts, 'timeframe')} />
         <Chips label="Setup" k="setup_tag" list={setups} />
         <Chips label="Grade" k="grade" list={['A', 'B', 'C']} />
@@ -153,7 +155,7 @@ export default function DataTable({ token, account_id, accountName, attempt }: P
       </div>
 
       <div className="dt-summary">
-        <span><b>{totals.n}</b> trades</span>
+        <span><b>{totals.n.toLocaleString()}</b> trades</span>
         <span>Net <b className={totals.pnl >= 0 ? 'pos' : 'neg'}>{money(totals.pnl, 2)}</b></span>
         <span>Win rate <b>{num(totals.winRate).toFixed(0)}%</b></span>
       </div>
@@ -161,7 +163,9 @@ export default function DataTable({ token, account_id, accountName, attempt }: P
       {loading ? (
         <p className="dt-empty">Loading…</p>
       ) : filtered.length === 0 ? (
-        <p className="dt-empty">{rows.length === 0 ? 'No trades in this account yet.' : 'No trades match these filters.'}</p>
+        rows.length === 0
+          ? <EmptyState icon={Table2} title="No trades in this account yet">Use <b>Import</b> in the top bar to load a broker CSV, or <b>Add trade</b> to log one by hand.</EmptyState>
+          : <p className="dt-empty">No trades match these filters. Clear a filter or the search box.</p>
       ) : (
         <div className="dt-wrap">
           <table className="dt-table">
@@ -170,17 +174,17 @@ export default function DataTable({ token, account_id, accountName, attempt }: P
                 {COLS.map(c => (
                   <th key={c.key as string} className={`${c.right ? 'r' : ''} ${c.sortable ? 'sortable' : ''}`}
                     onClick={() => c.sortable && toggleSort(c.key as SortKey)}>
-                    {c.label}{sort.key === c.key ? (sort.dir === 1 ? ' ▲' : ' ▼') : ''}
+                    {c.label}{sort.key === c.key ? (sort.dir === 1 ? <ArrowUp className="ic-sm dt-sort" /> : <ArrowDown className="ic-sm dt-sort" />) : ''}
                   </th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {filtered.map(t => (
-                <tr key={t.id}>
+                <tr key={t.id} className="dt-row" onClick={() => setOpen(t)} title="Click to review this trade">
                   <td className="nowrap">
                     {canOpenOnChart(t.symbol) && (
-                      <button className="dt-chart-btn" title="Open on the market chart" onClick={() => openOnChart(t.id)}>🕯️</button>
+                      <button className="dt-chart-btn" title="Open on the market chart" aria-label="Open on the market chart" onClick={e => { e.stopPropagation(); openOnChart(t.id); }}><CandlestickChart className="ic-sm" /></button>
                     )}
                     {new Date(t.entry_time).toLocaleString()}
                   </td>
@@ -189,7 +193,7 @@ export default function DataTable({ token, account_id, accountName, attempt }: P
                   <td className="r">{t.entry_price != null ? num(t.entry_price).toFixed(2) : ''}</td>
                   <td className="r">{t.exit_price != null ? num(t.exit_price).toFixed(2) : ''}</td>
                   <td className={`r strong ${Number(t.pnl) >= 0 ? 'pos' : 'neg'}`}>{t.pnl != null ? money(t.pnl, 2) : ''}</td>
-                  <td>{t.setup_tag || ''}</td>
+                  <td className="nowrap">{t.setup_tag || ''}</td>
                   <td>{t.grade ? <span className={`dt-grade g-${t.grade}`}>{t.grade}</span> : ''}</td>
                   <td>{t.session || ''}</td>
                   <td>{t.test_type || ''}</td>
@@ -203,6 +207,9 @@ export default function DataTable({ token, account_id, accountName, attempt }: P
             </tbody>
           </table>
         </div>
+      )}
+      {open && (
+        <TradeDetail trade={open} onClose={() => setOpen(null)} onSaved={() => { setOpen(null); setReload(r => r + 1); }} />
       )}
     </div>
   );

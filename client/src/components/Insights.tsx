@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { BarChart3, Lightbulb, AlertTriangle, Target, Pin } from 'lucide-react';
 import axios from 'axios';
 import '../styles/Insights.css';
 
@@ -61,15 +62,15 @@ export default function Insights({ token, account_id }: InsightsProps) {
   const getRecommendationIcon = (type: string) => {
     switch (type) {
       case 'pattern':
-        return '📊';
+        return <BarChart3 className="ic-sm" />;
       case 'recommendation':
-        return '💡';
+        return <Lightbulb className="ic-sm" />;
       case 'anomaly':
-        return '⚠️';
+        return <AlertTriangle className="ic-sm" />;
       case 'opportunity':
-        return '🎯';
+        return <Target className="ic-sm" />;
       default:
-        return '📌';
+        return <Pin className="ic-sm" />;
     }
   };
 
@@ -86,7 +87,7 @@ export default function Insights({ token, account_id }: InsightsProps) {
   return (
     <div className="insights">
       <div className="insights-header">
-        <h2>🧠 AI Insights</h2>
+        <h2>Insights</h2>
         <button className="btn-refresh" onClick={fetchInsights}>
           ↻ Refresh
         </button>
@@ -97,13 +98,13 @@ export default function Insights({ token, account_id }: InsightsProps) {
           className={`tab ${activeTab === 'patterns' ? 'active' : ''}`}
           onClick={() => setActiveTab('patterns')}
         >
-          📊 Patterns ({patterns.length})
+          Patterns ({patterns.length})
         </button>
         <button
           className={`tab ${activeTab === 'recommendations' ? 'active' : ''}`}
           onClick={() => setActiveTab('recommendations')}
         >
-          💡 Recommendations ({recommendations.length})
+          Recommendations ({recommendations.length})
         </button>
       </div>
 

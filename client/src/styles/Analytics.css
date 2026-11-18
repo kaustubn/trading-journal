@@ -49,14 +49,14 @@
 }
 
 .view-btn:hover {
-  border-color: #5a67d8;
-  color: #5a67d8;
+  border-color: var(--accent);
+  color: var(--accent);
 }
 
 .view-btn.active {
-  background: #5a67d8;
+  background: var(--accent);
   color: white;
-  border-color: #5a67d8;
+  border-color: var(--accent);
 }
 
 .stats-grid {
@@ -74,7 +74,7 @@
 }
 
 .stat-card:hover {
-  border-color: #5a67d8;
+  border-color: var(--accent);
   box-shadow: 0 2px 8px rgba(90, 103, 216, 0.1);
 }
 
@@ -94,11 +94,11 @@
 }
 
 .stat-value.positive {
-  color: #22c55e;
+  color: var(--success);
 }
 
 .stat-value.negative {
-  color: #ef4444;
+  color: var(--danger);
 }
 
 .stat-detail {
@@ -140,22 +140,22 @@
 }
 
 .performance-table .win {
-  color: #22c55e;
+  color: var(--success);
   font-weight: 600;
 }
 
 .performance-table .loss {
-  color: #ef4444;
+  color: var(--danger);
   font-weight: 600;
 }
 
 .performance-table .positive {
-  color: #22c55e;
+  color: var(--success);
   font-weight: 600;
 }
 
 .performance-table .negative {
-  color: #ef4444;
+  color: var(--danger);
   font-weight: 600;
 }
 

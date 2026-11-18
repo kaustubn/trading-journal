@@ -41,6 +41,8 @@ router.get('/breakdown/:account_id', requirePro('Breakdown analytics'), async (r
     let dateFilter = '';
     if (from) { params.push(from); dateFilter += ` AND DATE(entry_time) >= $${params.length}`; }
     if (to) { params.push(to); dateFilter += ` AND DATE(entry_time) <= $${params.length}`; }
+    // Optional: limit to one attempt/run (used by the dashboard focus panel)
+    if (req.query.attempt) { params.push(Number(req.query.attempt)); dateFilter += ` AND attempt_id = $${params.length}`; }
     // Journal filters — narrow every chart below to just these trades
     if (session) { params.push(session); dateFilter += ` AND session = $${params.length}`; }
     if (test_type) { params.push(test_type); dateFilter += ` AND test_type = $${params.length}`; }

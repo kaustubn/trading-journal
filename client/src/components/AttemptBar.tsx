@@ -1,5 +1,6 @@
 import React from 'react';
 import axios from 'axios';
+import { CircleDot, CheckCircle2, Flame, Trophy, Plus } from 'lucide-react';
 import './AttemptBar.css';
 
 export interface AttemptLite {
@@ -18,10 +19,10 @@ interface Props {
   onOpenChallenges: () => void;
 }
 
-const STATUS: Record<string, { icon: string; label: string; cls: string }> = {
-  active: { icon: '🔵', label: 'ACTIVE', cls: 'ab-active' },
-  passed: { icon: '✅', label: 'PASSED', cls: 'ab-passed' },
-  blown: { icon: '💥', label: 'BLOWN', cls: 'ab-blown' },
+const STATUS: Record<string, { icon: React.ComponentType<any>; label: string; cls: string }> = {
+  active: { icon: CircleDot, label: 'Active', cls: 'ab-active' },
+  passed: { icon: CheckCircle2, label: 'Passed', cls: 'ab-passed' },
+  blown: { icon: Flame, label: 'Blown', cls: 'ab-blown' },
 };
 
 export default function AttemptBar({ account_id, attempts, selectedAttempt, onSelect, onChanged, onOpenChallenges }: Props) {
@@ -44,9 +45,9 @@ export default function AttemptBar({ account_id, attempts, selectedAttempt, onSe
   return (
     <div className="attempt-bar">
       <div className="ab-left">
-        <span className="ab-cur">Current run:</span>
+        <span className="ab-cur">Current run</span>
         <span className="ab-label">{current.label}</span>
-        <span className={`ab-badge ${st.cls}`}>{st.icon} {st.label}</span>
+        <span className={`ab-badge ${st.cls}`}><st.icon className="ic-sm" /> {st.label}</span>
       </div>
 
       <div className="ab-mid">
@@ -63,10 +64,10 @@ export default function AttemptBar({ account_id, attempts, selectedAttempt, onSe
       </div>
 
       <div className="ab-actions">
-        <button className="ab-btn ab-pass" onClick={() => setStatus('passed')} title="Mark current run passed">✅ Passed</button>
-        <button className="ab-btn ab-blow" onClick={() => setStatus('blown')} title="Mark current run blown">💥 Blown</button>
-        <button className="ab-btn ab-new" onClick={newAttempt} title="Start a fresh challenge run">+ New run</button>
-        <button className="ab-btn ab-link" onClick={onOpenChallenges} title="Compare all attempts">🏆 Compare</button>
+        <button className="ab-btn ab-pass" onClick={() => setStatus('passed')} title="Mark the current run as passed"><CheckCircle2 className="ic-sm" /> Passed</button>
+        <button className="ab-btn ab-blow" onClick={() => setStatus('blown')} title="Mark the current run as blown"><Flame className="ic-sm" /> Blown</button>
+        <button className="ab-btn ab-new" onClick={newAttempt} title="Start a fresh challenge run"><Plus className="ic-sm" /> New run</button>
+        <button className="ab-btn ab-link" onClick={onOpenChallenges} title="Compare all runs on the Challenges page"><Trophy className="ic-sm" /> Compare</button>
       </div>
     </div>
   );

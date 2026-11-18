@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { money } from '../utils/format';
+import { CircleDot, CheckCircle2, Flame, Plus, Trash2, Check, TrendingUp, TrendingDown } from 'lucide-react';
 import './Challenges.css';
 
 interface Attempt {
@@ -36,10 +37,10 @@ interface Props {
   onChanged?: () => void;
 }
 
-const STATUS_META: Record<string, { label: string; cls: string; icon: string }> = {
-  active: { label: 'ACTIVE', cls: 'st-active', icon: '🔵' },
-  passed: { label: 'PASSED', cls: 'st-passed', icon: '✅' },
-  blown: { label: 'BLOWN', cls: 'st-blown', icon: '💥' },
+const STATUS_META: Record<string, { label: string; cls: string; icon: React.ComponentType<any> }> = {
+  active: { label: 'Active', cls: 'st-active', icon: CircleDot },
+  passed: { label: 'Passed', cls: 'st-passed', icon: CheckCircle2 },
+  blown: { label: 'Blown', cls: 'st-blown', icon: Flame },
 };
 
 export default function Challenges({ token, account_id, accountName, onChanged }: Props) {
@@ -104,11 +105,8 @@ export default function Challenges({ token, account_id, accountName, onChanged }
   return (
     <div className="ch-wrap">
       <div className="ch-head">
-        <div>
-          <h2>Challenges {accountName ? <span className="ch-sub">· {accountName}</span> : null}</h2>
-          <p className="ch-tag">Each run is one attempt. Import lands in the newest attempt. Pass it, blow it, or reset for a fresh one — your record stays.</p>
-        </div>
-        <button className="ch-new" onClick={newAttempt}>+ New Attempt / Reset</button>
+        <p className="ch-tag">{accountName ? <b>{accountName}. </b> : null}New imports go into the newest run. Mark it passed or blown, or start a fresh run — your record stays. Click a name to rename it.</p>
+        <button className="ch-new" onClick={newAttempt}><Plus className="ic-sm" /> New run</button>
       </div>
 
       {/* Scoreboard */}
@@ -136,7 +134,7 @@ export default function Challenges({ token, account_id, accountName, onChanged }
                 <tr key={a.id} className={a.status === 'blown' ? 'row-blown' : a.status === 'passed' ? 'row-passed' : ''}>
                   <td className="dim">{a.seq}</td>
                   <td className="ch-name" onClick={() => rename(a)} title="Click to rename">{a.label}</td>
-                  <td><span className={`ch-badge ${st.cls}`}>{st.icon} {st.label}</span></td>
+                  <td><span className={`ch-badge ${st.cls}`}><st.icon className="ic-sm" /> {st.label}</span></td>
                   <td className={`r ${a.netPnl >= 0 ? 'pos' : 'neg'}`}>{money(a.netPnl)}</td>
                   <td className="r">{a.trades}</td>
                   <td className="r">{a.trades > 0 ? `${a.winRate.toFixed(0)}%` : '—'}</td>
@@ -145,12 +143,12 @@ export default function Challenges({ token, account_id, accountName, onChanged }
                   <td className="dim ch-when">{a.firstTrade || a.startedAt || '—'}{a.endedAt ? ` → ${a.endedAt}` : ''}</td>
                   <td>
                     <div className="ch-statusbtns">
-                      <button className={`sb sb-pass ${a.status === 'passed' ? 'on' : ''}`} onClick={() => setStatus(a.id, 'passed')} title="Mark passed">✅</button>
-                      <button className={`sb sb-blow ${a.status === 'blown' ? 'on' : ''}`} onClick={() => setStatus(a.id, 'blown')} title="Mark blown">💥</button>
-                      <button className={`sb sb-active ${a.status === 'active' ? 'on' : ''}`} onClick={() => setStatus(a.id, 'active')} title="Mark active/in-progress">🔵</button>
+                      <button className={`sb sb-pass ${a.status === 'passed' ? 'on' : ''}`} onClick={() => setStatus(a.id, 'passed')} title="Mark passed" aria-label="Mark passed"><CheckCircle2 className="ic-sm" /></button>
+                      <button className={`sb sb-blow ${a.status === 'blown' ? 'on' : ''}`} onClick={() => setStatus(a.id, 'blown')} title="Mark blown" aria-label="Mark blown"><Flame className="ic-sm" /></button>
+                      <button className={`sb sb-active ${a.status === 'active' ? 'on' : ''}`} onClick={() => setStatus(a.id, 'active')} title="Mark active / in progress" aria-label="Mark active"><CircleDot className="ic-sm" /></button>
                     </div>
                   </td>
-                  <td><button className="ch-del" onClick={() => del(a)} title="Delete attempt">✕</button></td>
+                  <td><button className="ch-del" onClick={() => del(a)} title="Delete this run and its trades" aria-label="Delete run"><Trash2 className="ic-sm" /></button></td>
                 </tr>
               );
             })}
@@ -197,7 +195,7 @@ function CompareGrid({ a, b }: { a: Attempt; b: Attempt }) {
   ];
 
   const winner = (r: Row): 'a' | 'b' | null => {
-    if (r.av == null || r.bv == null || r.av === r.bv) return null;
+    if (r.av == null || r.bv == null || r.av === r.bv || r.label === 'Total trades') return null;
     const aBetter = r.higherBetter ? r.av > r.bv : r.av < r.bv;
     return aBetter ? 'a' : 'b';
   };
@@ -217,7 +215,7 @@ function CompareGrid({ a, b }: { a: Attempt; b: Attempt }) {
   pushDelta('Expectancy', a.trades ? a.expectancy : null, b.trades ? b.expectancy : null, true, money);
   // Overtrading flag
   if (a.days && b.days && b.tradesPerDay > a.tradesPerDay * 1.3) {
-    insights.push({ txt: `⚠ Overtrading: ${b.label} took ${b.tradesPerDay.toFixed(1)}/day vs ${a.tradesPerDay.toFixed(1)}/day`, good: false });
+    insights.push({ txt: `Overtrading: ${b.label} took ${b.tradesPerDay.toFixed(1)}/day vs ${a.tradesPerDay.toFixed(1)}/day`, good: false });
   }
 
   return (
@@ -233,8 +231,8 @@ function CompareGrid({ a, b }: { a: Attempt; b: Attempt }) {
           return (
             <div className="cmp-row" key={r.label}>
               <div className="cmp-metric">{r.label}</div>
-              <div className={`cmp-val ${w === 'a' ? 'cmp-better' : w === 'b' ? 'cmp-worse' : ''}`}>{r.av != null ? r.fmt(r.av) : '—'}</div>
-              <div className={`cmp-val ${w === 'b' ? 'cmp-better' : w === 'a' ? 'cmp-worse' : ''}`}>{r.bv != null ? r.fmt(r.bv) : '—'}</div>
+              <div className={`cmp-val ${w === 'a' ? 'cmp-better' : ''}`}>{w === 'a' && <span className="cmp-win" title="Better of the two"><Check className="ic-sm" /></span>}{r.av != null ? r.fmt(r.av) : '—'}</div>
+              <div className={`cmp-val ${w === 'b' ? 'cmp-better' : ''}`}>{w === 'b' && <span className="cmp-win" title="Better of the two"><Check className="ic-sm" /></span>}{r.bv != null ? r.fmt(r.bv) : '—'}</div>
             </div>
           );
         })}
@@ -243,7 +241,7 @@ function CompareGrid({ a, b }: { a: Attempt; b: Attempt }) {
         <div className="cmp-insights">
           <div className="cmp-insights-title">Change from <b>{a.label}</b> → <b>{b.label}</b></div>
           {insights.map((it, i) => (
-            <div key={i} className={`cmp-ins ${it.good ? 'ins-good' : 'ins-bad'}`}>{it.good ? '▲' : '▼'} {it.txt}</div>
+            <div key={i} className={`cmp-ins ${it.good ? 'ins-good' : 'ins-bad'}`}>{it.good ? <TrendingUp className="ic-sm" /> : <TrendingDown className="ic-sm" />} {it.txt}</div>
           ))}
         </div>
       )}

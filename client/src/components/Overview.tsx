@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { num, money } from '../utils/format';
+import { num, money, currencySymbol } from '../utils/format';
+import { Settings2, X, LineChart } from 'lucide-react';
+import { InfoTip, EmptyState } from './ui';
 import '../styles/Overview.css';
 
 interface OverviewProps {
@@ -39,7 +41,7 @@ function EquityCurve({ data }: { data: { date: string; cumulative: number }[] })
           <stop offset="100%" stopColor={stroke} stopOpacity="0" />
         </linearGradient>
       </defs>
-      <line x1={pad} y1={zeroY} x2={W - pad} y2={zeroY} stroke="#2a2e3a" strokeWidth="1" strokeDasharray="4 4" />
+      <line x1={pad} y1={zeroY} x2={W - pad} y2={zeroY} stroke="var(--border-strong)" strokeWidth="1" strokeDasharray="4 4" />
       <path d={area} fill="url(#eqfill)" />
       <path d={line} fill="none" stroke={stroke} strokeWidth="2" strokeLinejoin="round" />
     </svg>
@@ -63,7 +65,7 @@ function ScoreCard({ score }: { score: any }) {
     <div className="ov-score">
       <div className="ov-score-gauge">
         <svg viewBox="0 0 130 130" className="ov-score-svg">
-          <circle cx="65" cy="65" r={R} fill="none" stroke="#20242e" strokeWidth="11" />
+          <circle cx="65" cy="65" r={R} fill="none" stroke="var(--raised-2)" strokeWidth="11" />
           <circle cx="65" cy="65" r={R} fill="none" stroke={col} strokeWidth="11" strokeLinecap="round"
             strokeDasharray={`${(pct / 100) * C} ${C}`} transform="rotate(-90 65 65)" />
           <text x="65" y="60" textAnchor="middle" className="ov-score-num" fill={col}>{score.total}</text>
@@ -71,7 +73,7 @@ function ScoreCard({ score }: { score: any }) {
         </svg>
       </div>
       <div className="ov-score-parts">
-        <div className="ov-score-title">Performance Score <span>· weighted 0-100</span></div>
+        <div className="ov-score-title">Performance score <InfoTip term="score" align="left" /></div>
         {score.parts.map((p: any) => (
           <div key={p.key} className="ov-score-row">
             <span className="ov-score-plabel">{p.label}</span>
@@ -118,76 +120,78 @@ export default function Overview({ token, account_id, from, to, attempt }: Overv
   if (loading) return <div className="overview loading">Loading overview…</div>;
   if (!d || !d.hasData) {
     return (
-      <div className="overview empty-ov">
-        <h3>No trades yet</h3>
-        <p>Import a CSV to see your performance overview and equity curve.</p>
-      </div>
+      <EmptyState icon={LineChart} title="No trades in this view yet">
+        Import a broker CSV or click <b>Add trade</b> in the top bar. If you picked a date range or a run above, try <b>All time</b>.
+      </EmptyState>
     );
   }
 
   const pf = num(d.profitFactor);
+  const sym = currencySymbol();
   return (
     <div className="overview">
-      {d.score && <ScoreCard score={d.score} />}
       <div className="ov-kpis">
         <div className="ov-kpi big">
-          <div className="ov-label">{num(d.costPerTrade) > 0 ? 'Net P&L (after charges)' : 'Net P&L'}</div>
+          <div className="ov-label">{num(d.costPerTrade) > 0 ? 'Net P&L (after charges)' : 'Net P&L'}<InfoTip term="netPnl" align="left" /></div>
           <div className={`ov-value ${num(d.netAfterCharges) >= 0 ? 'positive' : 'negative'}`}>{money(d.netAfterCharges, 0)}</div>
           <div className="ov-sub">
             {num(d.costPerTrade) > 0
               ? <>gross {money(d.grossPnl, 0)} − {money(d.charges, 0)} charges</>
-              : <>{d.totalTrades} trades · {d.tradingDays} days</>}
+              : <>{num(d.totalTrades).toLocaleString()} trades · {d.tradingDays} days</>}
           </div>
         </div>
         <div className="ov-kpi">
-          <div className="ov-label">Win Rate</div>
+          <div className="ov-label">Win rate<InfoTip term="winRate" /></div>
           <div className="ov-value">{num(d.winRate).toFixed(1)}%</div>
-          <div className="ov-sub">{d.wins}W / {d.losses}L</div>
+          <div className="ov-sub">{num(d.wins).toLocaleString()} won · {num(d.losses).toLocaleString()} lost</div>
         </div>
         <div className="ov-kpi">
-          <div className="ov-label">Profit Factor</div>
+          <div className="ov-label">Profit factor<InfoTip term="profitFactor" /></div>
           <div className={`ov-value ${pf >= 1 ? 'positive' : 'negative'}`}>{pf >= 999 ? '∞' : pf.toFixed(2)}</div>
-          <div className="ov-sub">gross {money(d.grossProfit, 0)} / {money(d.grossLoss, 0)}</div>
+          <div className="ov-sub">{pf >= 1.5 ? 'Healthy (1.5+)' : pf >= 1 ? 'Profitable, thin edge' : 'Below 1.0 = losing'}</div>
         </div>
         <div className="ov-kpi">
-          <div className="ov-label">Expectancy</div>
+          <div className="ov-label">Expectancy<InfoTip term="expectancy" /></div>
           <div className={`ov-value ${num(d.expectancy) >= 0 ? 'positive' : 'negative'}`}>{money(d.expectancy, 0)}</div>
           <div className="ov-sub">per trade{d.avgR !== null ? ` · ${num(d.avgR).toFixed(2)}R avg` : ''}</div>
         </div>
         <div className="ov-kpi">
-          <div className="ov-label">Streak</div>
+          <div className="ov-label">Streak<InfoTip term="streak" align="right" /></div>
           <div className={`ov-value ${d.streakType === 'win' ? 'positive' : d.streakType === 'loss' ? 'negative' : ''}`}>
             {d.streak}{d.streakType === 'win' ? 'W' : d.streakType === 'loss' ? 'L' : ''}
           </div>
-          <div className="ov-sub">current run</div>
+          <div className="ov-sub">{d.streakType === 'win' ? 'wins in a row' : d.streakType === 'loss' ? 'losses in a row' : 'current run'}</div>
         </div>
       </div>
 
-      <div className="ov-curve">
-        <div className="ov-curve-head">
-          <h3>Equity Curve</h3>
-          <div className="ov-cost">
-            {editCost ? (
-              <>
-                <span>Charges ₹/trade:</span>
-                <input type="number" value={costInput} onChange={e => setCostInput(e.target.value)}
-                  placeholder="e.g. 200" style={{ width: 80 }} />
-                <button className="ov-cost-save" onClick={saveCost}>Save</button>
-                <button className="ov-cost-cancel" onClick={() => setEditCost(false)}>✕</button>
-              </>
-            ) : (
-              <button className="ov-cost-btn" onClick={() => setEditCost(true)}>
-                {num(d.costPerTrade) > 0 ? `⚙ ₹${num(d.costPerTrade)}/trade charges` : '⚙ Set charges/trade'}
-              </button>
-            )}
+      <div className="ov-row">
+        <div className="ov-curve">
+          <div className="ov-curve-head">
+            <h3>Equity curve <span className="ov-curve-note">cumulative P&L by day</span></h3>
+            <div className="ov-cost">
+              {editCost ? (
+                <>
+                  <span>Charges {sym}/trade:</span>
+                  <input type="number" value={costInput} onChange={e => setCostInput(e.target.value)}
+                    placeholder="e.g. 4" style={{ width: 80 }} />
+                  <button className="ov-cost-save" onClick={saveCost}>Save</button>
+                  <button className="ov-cost-cancel" onClick={() => setEditCost(false)} aria-label="Cancel"><X className="ic-sm" /></button>
+                </>
+              ) : (
+                <button className="ov-cost-btn" onClick={() => setEditCost(true)} title="Commissions + fees per trade, subtracted from Net P&L">
+                  <Settings2 className="ic-sm" /> {num(d.costPerTrade) > 0 ? `${sym}${num(d.costPerTrade)}/trade charges` : 'Set charges per trade'}
+                </button>
+              )}
+            </div>
           </div>
+          <EquityCurve data={d.equityCurve} />
         </div>
-        <EquityCurve data={d.equityCurve} />
+        {d.score && <ScoreCard score={d.score} />}
       </div>
 
       <div className="ov-mini">
         <div className="ov-mini-card positive-b">
-          <span className="m-label">Best day</span>
+          <span className="m-label">Best day<InfoTip term="bestWorstDay" align="left" /></span>
           <span className="m-value positive">{money(d.bestDay?.pnl, 0)}</span>
           <span className="m-sub">{d.bestDay?.date}</span>
         </div>
@@ -197,7 +201,7 @@ export default function Overview({ token, account_id, from, to, attempt }: Overv
           <span className="m-sub">{d.worstDay?.date}</span>
         </div>
         <div className="ov-mini-card">
-          <span className="m-label">Largest win</span>
+          <span className="m-label">Largest win<InfoTip term="largest" /></span>
           <span className="m-value positive">{money(d.largestWin, 0)}</span>
         </div>
         <div className="ov-mini-card">
@@ -205,11 +209,11 @@ export default function Overview({ token, account_id, from, to, attempt }: Overv
           <span className="m-value negative">{money(d.largestLoss, 0)}</span>
         </div>
         <div className="ov-mini-card">
-          <span className="m-label">Avg win / loss</span>
+          <span className="m-label">Avg win / loss<InfoTip term="payoff" /></span>
           <span className="m-value">{money(d.avgWin, 0)} / {money(d.avgLoss, 0)}</span>
         </div>
         <div className="ov-mini-card">
-          <span className="m-label">Green / red days</span>
+          <span className="m-label">Green / red days<InfoTip term="greenDays" align="right" /></span>
           <span className="m-value">{d.winningDays} / {d.losingDays}</span>
         </div>
       </div>

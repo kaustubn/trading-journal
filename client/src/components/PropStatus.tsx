@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import { ShieldCheck, OctagonX, Trophy, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { num, money } from '../utils/format';
 import '../styles/PropStatus.css';
 
@@ -55,7 +56,7 @@ export default function PropStatus({ token, accountId, attempt }: PropStatusProp
     return (
       <div className="prop-status not-configured">
         <div>
-          <strong>🎯 Prop-firm rules</strong>
+          <strong><ShieldCheck className="ic-sm" /> Prop-firm rules</strong>
           <span> — track drawdown & profit target for this account (Lucid, Apex, TopStep, etc.)</span>
         </div>
         <button className="btn-primary" onClick={() => setEditing(true)}>Set up rules</button>
@@ -66,7 +67,7 @@ export default function PropStatus({ token, accountId, attempt }: PropStatusProp
   if (editing) {
     return (
       <div className="prop-status">
-        <div className="prop-header"><h3>🎯 Prop-Firm Rules</h3></div>
+        <div className="prop-header"><h3><ShieldCheck className="ic-sm" /> Prop-firm rules</h3></div>
         <div className="prop-form">
           <div className="pf-field"><label>Starting Balance</label>
             <input type="number" value={form.starting_balance} placeholder="24000"
@@ -110,7 +111,7 @@ export default function PropStatus({ token, accountId, attempt }: PropStatusProp
   return (
     <div className={`prop-status ${s.drawdownBreached || s.dailyBreached ? 'breached' : ''}`}>
       <div className="prop-header">
-        <h3>🎯 Prop-Firm Standing {s.trailing ? '· trailing' : '· static'}</h3>
+        <h3><ShieldCheck className="ic-sm" /> Prop-firm standing <span className="pf-kind">{s.trailing ? 'trailing drawdown' : 'static drawdown'}</span></h3>
         <button className="btn-edit" onClick={() => {
           setForm({
             starting_balance: String(s.startingBalance ?? ''),
@@ -127,11 +128,11 @@ export default function PropStatus({ token, accountId, attempt }: PropStatusProp
 
       {(s.drawdownBreached || s.dailyBreached) && (
         <div className="breach-banner">
-          🛑 {s.drawdownBreached ? 'MAX DRAWDOWN BREACHED' : ''} {s.dailyBreached ? 'DAILY LOSS LIMIT HIT' : ''}
+          <OctagonX className="ic-sm" /> {s.drawdownBreached ? 'MAX DRAWDOWN BREACHED' : ''} {s.dailyBreached ? 'DAILY LOSS LIMIT HIT' : ''}
         </div>
       )}
       {s.targetReached && !s.drawdownBreached && (
-        <div className="target-banner">🏆 PROFIT TARGET REACHED</div>
+        <div className="target-banner"><Trophy className="ic-sm" /> Profit target reached</div>
       )}
 
       <div className="prop-grid">
@@ -199,9 +200,9 @@ export default function PropStatus({ token, accountId, attempt }: PropStatusProp
                 {best <= 0 ? (
                   <span>No winning day yet — this rule applies once you're in profit.</span>
                 ) : pass ? (
-                  <span>✅ On track to pass. Your biggest day {money(best, 0)} is under the {money(cap, 0)} cap — keep any single day below {money(cap, 0)} and you comply. <span className="pf-hint">(Shows {share}% of your {money(c.totalProfit, 0)} so far; this % drops as you grow toward target.)</span></span>
+                  <span><CheckCircle2 className="ic-sm pf-ok-ic" /> On track to pass. Your biggest day {money(best, 0)} is under the {money(cap, 0)} cap — keep any single day below {money(cap, 0)} and you comply. <span className="pf-hint">(Shows {share}% of your {money(c.totalProfit, 0)} so far; this % drops as you grow toward target.)</span></span>
                 ) : (
-                  <span>⚠ Biggest day {money(best, 0)} is over the {money(cap, 0)} cap. Book more profit on OTHER days so no single day tops {money(cap, 0)}. Don't take losses — that makes it worse.</span>
+                  <span><AlertTriangle className="ic-sm pf-warn-ic" /> Biggest day {money(best, 0)} is over the {money(cap, 0)} cap. Book more profit on OTHER days so no single day tops {money(cap, 0)}. Don't take losses — that makes it worse.</span>
                 )}
               </div>
             </div>
@@ -225,9 +226,9 @@ export default function PropStatus({ token, accountId, attempt }: PropStatusProp
               {c.bestDayShare === null ? (
                 <span>Best day {money(c.bestDayProfit, 0)} — need net profit before this rule applies.</span>
               ) : c.pass ? (
-                <span>✅ On track. Best day {money(c.bestDayProfit, 0)} is {share}% of {money(c.totalProfit, 0)}. A single day can be up to {money(c.maxDayAllowedNow, 0)} now.</span>
+                <span><CheckCircle2 className="ic-sm pf-ok-ic" /> On track. Best day {money(c.bestDayProfit, 0)} is {share}% of {money(c.totalProfit, 0)}. A single day can be up to {money(c.maxDayAllowedNow, 0)} now.</span>
               ) : (
-                <span>⚠ Best day {money(c.bestDayProfit, 0)} = {share}% (limit {c.rulePct}%). Grow total profit to {money(c.minTotalForRule, 0)} — need <b>{money(c.extraProfitNeeded, 0)}</b> more on OTHER days to comply.</span>
+                <span><AlertTriangle className="ic-sm pf-warn-ic" /> Best day {money(c.bestDayProfit, 0)} = {share}% (limit {c.rulePct}%). Grow total profit to {money(c.minTotalForRule, 0)} — need <b>{money(c.extraProfitNeeded, 0)}</b> more on OTHER days to comply.</span>
               )}
             </div>
           </div>
@@ -239,7 +240,7 @@ export default function PropStatus({ token, accountId, attempt }: PropStatusProp
         <div className={`pf-mindays ${s.minDays.pass ? 'ok' : ''}`}>
           <span className="pf-mindays-label">Min trading days</span>
           <span className="pf-mindays-val">
-            {s.minDays.tradedSoFar} / {s.minDays.required} {s.minDays.pass ? '✅' : `· ${s.minDays.remaining} to go`}
+            {s.minDays.tradedSoFar} / {s.minDays.required} {s.minDays.pass ? <CheckCircle2 className="ic-sm pf-ok-ic" /> : `· ${s.minDays.remaining} to go`}
           </span>
         </div>
       )}

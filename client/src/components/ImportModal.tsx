@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { CheckCircle2, AlertTriangle, Trash2 } from 'lucide-react';
 import axios from 'axios';
 import { money } from '../utils/format';
 import '../styles/AddAccountModal.css';
@@ -116,14 +117,14 @@ export default function ImportModal({ isOpen, onClose, onImported, token, accoun
             <div className="form-group">
               <label>CSV File</label>
               <input type="file" accept=".csv,text/csv,text/plain" onChange={handleFile} />
-              {reading && <div style={{ color: '#9aa0ac', fontSize: 12, marginTop: 6 }}>Reading {fileName}…</div>}
+              {reading && <div style={{ color: 'var(--text-dim)', fontSize: 12, marginTop: 6 }}>Reading {fileName}…</div>}
               {!reading && fileName && rowCount > 0 && (
-                <div style={{ color: '#22c55e', fontSize: 12, marginTop: 6 }}>
-                  ✓ {fileName} — {rowCount} line{rowCount === 1 ? '' : 's'} ready
+                <div style={{ color: 'var(--success)', fontSize: 12, marginTop: 6, display: 'flex', alignItems: 'center', gap: 5 }}>
+                  <CheckCircle2 className="ic-sm" /> {fileName} — {rowCount} line{rowCount === 1 ? '' : 's'} ready
                 </div>
               )}
               {!reading && fileName && rowCount === 0 && (
-                <div style={{ color: '#f5a623', fontSize: 12, marginTop: 6 }}>⚠ {fileName} is empty</div>
+                <div style={{ color: 'var(--warning)', fontSize: 12, marginTop: 6, display: 'flex', alignItems: 'center', gap: 5 }}><AlertTriangle className="ic-sm" /> {fileName} is empty</div>
               )}
             </div>
 
@@ -144,10 +145,10 @@ export default function ImportModal({ isOpen, onClose, onImported, token, accoun
               </button>
             </div>
 
-            <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid #2a2e3a', textAlign: 'center' }}>
+            <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid var(--border)', textAlign: 'center' }}>
               <button type="button" onClick={handleClear} disabled={loading}
-                style={{ background: 'transparent', border: 'none', color: '#ef4444', fontSize: 12.5, cursor: 'pointer', fontWeight: 600 }}>
-                ⚠ Clear all trades in this account (wipe & re-import)
+                style={{ background: 'transparent', border: 'none', color: 'var(--danger)', fontSize: 12.5, cursor: 'pointer', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                <Trash2 className="ic-sm" /> Clear all trades in this account (wipe & re-import)
               </button>
             </div>
           </>
@@ -157,14 +158,14 @@ export default function ImportModal({ isOpen, onClose, onImported, token, accoun
           <div>
             <div style={{
               background: 'rgba(34,197,94,.12)', border: '1px solid rgba(34,197,94,.3)',
-              borderRadius: 8, padding: 16, color: '#e6e8ec',
+              borderRadius: 8, padding: 16, color: 'var(--text)',
             }}>
               {result.cleared !== undefined ? (
-                <div style={{ fontSize: 20, fontWeight: 700, color: '#22c55e' }}>🧹 Cleared {result.cleared} trades</div>
+                <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--success)' }}>Cleared {result.cleared} trades</div>
               ) : (
                 <>
-                  <div style={{ fontSize: 22, fontWeight: 700, color: '#22c55e' }}>✓ {result.inserted} trades imported</div>
-                  <div style={{ color: '#9aa0ac', fontSize: 13, marginTop: 6 }}>
+                  <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--success)', display: 'flex', alignItems: 'center', gap: 8 }}><CheckCircle2 /> {result.inserted} trades imported</div>
+                  <div style={{ color: 'var(--text-dim)', fontSize: 13, marginTop: 6 }}>
                     {result.mode === 'orderbook-aggregated'
                       ? `Built from ${result.executedFills} executed fills · ${result.ignoredRows} rejected/cancelled ignored · total P&L ${money(result.totalPnl, 2)}`
                       : `${result.skipped} skipped (duplicates/blank) · ${result.totalRows} rows read`}

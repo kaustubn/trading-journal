@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { canOpenOnChart, openOnChart } from '../utils/chartLink';
 import axios from 'axios';
 import OptionPicker from './OptionPicker';
+import { CandlestickChart, X, CheckCircle2, Circle, Star, ImagePlus } from 'lucide-react';
+import { num, signedMoney } from '../utils/format';
 import '../styles/TradeDetail.css';
 
 interface Trade {
@@ -131,90 +133,83 @@ export default function TradeDetail({ trade, onClose, onSaved }: TradeDetailProp
     }
   };
 
+  // Escape closes the popup
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape' && !lightbox) onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [lightbox, onClose]);
+
+  // Review completeness — the four things the coach learns from
+  const checks = [
+    { ok: !!setupTag, label: 'Setup tagged', tip: 'Pick the setup so the Setups page can tell which ones make money.' },
+    { ok: !!grade, label: 'Graded A/B/C', tip: 'Grade it against your Entry Checklist: A and B are trades, C is "should not have taken it".' },
+    { ok: EMO.some(([k]) => hasEmo(k)), label: 'Feeling logged', tip: 'Tap how you felt — it feeds the Emotions page.' },
+    { ok: !!stopLoss, label: 'Stop saved', tip: 'Add the stop price to see this trade in R (risk units).' },
+  ];
+  const done = checks.filter(c => c.ok).length;
+  const nextTip = checks.find(c => !c.ok)?.tip;
+  const pnl = trade.pnl != null ? Number(trade.pnl) : 0;
+  const fmtTime = (s?: string) => s ? new Date(s).toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }) : 'Open';
+
   return (
     <div className="trade-detail-overlay" onClick={onClose}>
-      <div className="trade-detail" onClick={e => e.stopPropagation()}>
-        <button className="close-btn" onClick={onClose}>×</button>
-
-        <h2>{trade.symbol}</h2>
-        {canOpenOnChart(trade.symbol) && (
-          <button className="td-chart-btn" onClick={() => { onClose(); openOnChart(trade.id); }}>🕯️ Open on chart</button>
-        )}
-
-        <div className="trade-info">
-          <div className="info-group">
-            <label>Entry Time</label>
-            <p>{new Date(trade.entry_time).toLocaleString()}</p>
-          </div>
-
-          <div className="info-group">
-            <label>Exit Time</label>
-            <p>{trade.exit_time ? new Date(trade.exit_time).toLocaleString() : 'Open'}</p>
-          </div>
-
-          <div className="info-group">
-            <label>Entry Price</label>
-            <p>${trade.entry_price.toFixed(2)}</p>
-          </div>
-
-          <div className="info-group">
-            <label>Exit Price</label>
-            <p>{trade.exit_price ? `$${trade.exit_price.toFixed(2)}` : '-'}</p>
-          </div>
-
-          <div className="info-group">
-            <label>Quantity</label>
-            <p>{trade.quantity}</p>
-          </div>
-
-          <div className="info-group">
-            <label>P&L</label>
-            <p className={trade.pnl && trade.pnl > 0 ? 'positive' : 'negative'}>
-              ${trade.pnl != null ? Number(trade.pnl).toFixed(2) : '0.00'}
+      <div className="trade-detail" onClick={e => e.stopPropagation()} role="dialog" aria-label={`Review ${trade.symbol} trade`}>
+        <div className="td-head">
+          <div className="td-head-main">
+            <div className="td-sym">{trade.symbol} <span className="td-qty">× {trade.quantity}</span></div>
+            <div className={`td-pnl ${pnl > 0 ? 'positive' : pnl < 0 ? 'negative' : ''}`}>
+              {trade.pnl != null ? signedMoney(pnl, 2) : '—'}
               {rMultiple !== null && (
-                <span className={`r-badge ${rMultiple >= 0 ? 'positive' : 'negative'}`}>
+                <span className={`r-badge ${rMultiple >= 0 ? 'positive' : 'negative'}`} title="Result in R: P&L ÷ money risked to the stop">
                   {rMultiple >= 0 ? '+' : ''}{rMultiple.toFixed(2)}R
                 </span>
               )}
-            </p>
+            </div>
+          </div>
+          <div className="td-head-actions">
+            {canOpenOnChart(trade.symbol) && (
+              <button className="td-chart-btn" onClick={() => { onClose(); openOnChart(trade.id); }}><CandlestickChart className="ic-sm" /> Open on chart</button>
+            )}
+            <button className="close-btn" onClick={onClose} aria-label="Close"><X className="ic-lg" /></button>
           </div>
         </div>
 
+        <div className="trade-info">
+          <div className="info-group"><label>Entry</label><p>{num(trade.entry_price).toFixed(2)}<span className="td-when">{fmtTime(trade.entry_time)}</span></p></div>
+          <div className="info-group"><label>Exit</label><p>{trade.exit_price ? num(trade.exit_price).toFixed(2) : '—'}<span className="td-when">{fmtTime(trade.exit_time)}</span></p></div>
+        </div>
+
+        <div className="td-review">
+          <div className="td-review-top">
+            <span className="td-review-title">Review {done}/4</span>
+            <div className="td-review-bar"><div style={{ width: `${done * 25}%` }} /></div>
+          </div>
+          <div className="td-checks">
+            {checks.map(c => (
+              <span key={c.label} className={`td-check ${c.ok ? 'ok' : ''}`}>
+                {c.ok ? <CheckCircle2 className="ic-sm" /> : <Circle className="ic-sm" />} {c.label}
+              </span>
+            ))}
+          </div>
+          {nextTip && <div className="td-next">Next: {nextTip}</div>}
+        </div>
+
         <div className="editable-fields">
+          <div className="td-sec">1 · What did you trade?</div>
           <OptionPicker field="pair" label="Pair" value={symbol} onChange={setSymbol}
             hint="(instrument on this trade)" allowCustomText />
 
-          <OptionPicker field="setup" label="Setup / Type" value={setupTag} onChange={setSetupTag} allowCustomText />
-
-          <div className="td-row">
-            <div className="form-group">
-              <label>Grade <span className="hint">(A/B/C from checklist)</span></label>
-              <div className="chip-row">
-                {['A', 'B', 'C'].map(g => (
-                  <button key={g} type="button"
-                    className={`chip grade-${g} ${grade === g ? 'on' : ''}`}
-                    onClick={() => setGrade(grade === g ? '' : g)}>{g}</button>
-                ))}
-              </div>
-            </div>
-            <div className="form-group">
-              <label>Rating</label>
-              <div className="star-row">
-                {[1, 2, 3, 4, 5].map(n => (
-                  <span key={n} className={`star ${n <= rating ? 'on' : ''}`} onClick={() => setRating(n === rating ? 0 : n)}>★</span>
-                ))}
-              </div>
-            </div>
-          </div>
+          <OptionPicker field="setup" label="Setup" value={setupTag} onChange={setSetupTag} allowCustomText />
 
           <OptionPicker field="session" label="Session" value={session} onChange={setSession} />
 
-          <OptionPicker field="test_type" label="Testing type" value={testType} onChange={setTestType} />
+          <OptionPicker field="test_type" label="Entry type" value={testType} onChange={setTestType} />
 
           <div className="td-row">
-            <OptionPicker field="timeframe" label="Timeframe" value={timeframe} onChange={setTimeframe} />
+            <OptionPicker field="timeframe" label="Entry timeframe" value={timeframe} onChange={setTimeframe} />
             <div className="form-group">
-              <label>TF Align <span className="hint">(timeframes agreeing)</span></label>
+              <label>Timeframes agreeing <span className="hint">(how many TFs pointed the same way)</span></label>
               <div className="chip-row">
                 {['1', '2', '3', '4', '5'].map(n => (
                   <button key={n} type="button" className={`chip ${tfAlign === n ? 'on' : ''}`}
@@ -224,8 +219,31 @@ export default function TradeDetail({ trade, onClose, onSaved }: TradeDetailProp
             </div>
           </div>
 
+          <div className="td-sec">2 · Was it a good trade?</div>
+          <div className="td-row">
+            <div className="form-group">
+              <label>Grade <span className="hint">(from your Entry Checklist)</span></label>
+              <div className="chip-row">
+                {['A', 'B', 'C'].map(g => (
+                  <button key={g} type="button"
+                    className={`chip grade-${g} ${grade === g ? 'on' : ''}`}
+                    onClick={() => setGrade(grade === g ? '' : g)}>{g}</button>
+                ))}
+              </div>
+            </div>
+            <div className="form-group">
+              <label>Execution rating <span className="hint">(how well you executed)</span></label>
+              <div className="star-row">
+                {[1, 2, 3, 4, 5].map(n => (
+                  <button key={n} type="button" className={`star ${n <= rating ? 'on' : ''}`} aria-label={`${n} star${n > 1 ? 's' : ''}`}
+                    onClick={() => setRating(n === rating ? 0 : n)}><Star className="ic-lg" /></button>
+                ))}
+              </div>
+            </div>
+          </div>
+
           <div className="form-group">
-            <label>Planned R:R</label>
+            <label>Planned reward : risk</label>
             <div className="chip-row">
               {RRS.map(r => (
                 <button key={r} type="button" className={`chip ${plannedRr === r ? 'on' : ''}`}
@@ -238,17 +256,18 @@ export default function TradeDetail({ trade, onClose, onSaved }: TradeDetailProp
 
           <div className="td-row">
             <div className="form-group">
-              <label>Stop Loss <span className="hint">(enables R)</span></label>
+              <label>Stop loss <span className="hint">(price — enables R)</span></label>
               <input type="number" step="0.01" value={stopLoss} onChange={e => setStopLoss(e.target.value)} placeholder="e.g., 19450" />
             </div>
             <div className="form-group">
-              <label>Target</label>
+              <label>Target <span className="hint">(price)</span></label>
               <input type="number" step="0.01" value={target} onChange={e => setTarget(e.target.value)} placeholder="e.g., 19600" />
             </div>
           </div>
 
+          <div className="td-sec">3 · How did you feel?</div>
           <div className="form-group">
-            <label>How did you feel? <span className="hint">(one tap — feeds the Emotions page)</span></label>
+            <label>Feelings <span className="hint">(one tap each — feeds the Emotions page)</span></label>
             <div className="emo-chips">
               {EMO.map(([k, label, neg]) => (
                 <button key={k} type="button"
@@ -259,13 +278,14 @@ export default function TradeDetail({ trade, onClose, onSaved }: TradeDetailProp
           </div>
 
           <div className="form-group">
-            <label>Tags <span className="hint">(comma-separated)</span></label>
+            <label>Tags <span className="hint">(comma-separated — e.g. "rule break", news, A+)</span></label>
             <input type="text" value={tags} onChange={e => setTags(e.target.value)}
-              placeholder="e.g., A+, news, revenge, fomo, disciplined" />
+              placeholder="e.g., rule break, news, A+" />
           </div>
 
+          <div className="td-sec">4 · Evidence and lesson</div>
           <div className="form-group">
-            <label>Chart Screenshots <span className="hint">(one per timeframe, image ≤4MB each)</span></label>
+            <label>Chart screenshots <span className="hint">(one per timeframe, image up to 4MB each)</span></label>
             <div className="tf-shots">
               {TFS.map(tf => (
                 <div key={tf} className="tf-slot">
@@ -273,39 +293,39 @@ export default function TradeDetail({ trade, onClose, onSaved }: TradeDetailProp
                   {shots[tf] ? (
                     <div className="tf-imgwrap">
                       <img src={shots[tf]} alt={`${tf} chart`} className="tf-img" onClick={() => setLightbox(shots[tf])} />
-                      <button type="button" className="tf-remove" onClick={() => removeShot(tf)}>✕</button>
+                      <button type="button" className="tf-remove" onClick={() => removeShot(tf)} aria-label={`Remove ${tf} screenshot`}><X className="ic-sm" /></button>
                     </div>
                   ) : (
                     <label className="tf-upload">
-                      + Add {tf}
+                      <ImagePlus className="ic-sm" /> Add {tf}
                       <input type="file" accept="image/*" hidden onChange={e => handleImage(tf, e)} />
                     </label>
                   )}
                 </div>
               ))}
             </div>
-            {imgError && <div style={{ color: '#f5a623', fontSize: 12, marginTop: 6 }}>{imgError}</div>}
+            {imgError && <div style={{ color: 'var(--warning)', fontSize: 12, marginTop: 6 }}>{imgError}</div>}
           </div>
 
           <div className="form-group">
-            <label>Notes</label>
+            <label>Notes and lesson</label>
             <textarea value={notes} onChange={e => setNotes(e.target.value)}
-              placeholder="What was the plan? What did you learn?" rows={4} />
+              placeholder="What was the plan? What happened? What will you do the same or differently next time?" rows={4} />
           </div>
         </div>
 
         <div className="actions">
-          <button onClick={handleSave} disabled={saving} className="save-btn">
-            {saving ? 'Saving...' : 'Save'}
-          </button>
           <button onClick={onClose} className="cancel-btn">Cancel</button>
+          <button onClick={handleSave} disabled={saving} className="save-btn">
+            {saving ? 'Saving…' : 'Save review'}
+          </button>
         </div>
       </div>
 
       {lightbox && (
         <div className="td-lightbox" onClick={(e) => { e.stopPropagation(); setLightbox(null); }}>
           <img src={lightbox} alt="chart full size" />
-          <button className="td-lightbox-close" onClick={(e) => { e.stopPropagation(); setLightbox(null); }}>×</button>
+          <button className="td-lightbox-close" onClick={(e) => { e.stopPropagation(); setLightbox(null); }} aria-label="Close"><X className="ic-lg" /></button>
         </div>
       )}
     </div>

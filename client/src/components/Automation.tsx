@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Settings2 } from 'lucide-react';
 import axios from 'axios';
 import '../styles/Automation.css';
 
@@ -126,7 +127,7 @@ export default function Automation({ token, account_id }: AutomationProps) {
   return (
     <div className="automation">
       <div className="automation-header">
-        <h2>🤖 Trading Automation</h2>
+        <h2>Trading automation</h2>
         <button
           className="btn-create"
           onClick={() => setShowNewBotForm(!showNewBotForm)}
@@ -183,7 +184,7 @@ export default function Automation({ token, account_id }: AutomationProps) {
               >
                 {bot.enabled ? 'Stop' : 'Start'}
               </button>
-              <button className="btn-settings">⚙️ Settings</button>
+              <button className="btn-settings"><Settings2 className="ic-sm" /> Settings</button>
             </div>
 
             <div className="webhook-info">
@@ -197,7 +198,7 @@ export default function Automation({ token, account_id }: AutomationProps) {
       </div>
 
       <div className="positions-section">
-        <h3>📈 Live Positions ({positions.length})</h3>
+        <h3>Live positions ({positions.length})</h3>
 
         {positions.length === 0 ? (
           <p className="empty">No open positions</p>

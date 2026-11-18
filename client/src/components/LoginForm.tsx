@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Compass, Trophy, ShieldCheck, HeartPulse, BarChart3, Upload, LineChart, Infinity as InfinityIcon } from 'lucide-react';
 import axios from 'axios';
 import '../styles/Landing.css';
 
@@ -10,12 +11,12 @@ interface LoginFormProps {
 }
 
 const FEATURES = [
-  { icon: '🧠', title: 'AI Coach', body: 'Ask "why am I losing?" and get a straight answer from your real numbers — not generic tips.' },
-  { icon: '🏆', title: 'Prop Challenges', body: 'Track every 25K/50K attempt. See exactly why you passed one and blew the next.' },
-  { icon: '🎯', title: 'Prop Rules Live', body: 'Trailing drawdown, daily loss, profit target, and the hidden consistency rule — tracked as you trade.' },
-  { icon: '🎭', title: 'Emotions', body: 'Tag revenge, FOMO, tilt in one tap. See the exact dollars each emotion costs you.' },
-  { icon: '📊', title: 'Real Analytics', body: 'Win rate, profit factor, expectancy, R-multiple, by setup / hour / weekday. One 0-100 score.' },
-  { icon: '📥', title: 'Easy Import', body: 'Drop your Fyers, Tradovate, or TradingView CSV — trades rebuilt automatically. No manual entry.' },
+  { icon: Compass, title: 'Coach', body: 'Ask "why am I losing?" and get a straight answer from your real numbers — not generic tips.' },
+  { icon: Trophy, title: 'Prop Challenges', body: 'Track every 25K/50K attempt. See exactly why you passed one and blew the next.' },
+  { icon: ShieldCheck, title: 'Prop Rules Live', body: 'Trailing drawdown, daily loss, profit target, and the hidden consistency rule — tracked as you trade.' },
+  { icon: HeartPulse, title: 'Emotions', body: 'Tag revenge, FOMO, tilt in one tap. See the exact dollars each emotion costs you.' },
+  { icon: BarChart3, title: 'Real Analytics', body: 'Win rate, profit factor, expectancy, R-multiple, by setup / hour / weekday. One 0-100 score.' },
+  { icon: Upload, title: 'Easy Import', body: 'Drop your Fyers, Tradovate, or TradingView CSV — trades rebuilt automatically. No manual entry.' },
 ];
 
 export default function LoginForm({ onLogin }: LoginFormProps) {
@@ -42,7 +43,7 @@ export default function LoginForm({ onLogin }: LoginFormProps) {
   return (
     <div className="lp">
       <header className="lp-nav">
-        <div className="lp-logo">📈 Trading Journal</div>
+        <div className="lp-logo"><span className="lp-mark"><LineChart className="ic-sm" /></span> Trading Journal</div>
         <a className="lp-nav-cta" href="#auth">Sign in</a>
       </header>
 
@@ -91,7 +92,7 @@ export default function LoginForm({ onLogin }: LoginFormProps) {
         <div className="lp-grid">
           {FEATURES.map(f => (
             <div key={f.title} className="lp-feat">
-              <div className="lp-feat-icon">{f.icon}</div>
+              <div className="lp-feat-icon"><f.icon className="ic-lg" /></div>
               <h3>{f.title}</h3>
               <p>{f.body}</p>
             </div>
@@ -119,11 +120,11 @@ export default function LoginForm({ onLogin }: LoginFormProps) {
             <div className="lp-plan-price">$7<span>/mo</span></div>
             <ul>
               <li>Everything in Free, plus:</li>
-              <li>🧠 AI Coach</li>
-              <li>🏆 Challenge tracking</li>
-              <li>🎭 Emotion analytics</li>
-              <li>📊 Full analytics suite</li>
-              <li>♾️ Unlimited accounts & trades</li>
+              <li><Compass className="ic-sm" /> Coach</li>
+              <li><Trophy className="ic-sm" /> Challenge tracking</li>
+              <li><HeartPulse className="ic-sm" /> Emotion analytics</li>
+              <li><BarChart3 className="ic-sm" /> Full analytics suite</li>
+              <li><InfinityIcon className="ic-sm" /> Unlimited accounts &amp; trades</li>
             </ul>
             <a className="lp-btn primary full" href="#auth">Get Pro</a>
           </div>

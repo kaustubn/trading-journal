@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Shuffle, Stethoscope } from 'lucide-react';
 import axios from 'axios';
 import { num, money } from '../utils/format';
 import '../styles/Compare.css';
@@ -101,7 +102,7 @@ export default function Compare({ token, accounts }: CompareProps) {
 
           {divergences.length > 0 && (
             <div className="cmp-diverge">
-              <h3>⚡ Where you flip — same instrument, opposite result</h3>
+              <h3><Shuffle className="ic-sm" /> Where you flip — same instrument, opposite result</h3>
               {divergences.map(d => (
                 <div key={d.key} className="cmp-div-row">
                   <span className="cmp-div-key">{d.key}</span>
@@ -116,7 +117,7 @@ export default function Compare({ token, accounts }: CompareProps) {
 
           {diag?.ready && diag.findings?.length > 0 && (
             <div className="cmp-diag">
-              <h3>🔍 Diagnosis — what's going wrong</h3>
+              <h3><Stethoscope className="ic-sm" /> Diagnosis — what's going wrong</h3>
               <p className="cmp-diag-sub">Auto-analysis comparing <strong>{label(bId)}</strong> against <strong>{label(aId)}</strong>.</p>
               {diag.findings.map((f: any, i: number) => (
                 <div key={i} className={`diag-item sev-${f.severity}`}>
@@ -131,7 +132,7 @@ export default function Compare({ token, accounts }: CompareProps) {
           )}
           {diag?.ready && diag.findings?.length === 0 && (
             <div className="cmp-diag">
-              <h3>🔍 Diagnosis</h3>
+              <h3><Stethoscope className="ic-sm" /> Diagnosis</h3>
               <p className="cmp-diag-sub">No major divergences detected — your real execution tracks your paper. Keep tagging trades with setup + grade for deeper analysis.</p>
             </div>
           )}

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import { Sunrise, Sunset, Check, X, Image as ImageIcon } from 'lucide-react';
 import '../styles/PreMarket.css';
 
 interface PreMarketProps { token: string; }
@@ -9,7 +10,8 @@ const BIASES = ['Long', 'Short', 'Neutral'];
 const SETUPS = ['S1', 'S2', 'S3', 'ORB'];
 
 export default function PreMarket({ token }: PreMarketProps) {
-  const todayIso = new Date().toISOString().slice(0, 10);
+  // Local calendar date (toISOString() is UTC and jumped to tomorrow every evening in BC)
+  const todayIso = (() => { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}-${String(n.getDate()).padStart(2, '0')}`; })();
   const [date, setDate] = useState(todayIso);
   const [dayType, setDayType] = useState('');
   const [bias, setBias] = useState('');
@@ -75,14 +77,11 @@ export default function PreMarket({ token }: PreMarketProps) {
   return (
     <div className="premarket">
       <div className="pm-head">
-        <div>
-          <h2>📝 Pre-Market Plan</h2>
-          <p>Set the day-type call, bias & live setups before the session — review after.</p>
-        </div>
-        <input type="date" value={date} onChange={e => setDate(e.target.value)} className="pm-date" />
+        <label className="pm-date-l">Day <input type="date" value={date} onChange={e => setDate(e.target.value)} className="pm-date" /></label>
       </div>
 
       <div className="pm-card">
+        <div className="pm-step"><span className="pm-step-n"><Sunrise className="ic-sm" /></span> Before the open</div>
         <div className="pm-field">
           <label>Day type <span className="hint">(decides which setups are live)</span></label>
           <div className="pm-chips">
@@ -115,6 +114,7 @@ export default function PreMarket({ token }: PreMarketProps) {
             placeholder="What am I watching for? If price does X at level Y, I take setup Z. What would make me stand down?" />
         </div>
 
+        <div className="pm-step pm-step-2"><span className="pm-step-n"><Sunset className="ic-sm" /></span> After the close</div>
         <div className="pm-field">
           <label>Post-session review</label>
           <textarea value={review} onChange={e => setReview(e.target.value)} rows={4}
@@ -126,7 +126,7 @@ export default function PreMarket({ token }: PreMarketProps) {
           {screenshot ? (
             <div className="pm-ss-wrap">
               <img src={screenshot} alt="day screenshot" className="pm-ss-img" onClick={() => window.open(screenshot, '_blank')} />
-              <button type="button" className="pm-ss-remove" onClick={() => setScreenshot('')}>✕ Remove</button>
+              <button type="button" className="pm-ss-remove" onClick={() => setScreenshot('')}><X className="ic-sm" /> Remove</button>
             </div>
           ) : (
             <>
@@ -134,20 +134,20 @@ export default function PreMarket({ token }: PreMarketProps) {
               <input type="text" value={screenshot} onChange={e => setScreenshot(e.target.value)} placeholder="…or paste image URL" style={{ marginTop: 8 }} />
             </>
           )}
-          {imgError && <div style={{ color: '#f5a623', fontSize: 12, marginTop: 6 }}>{imgError}</div>}
+          {imgError && <div style={{ color: 'var(--warning)', fontSize: 12, marginTop: 6 }}>{imgError}</div>}
         </div>
 
         <div className="pm-field">
-          <label>Did I follow my checklist?</label>
+          <label>Did I follow my plan and checklist? <span className="hint">(feeds the Discipline score)</span></label>
           <div className="pm-chips">
-            <button className={`pm-chip ok ${followed === true ? 'on' : ''}`} onClick={() => setFollowed(followed === true ? null : true)}>✓ Yes</button>
-            <button className={`pm-chip bad ${followed === false ? 'on' : ''}`} onClick={() => setFollowed(followed === false ? null : false)}>✗ No</button>
+            <button className={`pm-chip ok ${followed === true ? 'on' : ''}`} onClick={() => setFollowed(followed === true ? null : true)}><Check className="ic-sm" /> Yes</button>
+            <button className={`pm-chip bad ${followed === false ? 'on' : ''}`} onClick={() => setFollowed(followed === false ? null : false)}><X className="ic-sm" /> No</button>
           </div>
         </div>
 
         <div className="pm-actions">
-          <button className="btn-primary" onClick={save}>Save Plan</button>
-          {saved && <span className="pm-saved">✓ Saved</span>}
+          <button className="btn-primary" onClick={save}>Save day</button>
+          {saved && <span className="pm-saved"><Check className="ic-sm" /> Saved</span>}
         </div>
       </div>
 
@@ -159,9 +159,9 @@ export default function PreMarket({ token }: PreMarketProps) {
               <span className="pm-r-date">{n.note_date}</span>
               {n.day_type && <span className="pm-r-tag">{n.day_type}</span>}
               {n.bias && <span className="pm-r-tag">{n.bias}</span>}
-              {n.has_screenshot && <span className="pm-r-tag">📷</span>}
-              {n.followed_plan === true && <span className="pm-r-ok">✓ followed</span>}
-              {n.followed_plan === false && <span className="pm-r-bad">✗ broke plan</span>}
+              {n.has_screenshot && <span className="pm-r-tag" title="Has a chart screenshot"><ImageIcon className="ic-sm" /></span>}
+              {n.followed_plan === true && <span className="pm-r-ok"><Check className="ic-sm" /> followed plan</span>}
+              {n.followed_plan === false && <span className="pm-r-bad"><X className="ic-sm" /> broke plan</span>}
             </button>
           ))}
         </div>

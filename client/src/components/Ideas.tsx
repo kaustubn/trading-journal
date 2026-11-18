@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { X, Plus } from 'lucide-react';
 import axios from 'axios';
 import '../styles/Ideas.css';
 
@@ -115,7 +116,7 @@ export default function Ideas({ token, selectedDate, selectedAccount }: IdeasPro
           className="add-idea-btn"
           onClick={() => setShowForm(!showForm)}
         >
-          {showForm ? '✕' : '+ Add Idea'}
+          {showForm ? <><X className="ic-sm" /> Close</> : <><Plus className="ic-sm" /> Add idea</>}
         </button>
       </div>
 

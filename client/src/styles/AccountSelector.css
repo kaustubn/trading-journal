@@ -1,83 +1,62 @@
-.account-selector {
-  margin-bottom: 20px;
+/* Compact account switcher (sidebar top) */
+.account-selector { position: relative; margin-bottom: var(--sp-3); }
+.acct-label {
+  font-size: var(--fs-xs); font-weight: 600; letter-spacing: .06em; text-transform: uppercase;
+  color: var(--muted); padding: 0 var(--sp-2) 6px;
 }
-
-.account-selector h3 {
-  font-size: 16px;
-  font-weight: 600;
-  color: #333;
-  margin-bottom: 15px;
+.acct-current {
+  display: flex; align-items: center; gap: 10px; width: 100%; text-align: left;
+  background: var(--raised); border: 1px solid var(--border); border-radius: var(--r-md);
+  padding: 8px 10px; color: var(--text); cursor: pointer; transition: border-color .12s ease, background .12s ease;
 }
-
-.accounts-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin-bottom: 15px;
+.acct-current:hover, .acct-current.open { border-color: var(--border-strong); background: var(--raised-2); }
+.acct-avatar {
+  width: 28px; height: 28px; border-radius: var(--r-sm); flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--accent-soft); color: var(--accent-ink); font-weight: 700; font-size: var(--fs-md);
 }
+.acct-text { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.account-number { font-size: var(--fs-md); font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.account-broker { font-size: var(--fs-xs); color: var(--muted); text-transform: uppercase; letter-spacing: .04em; font-weight: 600; }
+.acct-caret { color: var(--muted); }
 
-.account-item {
-  background: white;
-  border: 1px solid #ddd;
-  padding: 12px 15px;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: all 0.2s;
-  text-align: left;
+.acct-pop {
+  position: absolute; z-index: 60; top: calc(100% + 4px); left: 0; right: 0;
+  background: var(--raised); border: 1px solid var(--border-strong); border-radius: var(--r-md);
+  box-shadow: var(--shadow); padding: 4px;
 }
-
-.account-item:hover {
-  border-color: #667eea;
-  background: #f9f9f9;
+.accounts-list { display: flex; flex-direction: column; gap: 2px; max-height: 320px; overflow-y: auto; }
+.account-item { display: flex; align-items: center; border-radius: var(--r-sm); }
+.account-item:hover { background: var(--raised-2); }
+.account-item.active .account-number { color: var(--accent-ink); }
+.account-pick {
+  flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; text-align: left;
+  background: none; border: none; color: var(--text); padding: 7px 6px; cursor: pointer;
 }
-
-.account-item.active {
-  background: #f0f4ff;
-  border-color: #667eea;
-  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.1);
+.acct-check { width: 16px; display: inline-flex; color: var(--accent-ink); flex-shrink: 0; }
+.acct-more {
+  background: none; border: none; color: var(--muted); padding: 6px; border-radius: var(--r-sm); cursor: pointer;
+  display: inline-flex;
 }
-
-.account-broker {
-  font-size: 12px;
-  color: #666;
-  text-transform: uppercase;
-  font-weight: 600;
-  margin-bottom: 4px;
-}
-
-.account-number {
-  font-size: 14px;
-  color: #333;
-  font-weight: 600;
-}
-
+.acct-more:hover { color: var(--text); background: var(--border); }
 .add-account-btn {
-  width: 100%;
-  background: #667eea;
-  color: white;
-  border: none;
-  padding: 10px 15px;
-  border-radius: 6px;
-  cursor: pointer;
-  font-weight: 600;
-  transition: all 0.2s;
+  display: flex; align-items: center; gap: 8px; width: 100%; margin-top: 4px;
+  background: none; border: none; border-top: 1px solid var(--border); border-radius: 0 0 var(--r-sm) var(--r-sm);
+  color: var(--text-dim); padding: 9px 8px; cursor: pointer; font-weight: 600; font-size: var(--fs-md);
 }
+.add-account-btn:hover { color: var(--text); background: var(--raised-2); }
 
-.add-account-btn:hover {
-  background: #5568d3;
-  transform: translateY(-2px);
-}
-
-/* Right-click context menu */
+/* Account options menu (… button or right-click) */
 .acct-ctx {
-  position: fixed; z-index: 1000; background: #1e2130; border: 1px solid #2a2e3a;
-  border-radius: 9px; padding: 5px; box-shadow: 0 8px 24px rgba(0,0,0,.45); min-width: 160px;
+  position: fixed; z-index: 1000; background: var(--raised); border: 1px solid var(--border-strong);
+  border-radius: var(--r-md); padding: 4px; box-shadow: var(--shadow); min-width: 200px;
 }
 .acct-ctx-item {
   display: flex; align-items: center; gap: 8px; width: 100%; text-align: left;
-  background: none; border: none; color: #e6e8ee; padding: 9px 11px; border-radius: 6px;
-  font-size: 13px; cursor: pointer;
+  background: none; border: none; color: var(--text); padding: 8px 10px; border-radius: var(--r-sm);
+  font-size: var(--fs-md); cursor: pointer;
 }
-.acct-ctx-item:hover { background: #262a38; }
-.acct-ctx-item.danger:hover { background: rgba(239,68,68,.15); color: #f87171; }
-.acct-ctx-sub { padding-left: 22px !important; font-size: 12px !important; }
+.acct-ctx-item:hover { background: var(--raised-2); }
+.acct-ctx-item.danger { color: var(--danger); }
+.acct-ctx-item.danger:hover { background: var(--danger-soft); }
+.acct-ctx-sub { padding-left: 14px !important; font-size: var(--fs-sm) !important; color: var(--text-dim); }
