@@ -2,6 +2,8 @@ import React, { useEffect, useRef, useState } from 'react';
 import { DrawingController, Magnet } from '../chart/drawingController';
 import { Tool, TOOLS, COLORS, LineStyle, Drawing } from '../chart/drawings';
 import { TEMPLATES, tplPatch } from '../chart/templates';
+import { Floating } from './ChartDialogs';
+import { Star, ChevronsLeft, X } from 'lucide-react';
 
 // ---------- icons (24px, stroke = currentColor) ----------
 const S = { fill: 'none', stroke: 'currentColor', strokeWidth: 1.5, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const };
@@ -49,12 +51,13 @@ interface ToolbarProps {
   ctl: DrawingController | null;
   magnet: Magnet; hidden: boolean; lockAll: boolean; measureArmed: boolean;
   stay: boolean; onStay: (v: boolean) => void;
+  fav: Tool[]; onFav: (t: Tool) => void; favBar: boolean; onFavBar: (v: boolean) => void; onCollapse: () => void;
   onMagnet: (m: Magnet) => void; onHidden: (v: boolean) => void; onLockAll: (v: boolean) => void;
   onMeasure: (armed: boolean) => void;
 }
 
 /** TradingView-style vertical drawing toolbar on the left of the chart. */
-export function DrawToolbar({ ctl, magnet, hidden, lockAll, measureArmed, stay, onStay, onMagnet, onHidden, onLockAll, onMeasure }: ToolbarProps) {
+export function DrawToolbar({ ctl, magnet, hidden, lockAll, measureArmed, stay, onStay, fav, onFav, favBar, onFavBar, onCollapse, onMagnet, onHidden, onLockAll, onMeasure }: ToolbarProps) {
   const [confirmClear, setConfirmClear] = useState(false);
   useEffect(() => {
     if (!confirmClear) return;
@@ -78,7 +81,8 @@ export function DrawToolbar({ ctl, magnet, hidden, lockAll, measureArmed, stay, 
         <React.Fragment key={i}>
           <span className="mc-dsep" />
           {g.map(t => (
-            <button key={t} disabled={!ready} className={`mc-dbtn${active === t ? ' on' : ''}`}
+            <button key={t} disabled={!ready} className={`mc-dbtn${active === t ? ' on' : ''}${fav.includes(t) ? ' fav' : ''}`}
+              onContextMenu={e => { e.preventDefault(); onFav(t); }}
               title={`${TOOLS[t].label}${TOOLS[t].key ? ` (${TOOLS[t].key})` : ''}${TOOLS[t].hint ? ` — ${TOOLS[t].hint}` : ''}`}
               onClick={() => pick(t)}>{ICONS[t]}</button>
           ))}
@@ -88,6 +92,9 @@ export function DrawToolbar({ ctl, magnet, hidden, lockAll, measureArmed, stay, 
       <button disabled={!ready} className={`mc-dbtn${measureArmed ? ' on' : ''}`} title="Measure (or Shift + drag on the chart)"
         onClick={() => { ctl?.cancel(); onMeasure(!measureArmed); }}>{ICONS.measure}</button>
       <span className="mc-dgrow" />
+      <button className={`mc-dbtn${favBar ? ' on' : ''}`} title={favBar ? 'Hide the favourites toolbar' : 'Show the favourites toolbar (right-click any tool to add / remove it)'}
+        onClick={() => onFavBar(!favBar)}><Star size={18} strokeWidth={1.6} /></button>
+      <button className="mc-dbtn" title="Hide the drawing toolbar" onClick={onCollapse}><ChevronsLeft size={18} strokeWidth={1.6} /></button>
       <button className={`mc-dbtn${stay ? ' on' : ''}`} title={stay ? 'Stay in drawing mode: ON — the tool stays on after each drawing; right-click or Esc to stop' : 'Stay in drawing mode: OFF — back to the cursor after each drawing'}
         onClick={() => onStay(!stay)}>
         <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" d="M4 20l4-1 10-10-3-3L5 16zM13 7l3 3" /><rect x="14" y="15" width="7" height="6" rx="1" fill="none" stroke="currentColor" strokeWidth="1.5" /><path fill="none" stroke="currentColor" strokeWidth="1.5" d="M15.5 15v-1.5a2 2 0 014 0V15" /></svg>
@@ -148,6 +155,7 @@ export function DrawEditBar({ ctl, tplOf, onTemplate }: {
   const tpls = TEMPLATES[d.tool] ?? [];
   const labelled = d.tool === 'hline' || d.tool === 'hray' || d.tool === 'trend';
   return (
+    <Floating id="draw-edit" bare initial={{ x: Math.max(80, Math.round(window.innerWidth / 2 - 260)), y: 150 }} className="mc-edit-float">
     <div className="mc-edit" onMouseDown={e => e.stopPropagation()}>
       <span className="mc-edit-name">{TOOLS[d.tool].label}</span>
       {tpls.length > 0 && (
@@ -214,5 +222,24 @@ export function DrawEditBar({ ctl, tplOf, onTemplate }: {
         onClick={() => set({ locked: !d.locked })}>{ICONS.lock}</button>
       <button className="mc-btn mc-small mc-danger-btn" title="Delete (Del)" onClick={() => ctl.remove(d.id)}>{ICONS.trash}</button>
     </div>
+    </Floating>
+  );
+}
+
+/** Kay's TradingView favourite drawing tools, as a floating bar you can drag and hide. */
+export function FavBar({ ctl, tools, onClose }: { ctl: DrawingController | null; tools: Tool[]; onClose: () => void }) {
+  const active = ctl?.active ?? null;
+  return (
+    <Floating id="fav-bar" bare initial={{ x: 140, y: 120 }} className="mc-fav-float">
+      <div className="mc-fav" role="toolbar" aria-label="Favourite drawing tools">
+        {tools.map(t => (
+          <button key={t} className={`mc-dbtn${active === t ? ' on' : ''}`} disabled={!ctl?.loaded}
+            title={`${TOOLS[t].label}${TOOLS[t].hint ? ` — ${TOOLS[t].hint}` : ''}`}
+            onClick={() => { if (!ctl) return; if (active === t) ctl.cancel(); else ctl.start(t); }}>{ICONS[t]}</button>
+        ))}
+        {!tools.length && <span className="mc-dim mc-fav-empty">Right-click tools on the left toolbar to add them here</span>}
+        <button className="mc-dbtn mc-fav-close" title="Hide the favourites toolbar" onClick={onClose}><X size={14} /></button>
+      </div>
+    </Floating>
   );
 }

@@ -4,6 +4,7 @@ import type { Clock } from './time';
 import type { Theme } from './theme';
 import type { DrawView, Magnet } from './drawingController';
 import { CoachRules, DEFAULT_RULES, mergeRules } from './coach';
+import { TOOLS } from './drawings';
 import type { Tool } from './drawings';
 import { TEMPLATES } from './templates';
 import { NQ_STYLE_TV, NqStyle } from './nqsys';
@@ -195,6 +196,9 @@ export interface Settings {
   saved: { name: string; data: LayoutSnapshot }[];  // the trader's own layouts
   magnet: Magnet; drawHidden: boolean; drawLocked: boolean;
   stayDrawing: boolean;    // a drawing tool stays on after each drawing until right-click / Esc
+  favTools: Tool[];        // favourites toolbar (Kay's TradingView favourites)
+  favBar: boolean;         // favourites toolbar shown
+  drawBar: boolean;        // left drawing toolbar shown
   notesOpen: boolean;
   layout: LayoutMode;
   panes: PaneCfg[];        // always 4; the layout decides how many are shown
@@ -207,6 +211,8 @@ export interface Settings {
   coach: CoachRules;       // practice rules the coach holds you to
 }
 export type Look = 'tv' | 'journal';
+/** Kay's TradingView favourite drawing tools, in his order (read 2026-11-17). */
+export const TV_FAV_TOOLS: Tool[] = ['hline', 'hray', 'rect', 'trend', 'vprofile', 'fib', 'vline', 'brush', 'dprange', 'path', 'channel', 'long', 'short', 'gann', 'highlight', 'daterange'];
 /** Default template per tool in the TV preset: the styles used most on the TradingView chart. */
 export const TV_TOOL_TPL: Partial<Record<Tool, string>> = {
   hline: '1w & 1 d', rect: 'zone purple', trend: 'white', fib: 'k1', vline: 'bl', channel: 'channel', long: 'k1', short: 'k1',
@@ -217,6 +223,7 @@ export const DEFAULTS: Settings = {
   clock: 'ET', theme: 'dark',
   sessions: true, rth: false, log: false, rolls: true,
   magnet: 'off', drawHidden: false, drawLocked: false, notesOpen: false, stayDrawing: true,
+  favTools: [...TV_FAV_TOOLS], favBar: true, drawBar: true,
   levels: { pd: true, on: true, open: true, round: false },
   indicators: IND_KEYS.reduce((acc, k) => {
     acc[k] = { on: k === 'VOL' || k === 'NQSYS', params: INDS[k].def, ...(k === 'VOL' ? { bars: { ...VOL_BARS_TV } } : {}), ...(k === 'NQSYS' ? { nq: { ...NQ_STYLE_TV } } : {}) };
@@ -238,7 +245,8 @@ export function mergeSettings(saved: any): Settings {
   if (!saved || typeof saved !== 'object') return s;
   if (saved.clock === 'ET' || saved.clock === 'BC') s.clock = saved.clock;
   if (saved.theme === 'dark' || saved.theme === 'light') s.theme = saved.theme;
-  for (const k of ['sessions', 'rth', 'log', 'rolls', 'drawHidden', 'drawLocked', 'notesOpen', 'syncCrosshair', 'live', 'stayDrawing'] as const) {
+  if (Array.isArray(saved.favTools)) s.favTools = [...new Set<Tool>(saved.favTools.filter((t: any) => typeof t === 'string' && t in TOOLS))].slice(0, 24);
+  for (const k of ['sessions', 'rth', 'log', 'rolls', 'drawHidden', 'drawLocked', 'notesOpen', 'syncCrosshair', 'live', 'stayDrawing', 'favBar', 'drawBar'] as const) {
     if (typeof saved[k] === 'boolean') s[k] = saved[k];
   }
   if (saved.magnet === 'off' || saved.magnet === 'weak' || saved.magnet === 'strong') s.magnet = saved.magnet;

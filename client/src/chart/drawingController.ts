@@ -362,22 +362,30 @@ export class DrawingController {
     };
   }
 
+  // what each overlay on this chart was last built from (drawing object + view), so a sync
+  // only touches drawings that changed — with hundreds of drawings this keeps tools fast
+  private built = new Map<string, { d: Drawing; view: string }>();
+  private viewKey() { const v = this.view; return `${v.tf}|${v.rth}|${v.magnet}|${v.hidden}|${v.lockAll}`; }
+
   /** Make this chart's overlays match the shared drawing list. */
   sync() {
     const onChart = new Set(
       this.chart.getOverlays({ groupId: GROUP })
         .filter(o => o.id !== this.draftId && OVERLAY_TO_TOOL[o.name])
         .map(o => o.id));
+    const vk = this.viewKey();
     for (const d of this.store.drawings) {
-      const spec = this.toOverlay(d);
       if (onChart.has(d.id)) {
-        this.chart.overrideOverlay(spec as unknown as Partial<OverlayCreate>);
         onChart.delete(d.id);
+        const b = this.built.get(d.id);
+        if (b && b.d === d && b.view === vk) continue;          // unchanged: leave it alone
+        this.chart.overrideOverlay(this.toOverlay(d) as unknown as Partial<OverlayCreate>);
       } else {
-        this.create({ ...spec, ...this.events() });
+        this.create({ ...this.toOverlay(d), ...this.events() });
       }
+      this.built.set(d.id, { d, view: vk });
     }
-    onChart.forEach(id => this.chart.removeOverlay({ id }));
+    onChart.forEach(id => { this.chart.removeOverlay({ id }); this.built.delete(id); });
   }
 
   private barMs() { return Math.min(this.view.tf, 1440) * 60000; }
