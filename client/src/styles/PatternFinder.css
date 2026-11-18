@@ -32,3 +32,8 @@
 .eh-stats { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12.5px; margin: 4px 0 2px 20px; font-variant-numeric: tabular-nums; }
 .eh-stats .bl-dim { margin: 0; }
 .eh-cand .pf-days { margin-top: 6px; }
+.eh-years { display: inline-flex; gap: 2px; }
+.eh-years i { font-style: normal; font-size: 10.5px; padding: 0 4px; border-radius: 3px; }
+.eh-years i.up { background: rgba(8,153,129,.25); color: var(--green); }
+.eh-years i.dn { background: rgba(242,54,69,.2); color: var(--red); }
+.eh-all3 td:first-child { box-shadow: inset 3px 0 0 var(--green); font-weight: 600; }

@@ -8,10 +8,12 @@ interface S { n: number; avgR: number; win: number; }
 interface Cand {
   key: number; pattern: string; mode: string; rule: string; stopAtr: number; targetR: number; avgStopPts: number;
   disc: S; val: S; hold: S; perDay: number; maxLosingStreak: number; maxDdR: number; trades: [string, number, number, number][];
+  tStat?: number; passesT?: boolean; years?: { y: string; n: number; avgR: number }[];
 }
 interface Res {
   runAt: string; secs: number; days: number; from: string; to: string; splits: [string, string];
   tested: number; events: number; survivors: number; luck: number; verdict: string; candidates: Cand[];
+  scoreboard?: { pattern: string; desc: string; mode: string; stopAtr: number; targetR: number; disc: S; val: S; hold: S; tStat: number }[];
 }
 
 const r2 = (x: number) => `${x >= 0 ? '+' : ''}${x.toFixed(2)}R`;
@@ -49,9 +51,11 @@ export default function EdgeHunter({ token }: { token: string }) {
       <div className="bl-card">
         <h3>Edge Hunter: finds patterns and their stop / target by itself</h3>
         <p className="bl-dim">
-          Searches 10 price-action patterns on 5-minute NQ candles (opening-range break, EMA pullback, VWAP cross, prior-day high/low sweep,
-          engulfing, inside-bar break, 3 same-colour candles, big candle, opening gap, first-hour break), each followed or faded, by time of day,
-          weekday, 15m trend and volatility, with stops of 0.5–2 × ATR and targets of 1–3R. Rules are picked on the oldest 50% of days, must hold on the
+          Searches 18 patterns on 5-minute NQ candles — price action (opening-range break, EMA pullback, VWAP cross, engulfing, inside-bar break,
+          3 same-colour candles, big candle, opening gap, first-hour break), levels (prior-day, overnight and prior-week high/low sweeps and breaks,
+          prior value-area re-entry) and published intraday studies (5-min ORB, noise-area breakout, intraday momentum, overnight → last half-hour) —
+          each followed or faded, by time of day, weekday or calendar event (FOMC, OPEX, turn of month, jobs-report Friday), 15m trend and volatility,
+          with stops of 0.5–2 × ATR and targets of 1–3R. Rules are picked on the oldest 50% of days, must hold on the
           next 25%, and are then shown on the newest 25% they never saw. The same search with coin-flip directions shows how many winners luck alone makes.
         </p>
         <button className="pf-run" disabled={running} onClick={run}><Radar size={14} /> {running ? (progress || 'Searching…') : res ? 'Run the search again' : 'Run the search'}</button>
@@ -72,6 +76,30 @@ export default function EdgeHunter({ token }: { token: string }) {
             <p className="bl-dim">{res.days} sessions {res.from} → {res.to}. Discovery before {res.splits[0]}, validation to {res.splits[1]}, unseen (holdout) after. {res.events.toLocaleString()} pattern events. Ran {new Date(res.runAt).toLocaleString()} in {res.secs} s. Results in R after NQ costs; 1R = the stop.</p>
           </div>
 
+          {res.scoreboard && (
+            <div className="bl-card">
+              <h3>Scoreboard: every pattern on its own</h3>
+              <p className="bl-dim">No time / day / trend filters, so only {res.scoreboard.length} tests and far less luck than the full search. The exit is the one that was best on DISCOVERY. Green in all three columns = worth a pre-registered forward test.</p>
+              <div className="pf-scroll">
+                <table className="bl-table">
+                  <thead><tr><th>Pattern</th><th>Way</th><th>Exit</th><th>Discovery</th><th>Validation</th><th>Unseen</th><th>t</th></tr></thead>
+                  <tbody>
+                    {[...res.scoreboard].sort((a, b) => Math.min(b.disc.avgR, b.val.avgR, b.hold.avgR) - Math.min(a.disc.avgR, a.val.avgR, a.hold.avgR)).map(b => {
+                      const all3 = b.disc.avgR > 0 && b.val.avgR > 0 && b.hold.avgR > 0;
+                      return (
+                        <tr key={b.pattern + b.mode} className={all3 ? 'eh-all3' : ''} title={b.desc}>
+                          <td>{b.pattern}</td><td>{b.mode}</td><td>{b.stopAtr}×ATR / {b.targetR}R</td>
+                          {[b.disc, b.val, b.hold].map((x, i) => <td key={i} className={x.avgR > 0 ? 'bl-up' : 'bl-down'}>{r2(x.avgR)} <span className="bl-dim">n{x.n}</span></td>)}
+                          <td className={b.tStat >= 3 ? 'bl-up' : ''}>{b.tStat}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
           <div className="bl-card">
             <h3>Best-looking rules {real ? '' : '(most likely luck — study, don’t trade)'}</h3>
             <div className="eh-list">
@@ -89,6 +117,8 @@ export default function EdgeHunter({ token }: { token: string }) {
                       <span>Validation <b className={c.val.avgR > 0 ? 'bl-up' : 'bl-down'}>{r2(c.val.avgR)}</b> n{c.val.n}</span>
                       <span>Unseen <b className={c.hold.avgR > 0 ? 'bl-up' : 'bl-down'}>{r2(c.hold.avgR)}</b> n{c.hold.n} · {pct(c.hold.win)}</span>
                       <span className="bl-dim">{c.perDay}/day · worst streak {c.maxLosingStreak} · max DD {c.maxDdR}R</span>
+                      {c.tStat != null && <span className={c.passesT ? 'bl-up' : 'bl-dim'}>t {c.tStat}{c.passesT ? ' ≥ 3' : ' (< 3)'}</span>}
+                      {c.years && <span className="eh-years">{c.years.map(y => <i key={y.y} className={y.avgR > 0 ? 'up' : 'dn'} title={`${y.y}: ${r2(y.avgR)} on ${y.n} trades`}>{y.y.slice(2)}</i>)}</span>}
                     </div>
                     {isOpen && (
                       <div className="pf-days">
