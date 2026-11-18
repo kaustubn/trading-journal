@@ -54,6 +54,12 @@ const TOPICS: Topic[] = [
       'Replay: pick a candle, a random date or the Day finder (trend days, gap days, your losing days); trade with B / S, add A, half H, break-even E, flatten F.',
       'Use "By risk" in the order ticket so the size comes from your risk %, and tag each exit.'],
     tip: 'Replay trades save to the account picked in the replay bar, with a chart screenshot.' },
+  { key: 's1practice', group: 'Practice', title: 'S1 Practice', adminOnly: true,
+    what: '25 fixed replay days for S1, and a scorecard: every replay trade is checked against the S1 bot rules, and you see what the bot did on the same day.',
+    how: ['Press Replay on the next day; the Market Chart opens at 9:25 ET on that day.',
+      'Trade S1 your way. Pick S1 as the setup and set the stop and target before you enter.',
+      'Back on this page, open a trade to see each rule: time window, 15m and 5m trend, pullback into value, trigger candle, stop, target.'],
+    tip: 'Goal 25+ S1 trades. Then compare your average R with the bot on the same days. The day type stays hidden until you trade it.' },
   { key: 'backtestlab', group: 'Practice', title: 'Backtest Lab',
     what: 'Stress-tests a run before you risk money: stats, prop-challenge pass rate, Monte Carlo, robustness (slippage, 95% ranges, walk-forward) and edge over time.',
     how: ['Pick the run (Attempt) at the top.', 'Robustness: add slippage and read the verdict (holds / losing / not proven).', 'Edge over time: a setup marked Fading or Edge gone needs a review before you trade it again.'],
@@ -75,6 +81,7 @@ const TOPICS: Topic[] = [
 const WORKFLOW: { t: string; d: string; key?: string }[] = [
   { t: 'Before the open', d: 'Daily Plan: bias, levels, news. Read your Entry Checklist.', key: 'premarket' },
   { t: 'Practise', d: 'Market Chart → Replay → Day finder. Trade 3–5 setups with your rules, size "By risk".', key: 'marketchart' },
+  { t: 'S1 practice', d: 'S1 Practice → next day → Replay. 25 S1 trades, each scored against the bot rules.', key: 's1practice' },
   { t: 'Log', d: 'Real trades come in by Import or Add trade; replay trades save themselves.', key: 'data' },
   { t: 'Review', d: 'Dashboard calendar → click each trade → Teach me / grade / feelings / stop.', key: 'dashboard' },
   { t: 'Weekly', d: 'Coach #1 card, Setups, Backtest Lab robustness and edge over time.', key: 'coach' },
@@ -139,7 +146,7 @@ export default function SiteGuide({ open, onClose, onGo, isAdmin, onTourMenu }: 
           <button className="guide-tour" onClick={startTour}><Play className="ic-sm" /> Take the 1-minute tour of the menu</button>
           <h3 className="guide-h">Start here: your daily flow</h3>
           <ol className="guide-flow">
-            {WORKFLOW.filter(w => w.key !== 'marketchart' || isAdmin).map(w => (
+            {WORKFLOW.filter(w => (w.key !== 'marketchart' && w.key !== 's1practice') || isAdmin).map(w => (
               <li key={w.t}>
                 <b>{w.t}</b><span>{w.d}</span>
                 {w.key && <button className="guide-go" onClick={() => { onGo(w.key!); onClose(); }}>Open <ArrowRight className="ic-sm" /></button>}

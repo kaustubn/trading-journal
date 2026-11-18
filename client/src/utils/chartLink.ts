@@ -14,3 +14,7 @@ export const OPEN_CHART_EVENT = 'jc:open-chart';
 export function openOnChart(tradeId: number) {
   window.dispatchEvent(new CustomEvent(OPEN_CHART_EVENT, { detail: { tradeId } }));
 }
+/** Open the chart in bar replay at 9:25 ET on a day (YYYY-MM-DD). */
+export function openReplayDay(day: string) {
+  window.dispatchEvent(new CustomEvent(OPEN_CHART_EVENT, { detail: { replayDay: day } }));
+}

@@ -35,10 +35,10 @@ const DAY_KINDS: [string, string][] = [
   ['trend', 'Trend days (strong close, full range)'], ['range', 'Range / chop days (close near open)'],
   ['gapup', 'Gap up opens (+0.4% or more)'], ['gapdown', 'Gap down opens (−0.4% or more)'],
   ['bigrange', 'Big range days (1.5× ATR or more)'], ['smallrange', 'Quiet days (0.6× ATR or less)'],
-  ['losing', 'My losing days (from my journal)'],
+  ['losing', 'My losing days (from my journal)'], ['practice', 'S1 practice set (25 fixed days)'],
 ];
 
-export default function MarketChart({ token, focus }: { token: string; focus?: { tradeId: number; nonce: number } | null }) {
+export default function MarketChart({ token, focus }: { token: string; focus?: { tradeId: number; replayDay?: string; nonce: number } | null }) {
   const [s, setS] = useState<Settings>(DEFAULTS);
   const [ready, setReady] = useState(false);       // saved settings + data range loaded
   const [fatal, setFatal] = useState('');          // page cannot work (e.g. not the owner)
@@ -335,6 +335,13 @@ export default function MarketChart({ token, focus }: { token: string; focus?: {
   const findDays = async () => {
     setDfBusy(true); setDfMsg('');
     try {
+      if (dfType === 'practice') {
+        const p = await axios.get('/api/replay/practice', auth());
+        const ds = (p.data.days || []).map((d: any) => ({ day: d.day, range: d.range, atr: d.atr, gapPct: 0, body: 0, dir: d.dir, pnl: null, n: d.n, trades: d.trades }));
+        setDfDays(ds);
+        setDfMsg(`${ds.filter((d: any) => d.trades > 0).length} of ${ds.length} practice days traded. Scores: S1 Practice page.`);
+        return;
+      }
       const r = await axios.get('/api/bars/days', { ...auth(), params: { symbol: 'NQ', type: dfType } });
       setDfDays(r.data.days || []);
       setDfMsg(`${(r.data.days || []).length} days found${(r.data.days || []).length > 120 ? ' (newest 120 shown)' : ''}.`);
@@ -522,6 +529,7 @@ export default function MarketChart({ token, focus }: { token: string; focus?: {
   };
   useEffect(() => {
     if (!focus || !ready || fatal) return;
+    if (focus.replayDay) { void startReplayRef.current?.(wallToUtc(focus.replayDay, '09:25', 'ET')); return; }
     let dead = false;
     axios.get(`/api/chart/trade/${focus.tradeId}`, auth()).then(r => {
       if (dead) return;
@@ -1008,7 +1016,7 @@ export default function MarketChart({ token, focus }: { token: string; focus?: {
                     <button key={d.day} className="mc-df-row" onClick={() => void startReplay(wallToUtc(d.day, '09:25', 'ET'))} title="Replay this day from 9:25 ET">
                       <span>{new Date(d.day + 'T12:00:00Z').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' })}</span>
                       <span className={d.dir === 'up' ? 'mc-up' : 'mc-down'}>{d.dir === 'up' ? '▲' : '▼'} {Math.round(d.range)} pt</span>
-                      <span className="mc-dim">{d.pnl !== null ? fmtUsd(d.pnl) : dfType.startsWith('gap') ? `gap ${d.gapPct > 0 ? '+' : ''}${d.gapPct}%` : `${(d.range / d.atr).toFixed(1)}× ATR`}</span>
+                      <span className="mc-dim">{dfType === 'practice' ? `#${(d as any).n} · ${(d as any).trades ? '✓ traded' : 'to do'}` : d.pnl !== null ? fmtUsd(d.pnl) : dfType.startsWith('gap') ? `gap ${d.gapPct > 0 ? '+' : ''}${d.gapPct}%` : `${(d.range / d.atr).toFixed(1)}× ATR`}</span>
                     </button>
                   ))}
                 </div>

@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import pool from '../db';
 import { verifyToken } from '../middleware/auth';
 import { requireAdmin } from '../middleware/admin';
+import { SYMBOLS } from '../bars/store';
 
 const router = Router();
 router.use(verifyToken, requireAdmin);
@@ -157,6 +158,84 @@ router.post('/trades', async (req: Request, res: Response) => {
   } catch (e: any) {
     console.error('[replay/trades]', e.message);
     res.status(500).json({ error: 'Failed to save the replay trade' });
+  }
+});
+
+// ---------------------------------------------------------------------------------------------
+// S1 practice set: 25 fixed replay days (a mix of day types) + the trader's replay trades.
+// The client scores each trade against the S1 bot rules (utils/s1Score.ts).
+// Days come from before PRACTICE_END so the set never changes as new data arrives.
+const PRACTICE_END = '2026-11-14';
+const PRACTICE_MIX: [string, number][] = [['trend', 8], ['range', 7], ['gapup', 3], ['gapdown', 3], ['bigrange', 2], ['smallrange', 2]];
+
+function hash(s: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
+  // avalanche, so near-identical dates do not sort next to each other
+  h ^= h >>> 16; h = Math.imul(h, 0x85ebca6b); h ^= h >>> 13; h = Math.imul(h, 0xc2b2ae35); h ^= h >>> 16;
+  return h >>> 0;
+}
+
+router.get('/practice', async (req: Request, res: Response) => {
+  try {
+    const d = await pool.query(
+      `WITH d AS (
+         SELECT (ts AT TIME ZONE 'America/New_York')::date AS day, o / 100.0 AS o, h / 100.0 AS h, l / 100.0 AS l, c / 100.0 AS c
+           FROM bars_agg WHERE sym = $2 AND tf = 1441),
+       x AS (
+         SELECT day, o, h, l, c, lag(c) OVER (ORDER BY day) AS pc,
+                avg(h - l) OVER (ORDER BY day ROWS BETWEEN 14 PRECEDING AND 1 PRECEDING) AS atr
+           FROM d)
+       SELECT day::text AS day, o, h, l, c, pc, atr FROM x
+        WHERE pc IS NOT NULL AND atr IS NOT NULL AND day <= $1::date ORDER BY day`,
+      [PRACTICE_END, SYMBOLS.NQ]);
+    const all = d.rows.map((x: any) => {
+      const o = Number(x.o), h = Number(x.h), l = Number(x.l), c = Number(x.c), pc = Number(x.pc), atr = Number(x.atr);
+      const range = h - l;
+      return { day: x.day as string, range, atr, gapPct: ((o - pc) / pc) * 100, body: range > 0 ? (c - o) / range : 0, dir: c >= o ? 'up' : 'down' };
+    });
+    const is: Record<string, (x: typeof all[number]) => boolean> = {
+      trend: x => Math.abs(x.body) >= 0.6 && x.range >= 0.9 * x.atr,
+      range: x => Math.abs(x.body) <= 0.2 && x.range <= 1.1 * x.atr,
+      gapup: x => x.gapPct >= 0.4,
+      gapdown: x => x.gapPct <= -0.4,
+      bigrange: x => x.range >= 1.5 * x.atr,
+      smallrange: x => x.range <= 0.6 * x.atr,
+    };
+    const picked = new Map<string, { day: string; kind: string; dir: string; range: number; atr: number }>();
+    for (const [kind, n] of PRACTICE_MIX) {
+      const pool_ = all.filter(x => is[kind](x) && !picked.has(x.day)).sort((a, b) => hash(kind + a.day) - hash(kind + b.day));
+      for (const x of pool_.slice(0, n)) picked.set(x.day, { day: x.day, kind, dir: x.dir, range: Math.round(x.range), atr: Math.round(x.atr) });
+    }
+
+    const t = await pool.query(
+      `SELECT t.id, t.symbol, t.quantity, t.entry_price, t.exit_price, t.stop_loss, t.target, t.pnl, t.setup_tag, t.tags, t.notes,
+              a.account_name,
+              journal_wall_to_utc(t.entry_time, a.timezone) AS entry_utc,
+              journal_wall_to_utc(t.exit_time, a.timezone)  AS exit_utc
+         FROM trades t JOIN accounts a ON a.id = t.account_id
+        WHERE a.user_id = $1 AND t.tags @> ARRAY['Bar replay']::text[] AND t.entry_time IS NOT NULL
+        ORDER BY t.entry_time`,
+      [req.userId]);
+    const n = (v: any) => (v === null || v === undefined ? null : Number(v));
+    const trades = t.rows.map((r: any) => ({
+      id: r.id, symbol: r.symbol, quantity: n(r.quantity), entry_price: n(r.entry_price), exit_price: n(r.exit_price),
+      stop_loss: n(r.stop_loss), target: n(r.target), pnl: n(r.pnl), setup_tag: r.setup_tag, tags: r.tags || [],
+      account_name: r.account_name,
+      side: Array.isArray(r.tags) && r.tags.includes('Short') ? 'short' : 'long',
+      entry: r.entry_utc ? new Date(r.entry_utc).getTime() : null,
+      exit: r.exit_utc ? new Date(r.exit_utc).getTime() : null,
+    })).filter((x: any) => x.entry !== null);
+    const etDay = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit' });
+    const tradedDays = new Map<string, number>();
+    for (const x of trades) { const k = etDay.format(new Date(x.entry as number)); tradedDays.set(k, (tradedDays.get(k) || 0) + 1); }
+    const days = [...picked.values()]
+      .sort((a, b) => hash('order' + a.day) - hash('order' + b.day))
+      .map((x, i) => ({ ...x, n: i + 1, trades: tradedDays.get(x.day) || 0 }));
+    res.json({ days, trades, end: PRACTICE_END });
+  } catch (e: any) {
+    console.error('[replay/practice]', e.message);
+    res.status(500).json({ error: 'Failed to load the practice set' });
   }
 });
 

@@ -38,6 +38,7 @@ import AttemptBar, { AttemptLite } from './components/AttemptBar';
 import UpgradeWall from './components/UpgradeWall';
 import ErrorBoundary from './components/ErrorBoundary';
 import BacktestLab from './components/BacktestLab';
+import S1Practice from './components/S1Practice';
 import { setChartLinkEnabled, OPEN_CHART_EVENT } from './utils/chartLink';
 import FocusPanel from './components/FocusPanel';
 import { PageHeader, SubTabs } from './components/ui';
@@ -45,7 +46,7 @@ import {
   LayoutDashboard, Table2, NotebookPen, Trophy, Compass, BarChart3, Layers, Clock, Brain, Scale,
   CandlestickChart, FlaskConical, Workflow, ListChecks, ShieldCheck, Building2, Lock, Upload, Plus,
   RefreshCw, LogOut, Menu, X, BookOpen, ChevronLeft, ChevronRight, LineChart, AlertTriangle, Flame, RotateCcw,
-  Lightbulb, Users, Bot, Settings2, CalendarDays, PlusCircle,
+  Lightbulb, Users, Bot, Settings2, CalendarDays, PlusCircle, Target,
 } from 'lucide-react';
 import './App.css';
 
@@ -63,6 +64,7 @@ const PAGE_META: Record<string, { title: string; sub: string; icon: React.Compon
   breakdown: { title: 'Time & Sessions', icon: Clock, sub: 'When you trade best and worst: by hour, weekday, session and instrument.' },
   discipline: { title: 'Mindset', icon: Brain, sub: 'Did you follow your plan, and what did your emotions cost you?' },
   compare: { title: 'Paper vs Real', icon: Scale, sub: 'Put a practice account next to a live one to see what changes when real money is on the line.' },
+  s1practice: { title: 'S1 Practice', icon: Target, sub: '25 replay days for S1. Every replay trade is checked against the S1 bot rules and compared with what the bot did that day.' },
   backtestlab: { title: 'Backtest Lab', icon: FlaskConical, sub: 'Stress-test a run before risking money: equity, drawdown, prop-challenge pass rate and reshuffled-order risk.' },
   strategy: { title: 'Strategy Rules', icon: Workflow, sub: 'Write down each strategy’s entry, exit and risk rules so you trade it the same way every time.' },
   checklist: { title: 'Entry Checklist', icon: ListChecks, sub: 'Run this before every entry. If any gate fails, there is no trade. The score decides A, B or C.' },
@@ -124,13 +126,15 @@ export default function App() {
   const [userId, setUserId] = useState<number | null>(null);
   const [plan, setPlan] = useState<'free' | 'pro'>('pro'); // optimistic; corrected from /me
   const [isAdmin, setIsAdmin] = useState(false); // owner-only pages (market chart)
-  const [chartFocus, setChartFocus] = useState<{ tradeId: number; nonce: number } | null>(null);
-  // 'Open on chart' from any trade view
+  const [chartFocus, setChartFocus] = useState<{ tradeId: number; replayDay?: string; nonce: number } | null>(null);
+  // 'Open on chart' from any trade view, or 'Replay this day' from S1 Practice
   useEffect(() => {
     const open = (e: Event) => {
-      const id = Number((e as CustomEvent).detail?.tradeId);
-      if (!id) return;
-      setChartFocus({ tradeId: id, nonce: Date.now() });
+      const det = (e as CustomEvent).detail || {};
+      const id = Number(det.tradeId) || 0;
+      const day = typeof det.replayDay === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(det.replayDay) ? det.replayDay : undefined;
+      if (!id && !day) return;
+      setChartFocus({ tradeId: id, replayDay: day, nonce: Date.now() });
       setView('marketchart');
     };
     window.addEventListener(OPEN_CHART_EVENT, open);
@@ -187,7 +191,7 @@ export default function App() {
     },
     {
       title: 'Practice', items: [
-        ...(isAdmin ? [{ key: 'marketchart', label: 'Market Chart', icon: CandlestickChart }] : []),
+        ...(isAdmin ? [{ key: 'marketchart', label: 'Market Chart', icon: CandlestickChart }, { key: 's1practice', label: 'S1 Practice', icon: Target }] : []),
         { key: 'backtestlab', label: 'Backtest Lab', icon: FlaskConical },
         { key: 'strategy', label: 'Strategy Rules', icon: Workflow },
       ]
@@ -710,6 +714,9 @@ export default function App() {
                 onChanged={() => { fetchAttempts(); fetchDailySummaries(); }}
               />
             </ErrorBoundary>
+          )}
+          {token && isAdmin && view === 's1practice' && (
+            <ErrorBoundary name="S1 Practice"><S1Practice token={token} /></ErrorBoundary>
           )}
           {token && isAdmin && view === 'marketchart' && (
             <ErrorBoundary name="Market Chart"><MarketChart token={token} focus={chartFocus} /></ErrorBoundary>
