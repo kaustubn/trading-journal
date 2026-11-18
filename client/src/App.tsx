@@ -220,11 +220,14 @@ export default function App() {
     }
   }, [token]);
 
+  // On load AND after a fresh login: /me says whether this is the owner (market chart, S1 Practice)
   useEffect(() => {
     if (token) {
       verifyToken();
+    } else {
+      setIsAdmin(false); setChartLinkEnabled(false);
     }
-  }, []);
+  }, [token]);
 
   useEffect(() => {
     if (userId) {
