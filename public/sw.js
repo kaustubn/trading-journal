@@ -1,5 +1,5 @@
 // Trading Journal service worker — enables install + fast loads.
-const CACHE = 'tj-v1';
+const CACHE = 'tj-v2'; // v2: manifest allows any orientation (old cache dropped on activate)
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(['/', '/index.html'])).then(() => self.skipWaiting()));

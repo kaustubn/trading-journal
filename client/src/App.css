@@ -13,12 +13,19 @@ body {
 .app { display: flex; flex-direction: column; min-height: 100vh; background: var(--bg); }
 
 /* ---- Header ---- */
+/* --safe-*: the phone's notch / status bar / home bar when the app runs full screen
+   (installed to the home screen with viewport-fit=cover); 0 in a normal browser */
+:root {
+  --safe-top: env(safe-area-inset-top, 0px); --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px); --safe-right: env(safe-area-inset-right, 0px);
+  --hdr-h: calc(56px + var(--safe-top));
+}
 .header {
   background: var(--surface);
   border-bottom: 1px solid var(--border);
   color: var(--text);
-  padding: 0 var(--sp-5);
-  height: 56px;
+  padding: var(--safe-top) max(var(--sp-5), var(--safe-right)) 0 max(var(--sp-5), var(--safe-left));
+  height: var(--hdr-h);
   display: flex; justify-content: space-between; align-items: center; gap: var(--sp-3);
   position: sticky; top: 0; z-index: 50;
 }
@@ -153,16 +160,18 @@ body {
 
 .nav-backdrop { display: none; }
 
-/* ---- Phone / small tablet: sidebar becomes a slide-in drawer ---- */
-@media (max-width: 860px) {
+/* ---- Phone / small tablet (and phones turned sideways): sidebar becomes a slide-in drawer ---- */
+@media (max-width: 860px), (max-height: 500px) and (pointer: coarse) {
   .mobile-only { display: inline-flex; }
-  .header { padding: 0 var(--sp-3); }
+  .header { padding: var(--safe-top) max(var(--sp-3), var(--safe-right)) 0 max(var(--sp-3), var(--safe-left)); }
+  .main, .main.main-wide { padding-left: max(var(--sp-3), var(--safe-left)) !important; padding-right: max(var(--sp-3), var(--safe-right)) !important; }
   .hdr-label, .brand-name, .plan-pill { display: none; }
   .main, .main.main-wide { padding: var(--sp-3); gap: 0; }
   .sidebar, .sidebar.collapsed {
-    position: fixed; top: 56px; left: 0; bottom: 0; z-index: 70; width: 272px;
+    position: fixed; top: var(--hdr-h); left: 0; bottom: 0; z-index: 70; width: calc(272px + var(--safe-left));
     background: var(--surface); border-right: 1px solid var(--border);
-    padding: var(--sp-3) var(--sp-4); overflow-y: auto;
+    padding: var(--sp-3) var(--sp-4) calc(var(--sp-3) + var(--safe-bottom)) max(var(--sp-4), var(--safe-left));
+    overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain;
     transform: translateX(-105%); transition: transform .2s ease;
   }
   .sidebar.mobile-open { transform: none; box-shadow: var(--shadow); }
@@ -170,6 +179,6 @@ body {
   .sidebar.collapsed .account-selector { display: block; }
   .sidebar.collapsed .nav-section-title, .sidebar.collapsed .nav-label { display: initial; }
   .sidebar.collapsed .nav-item { justify-content: flex-start; gap: 10px; padding: 0 10px; }
-  .nav-backdrop { display: block; position: fixed; inset: 56px 0 0 0; z-index: 65; background: rgba(0,0,0,.5); }
+  .nav-backdrop { display: block; position: fixed; inset: var(--hdr-h) 0 0 0; z-index: 65; background: rgba(0,0,0,.5); }
 }
-@media (min-width: 861px) { .brand-name { display: inline; } }
+@media (min-width: 861px) and (min-height: 501px), (min-width: 861px) and (pointer: fine) { .brand-name { display: inline; } }

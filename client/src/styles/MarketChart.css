@@ -36,6 +36,7 @@
   display: flex;
   flex-direction: column;
   height: calc(100vh - 76px);
+  height: calc(100dvh - 76px - var(--safe-top, 0px)); /* phones: the visible height, without browser bars / notch */
   min-height: 420px;
   background: var(--mc-bg);
   color: var(--mc-text);
