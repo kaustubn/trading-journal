@@ -137,11 +137,11 @@ export const KAY_SYSTEM: Course = {
       psychology: [K('The sweep is where others get stopped. Wait for the reclaim close.')],
       detector: { key: 'liquidity_sweep', params: { t1R: 2, t2R: 3 } }, rr: { t1R: 2, t2R: 3 } }),
     kStrat({ id: 'orb', name: 'ORB Opening range breakout', summary: 'Body close beyond the 9:30-9:45 range on an expansion day.', tf: 5,
-      when: [K('Expansion / trend day (not a range day).')], entry: [K('Opening range 9:30-9:45 ET, 15-80 points.')],
+      when: [K('Expansion / trend day (not a range day).')], entry: [K('Opening range 9:30-9:45 ET, 0.15-0.50x the average New York day range of the last 14 days (about 57-190 points at today’s volatility).')],
       trigger: [K('A clean break and hold: the full body closes outside the range, body at least 8 points; or the first pullback to the broken edge.')],
       stop: [K('Back inside the range (3 points inside the broken edge).')], targets: [K('T1 2R, T2 3R.')], manage: [K('At T1 stop to break-even +3.')], scaleOut: [K('Half at T1.')],
       psychology: [K('Only on expansion days. A wick through is not a break.')],
-      detector: { key: 'orb', params: { minRange: 15, maxRange: 80, minBody: 8 } }, rr: { t1R: 2, t2R: 3 } }),
+      detector: { key: 'orb', params: { minAtr: 0.15, maxAtr: 0.5, minBody: 8 } }, rr: { t1R: 2, t2R: 3 } }),
   ],
   quizzes: [
     { q: 'ATR(14) is 43. What does your checklist say?', options: ['Trade normal size', 'Cut size 40%', 'Skip'], answer: 2, explain: 'Above 40 is too wild: skip.', src: { book: 'ENTRY_CHECKLIST.md' } },

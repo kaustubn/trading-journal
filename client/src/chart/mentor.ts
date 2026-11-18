@@ -5,7 +5,7 @@
 //                strategy turning true, and the setup itself (which pauses for a quiz).
 import type { Analysis, Bars, MarketEvent, Phase, Strategy } from './mentorTypes';
 import { analyze, phaseAt } from './patterns';
-import { etMinutes } from './time';
+import { etMinutes, sessionDay } from './time';
 
 export interface Step { label: string; done: boolean; }
 export interface Signal {
@@ -184,11 +184,25 @@ export const DETECTORS: Record<string, { name: string; describe: string; fn: Det
         if (mj >= 570 && mj < 585 && Math.abs(bars[j].timestamp - b.timestamp) < 8 * 3600000) { hi = Math.max(hi, bars[j].high); lo = Math.min(lo, bars[j].low); have = true; }
       }
       const inWindow = m >= 585 && m < 660;
-      const rng = hi - lo, okRange = have && rng >= num(p, 'minRange', 15) && rng <= num(p, 'maxRange', 80);
+      // size filter: 0.15-0.50x the average New York session range of the earlier days on the chart
+      const byDay = new Map<number, [number, number]>();
+      const today = sessionDay(b.timestamp);
+      for (let j = 0; j < i; j++) {
+        const t = bars[j].timestamp, mj = etMinutes(t), d = sessionDay(t);
+        if (mj < 570 || mj >= 960 || d === today) continue;
+        const cur = byDay.get(d);
+        byDay.set(d, cur ? [Math.max(cur[0], bars[j].high), Math.min(cur[1], bars[j].low)] : [bars[j].high, bars[j].low]);
+      }
+      const dayRanges = [...byDay.entries()].sort((x, y) => x[0] - y[0]).map(([, v]) => v[0] - v[1]);
+      const last = dayRanges.slice(-14);
+      const dayAtr = last.length >= 3 ? last.reduce((s, v) => s + v, 0) / last.length : NaN;
+      const lo2 = num(p, 'minAtr', 0.15), hi2 = num(p, 'maxAtr', 0.5);
+      const rng = hi - lo, okRange = have && (Number.isNaN(dayAtr) || (rng >= lo2 * dayAtr && rng <= hi2 * dayAtr));
+      const sizeTxt = Number.isNaN(dayAtr) ? 'size not checked (fewer than 3 days loaded)' : `${Math.round(rng)} pts = ${(rng / dayAtr).toFixed(2)}× day ATR, needs ${lo2}–${hi2}×`;
       const body = Math.abs(b.close - b.open);
       const side: 'long' | 'short' | null = Math.min(b.open, b.close) > hi ? 'long' : Math.max(b.open, b.close) < lo ? 'short' : null;
       const steps = [
-        { label: 'Opening range 9:30–9:45 ET built (15–80 pts)', done: okRange },
+        { label: `Opening range 9:30–9:45 ET built (${have ? sizeTxt : '0.15–0.50× day ATR'})`, done: okRange },
         { label: 'Inside the ORB trade window (9:45–11:00 ET)', done: okRange && inWindow },
         { label: `Break and hold: the whole body closes outside the range (body ≥ ${num(p, 'minBody', 8)} pts)`, done: okRange && inWindow && !!side && body >= num(p, 'minBody', 8) },
       ];

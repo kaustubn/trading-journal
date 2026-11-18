@@ -35,7 +35,9 @@ const SLOPE_PCT = 0, LEV_TOL_PCT = 0.05;
 const IB_TREND = 60, IB_RANGE = 120, ATR_MIN = 8, ATR_SKIP = 40, ATR_RED = 30;
 const S1_REJ = 0.5, S2_REJ = 0.6, S2_RSI_LO = 35, S2_RSI_HI = 65;
 const S3_WICK = 8, S3_RSI_LO = 35, S3_RSI_HI = 65;
-const ORB_MIN = 15, ORB_MAX = 80, ORB_BODY = 8;
+// ORB range filter (Kay, 2026-11-18): the 9:30-9:45 range must be 0.15-0.50x the average New York
+// session range of the last 14 days (fixed 15-80 pts stopped working as NQ volatility grew)
+const ORB_ATR_MIN = 0.15, ORB_ATR_MAX = 0.5, ORB_ATR_DAYS = 14, ORB_BODY = 8;
 const S1_STOP = 3, S2_STOP = 5, S3_STOP = 4, ORB_STOP = 3;
 const VA_MULT = 1, DRAW_LEN = 24, REF_QTY = 5, DELTA_LOOK = 3, SWING_LEN = 20;
 // Sessions, minutes since midnight ET, [start, end)
@@ -133,6 +135,9 @@ function calcNqSys(data: KLineData[], ext: NqSysExt | undefined): NqRow[] {
   };
   // IB / ORB state
   let orbHi = NaN, orbLo = NaN, ibHi = NaN, ibLo = NaN, ibRange = NaN, orbRng = NaN, ibDone = false, dayType = 0;
+  // New York session ranges (9:30-16:00) of the days loaded, for the ORB size filter
+  let rthHi = NaN, rthLo = NaN;
+  const rthRanges: number[] = [];
   let pRTH = false, pORB = false, pIB = false;
   // Previous-bar raw signals
   let p = { s1L: false, s1S: false, s2L: false, s2S: false, s3L: false, s3S: false, oL: false, oS: false };
@@ -231,8 +236,11 @@ function calcNqSys(data: KLineData[], ext: NqSysExt | undefined): NqRow[] {
 
     // ---- IB / ORB accumulation + classify ----
     if (rthStart) {
+      if (!Number.isNaN(rthHi)) rthRanges.push(rthHi - rthLo);
+      rthHi = NaN; rthLo = NaN;
       orbHi = NaN; orbLo = NaN; ibHi = NaN; ibLo = NaN; ibRange = NaN; orbRng = NaN; ibDone = false; dayType = 0;
     }
+    if (inRTH) { rthHi = Number.isNaN(rthHi) ? h : Math.max(rthHi, h); rthLo = Number.isNaN(rthLo) ? l : Math.min(rthLo, l); }
     if (inORB) { orbHi = Number.isNaN(orbHi) ? h : Math.max(orbHi, h); orbLo = Number.isNaN(orbLo) ? l : Math.min(orbLo, l); }
     if (inIB) { ibHi = Number.isNaN(ibHi) ? h : Math.max(ibHi, h); ibLo = Number.isNaN(ibLo) ? l : Math.min(ibLo, l); }
     if (!inORB && pORB && !Number.isNaN(orbHi) && !Number.isNaN(orbLo)) orbRng = orbHi - orbLo;
@@ -269,7 +277,10 @@ function calcNqSys(data: KLineData[], ext: NqSysExt | undefined): NqRow[] {
     const s3L = canBase && s3Day && !dn15 && (sweepUp(val) || sweepUp(pdl) || sweepUp(swLo)) && rsi <= S3_RSI_LO;
     const s3S = canBase && s3Day && !up15 && (sweepDn(vah) || sweepDn(pdh) || sweepDn(swHi)) && rsi >= S3_RSI_HI;
     // ORB
-    const orbRangeOk = !Number.isNaN(orbRng) && orbRng >= ORB_MIN && orbRng <= ORB_MAX;
+    // needs at least 3 earlier sessions on the chart; with fewer the size check is skipped
+    const lastDays = rthRanges.slice(-ORB_ATR_DAYS);
+    const dayAtr = lastDays.length >= 3 ? lastDays.reduce((a, b) => a + b, 0) / lastDays.length : NaN;
+    const orbRangeOk = !Number.isNaN(orbRng) && (Number.isNaN(dayAtr) || (orbRng >= ORB_ATR_MIN * dayAtr && orbRng <= ORB_ATR_MAX * dayAtr));
     const orbDayOk = !ibDone || dayType !== 0;
     const oL = confirmed && inOrbTr && orbDayOk && orbRangeOk && !Number.isNaN(orbHi) && Math.min(o, c) > orbHi && body >= ORB_BODY;
     const oS = confirmed && inOrbTr && orbDayOk && orbRangeOk && !Number.isNaN(orbLo) && Math.max(o, c) < orbLo && body >= ORB_BODY;
