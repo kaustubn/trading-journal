@@ -25,6 +25,10 @@ export interface Position {
   stop: number; target: number;
   setup: string; notes: string;
   ruleBreaks: string[];              // coach rules broken on this trade (logged with it)
+  // scale in / out: every entry and exit is counted, so the saved trade's P&L is exact
+  entryQty?: number; entrySum?: number;   // contracts bought (sold for a short) and their total price
+  exitQty?: number; exitSum?: number;     // contracts closed so far and their total price
+  riskUsd?: number;                       // $ at risk at the first entry (for R)
 }
 export interface ClosedTrade extends Position {
   id: string; exit: number; exitTime: number; reason: ExitReason; pnl: number; r: number;
@@ -98,6 +102,12 @@ export function pnlOf(p: Pick<Position, 'side' | 'qty' | 'contract' | 'entry'>, 
   const dir = p.side === 'long' ? 1 : -1;
   return Math.round((price - p.entry) * dir * POINT_VALUE[p.contract] * p.qty * 100) / 100;
 }
+/** P&L of the whole trade at `price`: closed parts + the open part. */
+export function totalPnlOf(p: Position, price: number): number {
+  const dir = p.side === 'long' ? 1 : -1;
+  const es = p.entrySum ?? p.entry * p.qty, xs = p.exitSum ?? 0;
+  return Math.round(dir * ((xs + p.qty * price) - es) * POINT_VALUE[p.contract] * 100) / 100;
+}
 export function rOf(p: Pick<Position, 'side' | 'entry' | 'stop'>, price: number): number {
   const risk = Math.abs(p.entry - p.stop);
   const dir = p.side === 'long' ? 1 : -1;
@@ -153,7 +163,7 @@ export class ReplayEngine {
   get nowMs(): number { return this.part ? this.part.k.timestamp + (this.part.s + 1) * 1000 : this.cursor + MIN; }
   /** Start of the minute being shown (the one playing in a forward test). */
   private liveMinute(): number { return this.part ? this.part.k.timestamp : this.cursor; }
-  get openPnl(): number { return this.position && this.price !== null ? pnlOf(this.position, this.price) : 0; }
+  get openPnl(): number { return this.position && this.price !== null ? totalPnlOf(this.position, this.price) : 0; }
 
   // Daily candles start up to ~24h before their last minute; keep that much history buffered
   private span(tf: number) { return (tf >= 1440 ? 26 * HOUR : tf * MIN) + MIN; }
@@ -448,6 +458,7 @@ export class ReplayEngine {
       side: o.side, qty: o.qty, contract: o.contract, entry: price,
       entryTime: this.nowMs, entryMinute: this.liveMinute(),
       stop, target, setup: o.setup, notes: o.notes, ruleBreaks: [...ruleBreaks],
+      entryQty: o.qty, entrySum: o.qty * price, exitQty: 0, exitSum: 0, riskUsd: Math.abs(price - stop) * POINT_VALUE[o.contract] * o.qty,
     };
     this.message = '';
     this.hooks.onOverlays();
@@ -483,6 +494,7 @@ export class ReplayEngine {
       side: o.side, qty: o.qty, contract: o.contract, entry: toTick(fill), entryTime: t, entryMinute: minute,
       stop: toTick(fill - dir * o.stopPts), target: toTick(fill + dir * reward),
       setup: o.setup, notes: o.notes, ruleBreaks: [],
+      entryQty: o.qty, entrySum: o.qty * toTick(fill), exitQty: 0, exitSum: 0, riskUsd: o.stopPts * POINT_VALUE[o.contract] * o.qty,
     };
     this.message = `${o.side === 'long' ? 'Bought' : 'Sold'} ${o.qty} ${o.contract} @ ${toTick(fill)} (working order filled)`;
     this.hooks.onOverlays();
@@ -500,6 +512,45 @@ export class ReplayEngine {
     if ((target - p.entry) * dir > 0) p.target = target;
     this.hooks.onOverlays();
     this.hooks.onChange();
+  }
+
+  /** Add contracts at the current price (scale in). The entry becomes the average. */
+  scaleIn(n: number): string | null {
+    const p = this.position, price = this.price;
+    if (!p || price === null) return 'No open position.';
+    if (!Number.isInteger(n) || n < 1 || p.qty + n > 100) return 'Size must stay between 1 and 100.';
+    p.entryQty = (p.entryQty ?? p.qty) + n;
+    p.entrySum = (p.entrySum ?? p.entry * p.qty) + n * price;
+    p.qty += n;
+    p.entry = Math.round((p.entrySum / p.entryQty) * 100) / 100;
+    this.message = `Added ${n} @ ${price} — average entry ${p.entry}, ${p.qty} open`;
+    this.hooks.onOverlays(); this.hooks.onChange();
+    return null;
+  }
+  /** Close part of the position at the current price (scale out). */
+  scaleOut(n: number): string | null {
+    const p = this.position, price = this.price;
+    if (!p || price === null) return 'No open position.';
+    if (!Number.isInteger(n) || n < 1) return 'Choose how many contracts to close.';
+    if (n >= p.qty) { this.closeAtMarket('manual'); return null; }
+    p.exitQty = (p.exitQty ?? 0) + n;
+    p.exitSum = (p.exitSum ?? 0) + n * price;
+    p.qty -= n;
+    this.message = `Closed ${n} @ ${price} — ${p.qty} still open`;
+    this.hooks.onOverlays(); this.hooks.onChange();
+    return null;
+  }
+  /** Move the stop to the average entry (break-even). */
+  breakEven(): string | null {
+    const p = this.position, price = this.price;
+    if (!p || price === null) return 'No open position.';
+    const be = toTick(p.entry);
+    const dir = p.side === 'long' ? 1 : -1;
+    if ((price - be) * dir <= 0) return 'Price is not past your entry yet — break-even would stop you out now.';
+    p.stop = be;
+    this.message = `Stop moved to break-even (${be})`;
+    this.hooks.onOverlays(); this.hooks.onChange();
+    return null;
   }
 
   /** Put the stop back (coach: undo a widened stop). */
@@ -525,9 +576,15 @@ export class ReplayEngine {
   private closePosition(exit: number, exitTime: number, reason: ExitReason) {
     const p = this.position!;
     this.position = null;
+    // with partial exits / adds: the journal gets the total size, average entry and average exit
+    const eq = p.entryQty ?? p.qty, es = p.entrySum ?? p.entry * p.qty;
+    const xq = (p.exitQty ?? 0) + p.qty, xs = (p.exitSum ?? 0) + p.qty * exit;
+    const avgEntry = Math.round((es / eq) * 100) / 100, avgExit = Math.round((xs / xq) * 100) / 100;
+    const pnl = totalPnlOf(p, exit);
+    const risk = p.riskUsd ?? Math.abs(p.entry - p.stop) * POINT_VALUE[p.contract] * p.qty;
     const t: ClosedTrade = {
-      ...p, id: newTradeId(), exit, exitTime, reason,
-      pnl: pnlOf(p, exit), r: rOf(p, exit), tf: this.hooks.stepTf(), saved: 'pending',
+      ...p, qty: eq, entry: avgEntry, id: newTradeId(), exit: avgExit, exitTime, reason,
+      pnl, r: risk > 0 ? Math.round((pnl / risk) * 100) / 100 : rOf(p, exit), tf: this.hooks.stepTf(), saved: 'pending',
     };
     this.trades = [...this.trades, t];
     this.hooks.onOverlays();

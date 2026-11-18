@@ -67,6 +67,26 @@ export default function ReplayBar({ engine: e, clock, accounts, accountId, onAcc
   const setups = values(opts, 'setup');
 
   useEffect(() => { if (e.position) { setTicket(null); setStage(null); } }, [e.position]);
+  // Hotkeys while replaying / forward testing: B buy, S sell (ticket), A add 1, H close half,
+  // E break-even, F flatten. Ignored while typing in a field.
+  useEffect(() => {
+    const onKey = (ev: KeyboardEvent) => {
+      const el = document.activeElement as HTMLElement | null;
+      if (el && /^(INPUT|SELECT|TEXTAREA)$/.test(el.tagName)) return;
+      if (ev.ctrlKey || ev.metaKey || ev.altKey) return;
+      const k = ev.key.toLowerCase();
+      const pos = e.position;
+      if (!pos && (k === 'b' || k === 's') && e.price !== null) { ev.preventDefault(); openTicket(k === 'b' ? 'long' : 'short'); return; }
+      if (!pos) return;
+      if (k === 'a') { ev.preventDefault(); setErr(e.scaleIn(1) ?? ''); }
+      else if (k === 'h') { ev.preventDefault(); if (pos.qty >= 2) setErr(e.scaleOut(Math.floor(pos.qty / 2)) ?? ''); }
+      else if (k === 'e') { ev.preventDefault(); setErr(e.breakEven() ?? ''); }
+      else if (k === 'f') { ev.preventDefault(); e.closeAtMarket(); }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  });
+
   const openTicket = (side: Side) => {
     if (!e.live) e.pause(); // think with the chart still (a forward test keeps running, like the real market)
     setOtype('market'); setOprice('');
@@ -274,7 +294,11 @@ export default function ReplayBar({ engine: e, clock, accounts, accountId, onAcc
             <span className={e.openPnl >= 0 ? 'mc-up' : 'mc-down'}>
               {fmtUsd(e.openPnl)}{price !== null ? ` (${signed(rOf(p, price), 2)}R)` : ''}
             </span>
-            <button className="mc-btn mc-small" onClick={() => e.closeAtMarket()} title="Close at the current price">Close</button>
+            <button className="mc-btn mc-small" onClick={() => setErr(e.scaleIn(1) ?? '')} title="Add 1 contract at the current price (A)">+1</button>
+            <button className="mc-btn mc-small" disabled={p.qty < 2} onClick={() => setErr(e.scaleOut(Math.floor(p.qty / 2)) ?? '')} title="Close half (H)">½</button>
+            <button className="mc-btn mc-small" onClick={() => setErr(e.breakEven() ?? '')} title="Move the stop to break-even (E)">BE</button>
+            <button className="mc-btn mc-small" onClick={() => e.closeAtMarket()} title="Close everything at the current price (F)">Close</button>
+            {err && !ticket && <span className="mc-bad mc-small-msg">{err}</span>}
           </>
         ) : (
           <>

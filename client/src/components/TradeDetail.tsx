@@ -2,8 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { canOpenOnChart, openOnChart } from '../utils/chartLink';
 import axios from 'axios';
 import OptionPicker from './OptionPicker';
+import TradeTeacher from './TradeTeacher';
+import { playbookFor } from '../utils/tradeTeach';
 import { CandlestickChart, X, CheckCircle2, Circle, Star, ImagePlus } from 'lucide-react';
 import { num, signedMoney } from '../utils/format';
+import { pointValue } from '../utils/pointValue';
 import '../styles/TradeDetail.css';
 
 interface Trade {
@@ -106,7 +109,7 @@ export default function TradeDetail({ trade, onClose, onSaved }: TradeDetailProp
 
   // Live R-multiple preview
   const stop = parseFloat(stopLoss);
-  const risk = !isNaN(stop) ? Math.abs(Number(trade.entry_price) - stop) * Number(trade.quantity) : 0;
+  const risk = !isNaN(stop) ? Math.abs(Number(trade.entry_price) - stop) * Number(trade.quantity) * pointValue(symbol || trade.symbol || '') : 0;
   const rMultiple = risk > 0 && trade.pnl != null ? Number(trade.pnl) / risk : null;
 
   const handleSave = async () => {
@@ -179,6 +182,8 @@ export default function TradeDetail({ trade, onClose, onSaved }: TradeDetailProp
           <div className="info-group"><label>Entry</label><p>{num(trade.entry_price).toFixed(2)}<span className="td-when">{fmtTime(trade.entry_time)}</span></p></div>
           <div className="info-group"><label>Exit</label><p>{trade.exit_price ? num(trade.exit_price).toFixed(2) : '—'}<span className="td-when">{fmtTime(trade.exit_time)}</span></p></div>
         </div>
+
+        {canOpenOnChart(trade.symbol) && playbookFor(trade) && <TradeTeacher trade={trade} />}
 
         <div className="td-review">
           <div className="td-review-top">

@@ -1,4 +1,5 @@
 import { Router, Request, Response } from 'express';
+import { pointValue } from '../utils/pointValue';
 import pool from '../db';
 import { requirePro } from '../middleware/plan';
 
@@ -61,7 +62,7 @@ router.get('/setups/:account_id', requirePro('Setup Performance'), async (req: R
     if (req.query.attempt) { params.push(Number(req.query.attempt)); dateFilter += ` AND attempt_id = $${params.length}`; }
 
     const tr = await pool.query(
-      `SELECT setup_tag, tags, grade, pnl, entry_price, stop_loss, quantity
+      `SELECT setup_tag, tags, grade, pnl, entry_price, stop_loss, quantity, symbol
        FROM trades WHERE account_id = $1 AND pnl IS NOT NULL${dateFilter}`,
       params
     );
@@ -79,10 +80,10 @@ router.get('/setups/:account_id', requirePro('Setup Performance'), async (req: R
 
     for (const row of tr.rows) {
       const pnl = Number(row.pnl);
-      // R-multiple = pnl / risk, risk = |entry - stop| * qty
+      // R-multiple = pnl / risk, risk = |entry - stop| * qty * $ per point
       let r: number | null = null;
       if (row.stop_loss !== null && row.entry_price !== null && row.quantity) {
-        const risk = Math.abs(Number(row.entry_price) - Number(row.stop_loss)) * Number(row.quantity);
+        const risk = Math.abs(Number(row.entry_price) - Number(row.stop_loss)) * Number(row.quantity) * pointValue(row.symbol || '');
         if (risk > 0) r = pnl / risk;
       }
       if (groupBy === 'tag') {

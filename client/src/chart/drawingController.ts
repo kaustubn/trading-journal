@@ -352,13 +352,13 @@ export class DrawingController {
       return {
         id: d.id, name: TOOLS[d.tool].overlay, groupId: GROUP, paneId: PANE, points,
         extendData: { ...d, anchor: { t: points[0].timestamp, p: points[0].value } } as Drawing,
-        lock: !!d.locked || lockAll, visible: !hidden, mode: 'normal',
+        lock: !!d.locked || lockAll, visible: !hidden && !d.hidden, mode: 'normal',
       };
     }
     return {
       id: d.id, name: TOOLS[d.tool].overlay, groupId: GROUP, paneId: PANE,
       points: d.points.map(p => ({ timestamp: barTime(p.t, tf, rth), value: p.p })),
-      extendData: d, lock: !!d.locked || lockAll, visible: !hidden, mode: MODE[magnet],
+      extendData: d, lock: !!d.locked || lockAll, visible: !hidden && !d.hidden, mode: MODE[magnet],
     };
   }
 

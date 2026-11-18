@@ -93,7 +93,10 @@ router.post('/trades', async (req: Request, res: Response) => {
     const tz: string | null = acct.rows[0].tz;
 
     const dir = side === 'long' ? 1 : -1;
-    const pnl = Math.round((exit_price - entry_price) * dir * POINT_VALUE[symbol] * quantity * 100) / 100;
+    const computed = Math.round((exit_price - entry_price) * dir * POINT_VALUE[symbol] * quantity * 100) / 100;
+    const clientPnl = typeof b.pnl === 'number' && Number.isFinite(b.pnl) ? Math.round(b.pnl * 100) / 100 : null;
+    // partial exits / adds: averages are rounded to the cent, so the exact P&L comes from the client
+    const pnl = clientPnl !== null && Math.abs(clientPnl - computed) <= 0.01 * POINT_VALUE[symbol] * quantity + 0.01 ? clientPnl : computed;
 
     const risk = Math.abs(entry_price - stop_loss);
     const reward = Math.abs(target - entry_price);
@@ -105,6 +108,9 @@ router.post('/trades', async (req: Request, res: Response) => {
       (timeframe ? ` · ${timeframe} chart` : '') +
       (userNotes ? `\n${userNotes}` : '') +
       (ruleBreaks.length ? `\nRule breaks: ${ruleBreaks.join(' | ')}` : '');
+
+    // Chart picture at the close (data URL from the chart), shown in the trade's review
+    const shot = typeof b.screenshot === 'string' && /^data:image\/(jpeg|png);base64,/.test(b.screenshot) && b.screenshot.length <= 3_000_000 ? b.screenshot : null;
 
     const brokerTradeId = `replay_${b.client_id}`;
 
@@ -128,15 +134,15 @@ router.post('/trades', async (req: Request, res: Response) => {
 
     const result = await pool.query(
       `INSERT INTO trades (account_id, broker_trade_id, symbol, entry_time, exit_time, entry_price, exit_price,
-         quantity, pnl, setup_tag, notes, tags, stop_loss, target, attempt_id, session, timeframe, planned_rr)
+         quantity, pnl, setup_tag, notes, tags, stop_loss, target, attempt_id, session, timeframe, planned_rr, screenshot)
        VALUES ($1, $2, $3, journal_utc_to_wall($4::timestamptz, $19), journal_utc_to_wall($5::timestamptz, $19), $6, $7,
-         $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+         $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $20)
        ON CONFLICT (broker_trade_id) DO NOTHING
        RETURNING *`,
       [
         accountId, brokerTradeId, symbol, entryDate.toISOString(), exitDate.toISOString(), entry_price, exit_price,
         quantity, pnl, setupTag, notes, ['Bar replay', sideLabel, ...(ruleBreaks.length ? ['Rule break'] : [])], stop_loss, target, attemptId,
-        sessionFor(entryDate), timeframe, plannedRr, tz,
+        sessionFor(entryDate), timeframe, plannedRr, tz, shot,
       ]
     );
 

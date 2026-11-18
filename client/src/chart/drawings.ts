@@ -30,6 +30,7 @@ export interface Drawing {
   textColor?: string;     // label on a horizontal line / ray / trend line (uses `text`)
   levels?: { v: number; c: string }[]; // fib retracement levels and their colours
   fibFill?: boolean;      // fib: shade between levels
+  hidden?: boolean;       // hidden from the chart (object tree)
 }
 
 export interface ToolDef {

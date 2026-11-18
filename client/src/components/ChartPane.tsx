@@ -29,6 +29,8 @@ export interface Workspace {
   setBusy: (index: number, busy: boolean) => void;
   onChartDate: (index: number, day: string) => void;
   indicatorAction: (name: string, feature: string) => void;  // eye / gear / close in an indicator's legend
+  syncUntil: number;                   // time sync: ignore other windows' scroll events until then (they were caused by the sync)
+  syncSrc: number;                     // the window being scrolled by the trader
   panes: Map<number, PaneHandle>;
 }
 export interface PaneHandle {
@@ -43,6 +45,7 @@ export interface PaneHandle {
   drawFocus: () => void;
   appendLatest: () => Promise<void>;   // new bars arrived (near-live)
   showCrosshair: (ts: number | null, price: number | null) => void;
+  showTime: (ts: number) => void;      // time sync: put the bar at ts on the right edge
   setHotkeys: (on: boolean) => void;
 }
 
@@ -292,6 +295,26 @@ export default function ChartPane({ index, tf, s, active, ws, onActivate }: Prop
       others.forEach(p => p.showCrosshair(ts, price));
     };
     chart.subscribeAction('onCrosshairChange', onCross);
+    // time sync: scrolling / zooming one window moves the others to the same time
+    let raf = 0;
+    const onMove = () => {
+      if (!sRef.current.syncTime || (Date.now() < ws.syncUntil && ws.syncSrc !== index)) return;
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => {
+        const others = [...ws.panes.values()].filter(p => p.index !== index);
+        const data = chart.getDataList();
+        if (!others.length || !data.length) return;
+        const vr = chart.getVisibleRange();
+        const right = data[Math.max(0, Math.min(data.length, vr.to) - 1)];
+        if (!right) return;
+        ws.syncUntil = Date.now() + 250;
+        ws.syncSrc = index;
+        const t = right.timestamp + tfRef.current * 60000 - 60000;   // last minute of the right-most bar
+        others.forEach(p => p.showTime(t));
+      });
+    };
+    chart.subscribeAction('onScroll', onMove);
+    chart.subscribeAction('onZoom', onMove);
     const ro = new ResizeObserver(() => chart.resize());
     ro.observe(box);
 
@@ -327,6 +350,21 @@ export default function ChartPane({ index, tf, s, active, ws, onActivate }: Prop
         chart.executeAction('onCrosshairChange', { x: c.x, y: typeof c.y === 'number' ? c.y : undefined, paneId: PANE });
       },
       setHotkeys: on => chart.setHotkey({ enabled: on }),
+      showTime: ts => {
+        const data = chart.getDataList();
+        if (!data.length) return;
+        const key = barTime(ts, tfRef.current, sRef.current.rth);
+        if (key < data[0].timestamp) {
+          if (ws.engine.active) { chart.scrollToDataIndex(0); return; }
+          localTarget.current = { ts: key, align: 'right' };   // older than loaded: reload around it
+          chart.resetData();
+          return;
+        }
+        let idx = data.findIndex(k => k.timestamp >= key);
+        if (idx < 0) idx = data.length - 1;
+        if (data[idx].timestamp > key && idx > 0) idx--;
+        chart.scrollToDataIndex(idx);
+      },
     };
     ws.panes.set(index, handle);
     ws.redraw();

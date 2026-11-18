@@ -204,6 +204,7 @@ export interface Settings {
   panes: PaneCfg[];        // always 4; the layout decides how many are shown
   active: number;          // window that the top bar, keys and replay steps act on
   syncCrosshair: boolean;
+  syncTime: boolean;       // scrolling one window moves the others to the same time
   live: boolean;           // poll for new bars every minute
   customTfs: number[];     // extra timeframe buttons the trader added (minutes)
   look: Look;              // chart colours: 'tv' = the trader's TradingView chart, 'journal' = TradingView default
@@ -229,7 +230,7 @@ export const DEFAULTS: Settings = {
     acc[k] = { on: k === 'VOL' || k === 'NQSYS', params: INDS[k].def, ...(k === 'VOL' ? { bars: { ...VOL_BARS_TV } } : {}), ...(k === 'NQSYS' ? { nq: { ...NQ_STYLE_TV } } : {}) };
     return acc;
   }, {} as Settings['indicators']),
-  layout: '1', panes: DEFAULT_PANES, active: 0, syncCrosshair: true, live: true,
+  layout: '1', panes: DEFAULT_PANES, active: 0, syncCrosshair: true, syncTime: true, live: true,
   customTfs: [],
   look: 'tv',
   chart: { ...CHART_TV },
@@ -246,7 +247,7 @@ export function mergeSettings(saved: any): Settings {
   if (saved.clock === 'ET' || saved.clock === 'BC') s.clock = saved.clock;
   if (saved.theme === 'dark' || saved.theme === 'light') s.theme = saved.theme;
   if (Array.isArray(saved.favTools)) s.favTools = [...new Set<Tool>(saved.favTools.filter((t: any) => typeof t === 'string' && t in TOOLS))].slice(0, 24);
-  for (const k of ['sessions', 'rth', 'log', 'rolls', 'drawHidden', 'drawLocked', 'notesOpen', 'syncCrosshair', 'live', 'stayDrawing', 'favBar', 'drawBar'] as const) {
+  for (const k of ['sessions', 'rth', 'log', 'rolls', 'drawHidden', 'drawLocked', 'notesOpen', 'syncCrosshair', 'live', 'stayDrawing', 'favBar', 'drawBar', 'syncTime'] as const) {
     if (typeof saved[k] === 'boolean') s[k] = saved[k];
   }
   if (saved.magnet === 'off' || saved.magnet === 'weak' || saved.magnet === 'strong') s.magnet = saved.magnet;

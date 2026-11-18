@@ -120,3 +120,51 @@
   .td-head { flex-direction: column-reverse; }
   .td-head-actions { align-self: stretch; justify-content: space-between; }
 }
+
+
+/* Teach me this trade (backtest lesson) */
+.tt { flex-shrink: 0; margin: 0 20px 14px; border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--raised); overflow: hidden; }
+.tt-head {
+  width: 100%; display: flex; align-items: center; gap: 8px; padding: 10px 12px; background: var(--accent-soft);
+  border: 0; color: var(--accent-ink); cursor: pointer; text-align: left; font: inherit;
+}
+.tt-title { font-weight: 650; }
+.tt-sub { color: var(--text-dim); font-size: var(--fs-sm); flex: 1; }
+.tt-caret { transition: transform .15s; }
+.tt-caret.open { transform: rotate(180deg); }
+.tt-body { padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+.tt-dim { color: var(--muted); font-size: var(--fs-sm); }
+.tt-chart { width: 100%; height: auto; background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-md); }
+.tt-chart-empty { color: var(--muted); font-size: var(--fs-sm); padding: 20px; text-align: center; }
+.tt-chart .tt-up line, .tt-chart .tt-up rect { stroke: var(--success); fill: var(--success); }
+.tt-chart .tt-dn line, .tt-chart .tt-dn rect { stroke: var(--danger); fill: var(--danger); }
+.tt-chart .tt-after { opacity: .85; }
+.tt-chart .tt-entry line { stroke: var(--accent); stroke-width: 1.4; }
+.tt-chart .tt-stop line { stroke: var(--danger); stroke-dasharray: 5 3; }
+.tt-chart .tt-tgt line { stroke: var(--success); stroke-dasharray: 5 3; }
+.tt-chart text { font-size: 10px; fill: var(--text-dim); font-variant-numeric: tabular-nums; }
+.tt-chart .tt-entry text { fill: var(--accent); } .tt-chart .tt-stop text { fill: var(--danger); } .tt-chart .tt-tgt text { fill: var(--success); }
+.tt-chart .tt-mark { stroke: var(--accent); stroke-width: 1; stroke-dasharray: 2 3; }
+.tt-chart .tt-exit { stroke: var(--text-dim); }
+.tt-chart .tt-ny { stroke: var(--muted); stroke-dasharray: 1 4; }
+.tt-chart .tt-hidden { fill: var(--muted); font-style: italic; }
+.tt-dots { display: flex; gap: 6px; justify-content: center; }
+.tt-dot { width: 22px; height: 6px; border-radius: 3px; border: 0; background: var(--border-strong); cursor: pointer; padding: 0; }
+.tt-dot.done { background: var(--accent-soft); }
+.tt-dot.on { background: var(--accent); }
+.tt-step { margin: 0; font-size: var(--fs-md); color: var(--text); }
+.tt-say p { margin: 0 0 6px; color: var(--text); font-size: var(--fs-sm); line-height: 1.5; }
+.tt-say p.tt-li { padding-left: 10px; color: var(--text-dim); }
+.tt-say p.tt-go { font-weight: 600; color: var(--accent-ink); }
+.tt-facts { margin: 0; display: grid; grid-template-columns: 1fr; gap: 0; border: 1px solid var(--border); border-radius: var(--r-md); overflow: hidden; }
+.tt-facts > div { display: flex; justify-content: space-between; gap: 12px; padding: 6px 10px; font-size: var(--fs-sm); }
+.tt-facts > div:nth-child(odd) { background: var(--surface); }
+.tt-facts dt { color: var(--text-dim); }
+.tt-facts dd { margin: 0; color: var(--text); text-align: right; font-variant-numeric: tabular-nums; }
+.tt-nav { display: flex; justify-content: space-between; }
+.tt-btn {
+  display: inline-flex; align-items: center; gap: 4px; padding: 6px 12px; border-radius: var(--r-md); cursor: pointer;
+  border: 1px solid var(--border-strong); background: var(--surface); color: var(--text); font-size: var(--fs-sm);
+}
+.tt-btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.tt-btn:disabled { opacity: .4; cursor: default; }

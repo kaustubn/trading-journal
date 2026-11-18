@@ -1,4 +1,5 @@
 import { Router, Request, Response } from 'express';
+import { pointValue } from '../utils/pointValue';
 import pool from '../db';
 
 const router = Router();
@@ -21,7 +22,7 @@ router.get('/overview/:account_id', async (req: Request, res: Response) => {
     if (attempt) { params.push(attempt); dateFilter += ` AND attempt_id = $${params.length}`; }
 
     const tr = await pool.query(
-      `SELECT pnl, entry_price, stop_loss, quantity,
+      `SELECT pnl, entry_price, stop_loss, quantity, symbol,
               to_char(DATE(entry_time), 'YYYY-MM-DD') AS d
        FROM trades
        WHERE account_id = $1 AND pnl IS NOT NULL${dateFilter}
@@ -47,7 +48,7 @@ router.get('/overview/:account_id', async (req: Request, res: Response) => {
       else if (pnl < 0) { losses++; grossLoss += Math.abs(pnl); if (pnl < largestLoss) largestLoss = pnl; }
       dayMap.set(row.d, (dayMap.get(row.d) || 0) + pnl);
       if (row.stop_loss != null && row.entry_price != null && row.quantity) {
-        const risk = Math.abs(Number(row.entry_price) - Number(row.stop_loss)) * Number(row.quantity);
+        const risk = Math.abs(Number(row.entry_price) - Number(row.stop_loss)) * Number(row.quantity) * pointValue(row.symbol || '');
         if (risk > 0) { rSum += pnl / risk; rCount++; }
       }
     }

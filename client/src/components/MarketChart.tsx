@@ -12,6 +12,7 @@ import { ReplayEngine, ClosedTrade } from '../chart/replay';
 import ReplayBar, { CoachHooks } from './ReplayBar';
 import CoachPanel, { CoachMsg, Verdict } from './CoachPanel';
 import MentorPanel from './MentorPanel';
+import ObjectTree from './ObjectTree';
 import { Floating, IndicatorDialog, ChartSettingsDialog } from './ChartDialogs';
 import { Settings as Gear, CandlestickChart, OctagonAlert, Eye, EyeOff, GraduationCap, Rewind, Sun, Moon, Maximize2, Minimize2, Undo2, Redo2, Save, Trash2, Pencil, Upload } from 'lucide-react';
 import { checkOrder, checkAfterClose, CoachRules } from '../chart/coach';
@@ -58,6 +59,7 @@ export default function MarketChart({ token, focus }: { token: string; focus?: {
   const [mentorOpen, setMentorOpen] = useState(false);
   const [indDlg, setIndDlg] = useState<IndKey | null>(null);
   const [chartDlg, setChartDlg] = useState(false);
+  const [treeOpen, setTreeOpen] = useState(false);
   const [layoutName, setLayoutName] = useState('');
   const [renaming, setRenaming] = useState<number | null>(null);
   const indActionRef = useRef<(name: string, feature: string) => void>(() => {});
@@ -141,6 +143,8 @@ export default function MarketChart({ token, focus }: { token: string; focus?: {
       setBusy: (i, b) => setBusyPanes(cur => (cur[i] === b ? cur : { ...cur, [i]: b })),
       onChartDate: (i, day) => setChartDates(cur => (cur[i] === day ? cur : { ...cur, [i]: day })),
       indicatorAction: (name, feature) => indActionRef.current(name, feature),
+      syncUntil: 0,
+      syncSrc: -1,
       panes: new Map(),
     };
   }
@@ -336,16 +340,29 @@ export default function MarketChart({ token, focus }: { token: string; focus?: {
       return;
     }
   };
+  const shots = useRef(new Map<string, string>());
+  /** Picture of the active chart (with the trade's markers) for the trade's review. */
+  const snapshot = (): string | undefined => {
+    try {
+      const p = ws.panes.get(sRef.current.active) ?? panesOf()[0];
+      const url = p?.chart.getConvertPictureUrl(true, 'jpeg', sRef.current.chart.bg);
+      return typeof url === 'string' && url.length < 3_000_000 ? url : undefined;
+    } catch { return undefined; }
+  };
   saveTradeRef.current = (t: ClosedTrade) => {
     const account = replayAcctRef.current;
     if (!account) { engine.markSaved(t.id, 'failed', 'Choose the journal account to save replay trades to.'); return; }
     engine.markSaved(t.id, 'pending');
+    // let the exit marker paint before taking the picture
+    if (!shots.current.has(t.id)) { window.setTimeout(() => { const u = snapshot(); if (u) shots.current.set(t.id, u); else shots.current.set(t.id, ''); saveTradeRef.current(t); }, 150); return; }
     axios.post('/api/replay/trades', {
       account_id: account, client_id: t.id, symbol: t.contract, side: t.side, quantity: t.qty,
       entry_price: t.entry, exit_price: t.exit, stop_loss: t.stop, target: t.target,
       entry_time: new Date(t.entryTime).toISOString(), exit_time: new Date(t.exitTime).toISOString(),
       exit_reason: t.reason, timeframe: tfLabel(t.tf), setup_tag: t.setup || undefined, notes: t.notes || undefined,
       rule_breaks: t.ruleBreaks.length ? t.ruleBreaks : undefined,
+      pnl: t.pnl,
+      screenshot: shots.current.get(t.id) || undefined,
     }, auth())
       .then(() => engine.markSaved(t.id, 'saved'))
       .catch(err => engine.markSaved(t.id, 'failed', err?.response?.data?.error || 'Could not reach the server.'));
@@ -609,6 +626,7 @@ export default function MarketChart({ token, focus }: { token: string; focus?: {
         {s.drawBar ? <DrawToolbar ctl={ctl} magnet={s.magnet} hidden={s.drawHidden} lockAll={s.drawLocked}
           fav={s.favTools} onFav={t => update(cur => ({ ...cur, favTools: cur.favTools.includes(t) ? cur.favTools.filter(x => x !== t) : [...cur.favTools, t] }))}
           favBar={s.favBar} onFavBar={v => update({ favBar: v })} onCollapse={() => update({ drawBar: false })}
+          treeOpen={treeOpen} onTree={() => setTreeOpen(!treeOpen)}
           measureArmed={measureArmed}
           onMagnet={m => update({ magnet: m })} onHidden={v => update({ drawHidden: v })}
           onLockAll={v => update({ drawLocked: v })} onMeasure={setMeasureArmed}
@@ -727,6 +745,10 @@ export default function MarketChart({ token, focus }: { token: string; focus?: {
               <label className="mc-check mc-row">
                 <input type="checkbox" checked={s.syncCrosshair} onChange={() => update({ syncCrosshair: !s.syncCrosshair })} />
                 <span>Sync crosshair across charts</span>
+              </label>
+              <label className="mc-check mc-row">
+                <input type="checkbox" checked={s.syncTime} onChange={() => update({ syncTime: !s.syncTime })} />
+                <span>Sync time across charts (scroll one, the others follow)</span>
               </label>
               <label className="mc-check mc-row">
                 <input type="checkbox" checked={s.live} onChange={() => update({ live: !s.live })} />
@@ -860,6 +882,15 @@ export default function MarketChart({ token, focus }: { token: string; focus?: {
         {indDlg && (
           <IndicatorDialog k={indDlg} cfg={s.indicators[indDlg]} look={s.look} onClose={() => setIndDlg(null)}
             onChange={c => update(cur => ({ ...cur, indicators: { ...cur.indicators, [indDlg]: c } }))} />
+        )}
+        {treeOpen && (
+          <ObjectTree store={store} clock={s.clock} onClose={() => setTreeOpen(false)}
+            onJump={d => {
+              if (d.hidden) store.update(d.id, { hidden: false });
+              const p = ws.panes.get(activeIdx);
+              p?.showTime(d.points[0].t);
+              window.setTimeout(() => { p?.ctl.select(d.id); }, 120);
+            }} />
         )}
         {chartDlg && <ChartSettingsDialog cfg={s.chart} onChange={c => update(cur => ({ ...cur, chart: c }))} onClose={() => setChartDlg(false)} />}
         {mentorOpen && (

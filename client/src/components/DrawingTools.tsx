@@ -3,7 +3,7 @@ import { DrawingController, Magnet } from '../chart/drawingController';
 import { Tool, TOOLS, COLORS, LineStyle, Drawing } from '../chart/drawings';
 import { TEMPLATES, tplPatch } from '../chart/templates';
 import { Floating } from './ChartDialogs';
-import { Star, ChevronsLeft, X } from 'lucide-react';
+import { Star, ChevronsLeft, X, ListTree } from 'lucide-react';
 
 // ---------- icons (24px, stroke = currentColor) ----------
 const S = { fill: 'none', stroke: 'currentColor', strokeWidth: 1.5, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const };
@@ -52,12 +52,13 @@ interface ToolbarProps {
   magnet: Magnet; hidden: boolean; lockAll: boolean; measureArmed: boolean;
   stay: boolean; onStay: (v: boolean) => void;
   fav: Tool[]; onFav: (t: Tool) => void; favBar: boolean; onFavBar: (v: boolean) => void; onCollapse: () => void;
+  treeOpen: boolean; onTree: () => void;
   onMagnet: (m: Magnet) => void; onHidden: (v: boolean) => void; onLockAll: (v: boolean) => void;
   onMeasure: (armed: boolean) => void;
 }
 
 /** TradingView-style vertical drawing toolbar on the left of the chart. */
-export function DrawToolbar({ ctl, magnet, hidden, lockAll, measureArmed, stay, onStay, fav, onFav, favBar, onFavBar, onCollapse, onMagnet, onHidden, onLockAll, onMeasure }: ToolbarProps) {
+export function DrawToolbar({ ctl, magnet, hidden, lockAll, measureArmed, stay, onStay, fav, onFav, favBar, onFavBar, onCollapse, treeOpen, onTree, onMagnet, onHidden, onLockAll, onMeasure }: ToolbarProps) {
   const [confirmClear, setConfirmClear] = useState(false);
   useEffect(() => {
     if (!confirmClear) return;
@@ -92,6 +93,7 @@ export function DrawToolbar({ ctl, magnet, hidden, lockAll, measureArmed, stay, 
       <button disabled={!ready} className={`mc-dbtn${measureArmed ? ' on' : ''}`} title="Measure (or Shift + drag on the chart)"
         onClick={() => { ctl?.cancel(); onMeasure(!measureArmed); }}>{ICONS.measure}</button>
       <span className="mc-dgrow" />
+      <button className={`mc-dbtn${treeOpen ? ' on' : ''}`} title="Drawings list (object tree): find, hide, lock, delete" onClick={onTree}><ListTree size={18} strokeWidth={1.6} /></button>
       <button className={`mc-dbtn${favBar ? ' on' : ''}`} title={favBar ? 'Hide the favourites toolbar' : 'Show the favourites toolbar (right-click any tool to add / remove it)'}
         onClick={() => onFavBar(!favBar)}><Star size={18} strokeWidth={1.6} /></button>
       <button className="mc-dbtn" title="Hide the drawing toolbar" onClick={onCollapse}><ChevronsLeft size={18} strokeWidth={1.6} /></button>
