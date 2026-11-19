@@ -12,6 +12,9 @@
 //      number of "survivors" it produces is what chance alone gives.
 // Entries: the open of the first minute after the 5m candle closes (no look-ahead).
 import pool from '../db';
+import { FOMC_DATES } from './newsCalendar';
+import { recordStrategy, propGate } from './tradeBook';
+export { FOMC_DATES };
 import { load, Store } from './timeScan';
 
 const PATTERNS = [
@@ -41,13 +44,6 @@ const TIMES = [{ k: 'any', a: 0, b: 390, label: 'any time' }, { k: 'open', a: 0,
 // day filter: weekday OR a calendar event (FOMC statement day, monthly OPEX, turn of month, 1st Friday = usual jobs report)
 const WDS = ['any day', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'FOMC day', 'monthly OPEX (3rd Fri)', 'turn of month', '1st Friday (jobs report)', 'no calendar event',
   'VIX calm (prior close < 16)', 'VIX normal (16-22)', 'VIX fearful (> 22)'];
-// FOMC statement days, federalreserve.gov/monetarypolicy/fomccalendars.htm (read 2026-11-18)
-export const FOMC_DATES = ['2021-01-27', '2021-03-17', '2021-04-28', '2021-06-16', '2021-07-28', '2021-09-22', '2021-11-03', '2021-12-15',
-  '2022-01-26', '2022-03-16', '2022-05-04', '2022-06-15', '2022-07-27', '2022-09-21', '2022-11-02', '2022-12-14',
-  '2023-02-01', '2023-03-22', '2023-05-03', '2023-06-14', '2023-07-26', '2023-09-20', '2023-11-01', '2023-12-13',
-  '2024-01-31', '2024-03-20', '2024-05-01', '2024-06-12', '2024-07-31', '2024-09-18', '2024-11-07', '2024-12-18',
-  '2025-01-29', '2025-03-19', '2025-05-07', '2025-06-18', '2025-07-30', '2025-09-17', '2025-10-29', '2025-12-10',
-  '2026-01-28', '2026-03-18', '2026-04-29', '2026-06-17', '2026-07-29', '2026-09-16', '2026-10-28', '2026-12-09'];
 const FOMC = new Set(FOMC_DATES);
 const TRENDS = ['any trend', 'with the 15m trend', 'against the 15m trend'];
 const VOLS = ['any volatility', 'quiet (ATR < 0.8x normal)', 'normal', 'wild (ATR > 1.25x normal)'];
@@ -320,7 +316,7 @@ export interface Candidate {
   perDay: number; maxLosingStreak: number; maxDdR: number;
   tStat: number; passesT: boolean;            // t-stat on discovery + validation trades; Harvey-Liu hurdle t >= 3
   years: { y: string; n: number; avgR: number }[];
-  trades: [string, number, number, number][];   // [date, minute after 9:30, dir, R]
+  trades: ([string, number, number, number] | [string, number, number, number, number])[];   // [date, entry minute after 9:30, dir, net R, stop pts (runs from 2026-11-19)]
 }
 export interface EdgeResult {
   runAt: string; secs: number; days: number; from: string; to: string; splits: [string, string];
@@ -361,13 +357,13 @@ export async function latest(): Promise<EdgeResult | null> {
   return r.rows[0]?.result ?? null;
 }
 
-export function startHunt(): Promise<EdgeResult> {
+export function startHunt(userId?: number): Promise<EdgeResult> {
   if (running) return running;
-  running = hunt().finally(() => { running = null; });
+  running = hunt(userId).finally(() => { running = null; });
   return running;
 }
 
-async function hunt(): Promise<EdgeResult> {
+async function hunt(userId?: number): Promise<EdgeResult> {
   const t0 = Date.now();
   progress = 'Loading 5 years of 1-minute bars…';
   const s = await load();
@@ -416,7 +412,7 @@ async function hunt(): Promise<EdgeResult> {
   const candidates: Candidate[] = top.map(k => {
     const d = decode(k);
     const P = PATTERNS[d.p];
-    const trades: [string, number, number, number][] = [];
+    const trades: [string, number, number, number, number][] = [];
     let stopSum = 0;
     for (const e of evs) {
       if (e.pat !== d.p) continue;
@@ -427,8 +423,9 @@ async function hunt(): Promise<EdgeResult> {
       if (d.tr && trRel !== d.tr) continue;
       if (d.v && e.vol !== d.v) continue;
       const r = (fade ? e.rFade : e.r)[d.s * NG + d.g];
-      trades.push([days[e.day].date, e.min, fade ? -e.dir : e.dir, Math.round(r * 1000) / 1000]);
-      stopSum += Math.max(2, STOPS[d.s] * e.atr);
+      const stopPts = Math.max(2, STOPS[d.s] * e.atr);
+      trades.push([days[e.day].date, e.min, fade ? -e.dir : e.dir, Math.round(r * 1000) / 1000, Math.round(stopPts * 100) / 100]);
+      stopSum += stopPts;
     }
     let streak = 0, worst = 0, eq = 0, peak = 0, dd = 0;
     for (const t of trades) { if (t[3] <= 0) { streak++; worst = Math.max(worst, streak); } else streak = 0; eq += t[3]; peak = Math.max(peak, eq); dd = Math.min(dd, eq - peak); }
@@ -485,6 +482,33 @@ async function hunt(): Promise<EdgeResult> {
   await latest(); // makes sure the table exists
   await pool.query('INSERT INTO edge_runs (result) VALUES ($1)', [JSON.stringify(result)]);
   await pool.query('DELETE FROM edge_runs WHERE id NOT IN (SELECT id FROM edge_runs ORDER BY id DESC LIMIT 3)'); // keep the last 3 runs
+  // AI Trade Book: every candidate that passes the prop-firm gate gets each of its trades recorded automatically
+  if (userId) {
+    for (const c of candidates) {
+      const rec = candidateRecord(c, userId);
+      if (!rec.gatePass) continue;
+      progress = `Recording the trades of "${rec.input.name}" in the AI Trade Book…`;
+      try { await recordStrategy(rec.input); } catch (e: any) { console.error('[edge] trade book record failed', e?.message); }
+    }
+  }
   progress = '';
   return result;
+}
+
+/** Builds the AI Trade Book record for an Edge Hunter candidate (used automatically and by the "Record trades" button). */
+export function candidateRecord(c: Candidate, userId: number) {
+  const n = c.trades.length;
+  const stats = { n, tStat: c.tStat, hold: c.hold, val: c.val, disc: c.disc, maxDdR: c.maxDdR, maxLosingStreak: c.maxLosingStreak, perDay: c.perDay,
+    years: c.years, stopAtr: c.stopAtr, targetR: c.targetR, holdMin: HOLD };
+  const gate = propGate(stats);
+  return {
+    gatePass: gate.propReady,
+    input: {
+      userId, source: 'Edge Hunter', ruleKey: `edge:${c.key}`,
+      name: `${c.pattern} (${c.mode}) ${c.time}${c.weekday !== 'any day' ? ', ' + c.weekday : ''}`,
+      rule: c.rule, stats,
+      trades: c.trades.map(t => ({ date: t[0], entryMin: t[1], dir: (t[2] > 0 ? 1 : -1) as 1 | -1, refR: t[3],
+        ...(t.length > 4 ? { stopPts: (t as number[])[4] } : { stopAtr: c.stopAtr }), targetR: c.targetR, holdMin: HOLD })),
+    },
+  };
 }

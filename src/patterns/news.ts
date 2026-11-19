@@ -8,8 +8,7 @@
 // Each release day is also checked in the data: a real release shows a volume spike (>= 1.5x the prior 30 min) in its minute.
 import pool from '../db';
 import { packRows, unpackRows } from './barPack';
-import { CPI_DATES, NFP_DATES } from './newsCalendar';
-import { FOMC_DATES } from './edgeHunter';
+import { CPI_DATES, NFP_DATES, FOMC_DATES } from './newsCalendar';
 
 const COST_PTS = 3.5 / 20 + 0.5;
 export const FIRST_MIN = 450;            // 07:30 ET

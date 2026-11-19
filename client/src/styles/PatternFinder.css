@@ -57,3 +57,19 @@
 .mm-odds td { white-space: nowrap; }
 .mm-news { border-top: 1px solid var(--border); padding-top: 10px; margin-top: 10px; }
 .mm-news:first-of-type { border-top: 0; margin-top: 4px; }
+
+/* AI Trade Book */
+.eh-rec { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 4px 0 0 20px; font-size: 12px; }
+.tb-list { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
+.tb-card { border: 1px solid var(--border); border-left: 3px solid #f7a600; border-radius: var(--radius-sm); background: var(--card); padding: 8px 12px; }
+.tb-card.ok { border-left-color: var(--green); }
+.tb-top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.tb-badge { font-size: 10.5px; font-weight: 700; padding: 2px 7px; border-radius: 999px; letter-spacing: .03em; }
+.tb-badge.ok { background: rgba(38,166,154,.18); color: var(--green); }
+.tb-badge.watch { background: rgba(247,166,0,.16); color: #f7a600; }
+.tb-rule { font-size: 12.5px; margin: 4px 0; }
+.tb-gate { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; margin: 6px 0; }
+.tb-gate span { display: inline-flex; align-items: center; gap: 4px; }
+.tb-trades tr.tb-sel td { outline: 1px solid var(--brand-2); }
+.tb-timeline { margin: 4px 0 6px; padding-left: 18px; font-size: 13px; line-height: 1.5; }
+.tb-timeline b { font-variant-numeric: tabular-nums; margin-right: 4px; }

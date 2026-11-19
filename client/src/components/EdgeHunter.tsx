@@ -1,7 +1,7 @@
 // Edge Hunter view: the automatic pattern + stop/target search (src/patterns/edgeHunter.ts).
 import { useEffect, useRef, useState } from 'react';
 import axios from 'axios';
-import { Play, Radar, ChevronDown, ChevronRight } from 'lucide-react';
+import { Play, Radar, ChevronDown, ChevronRight, BookOpen } from 'lucide-react';
 import { openReplayDay } from '../utils/chartLink';
 
 interface S { n: number; avgR: number; win: number; }
@@ -27,6 +27,15 @@ export default function EdgeHunter({ token }: { token: string }) {
   const [progress, setProgress] = useState('');
   const [err, setErr] = useState('');
   const [open, setOpen] = useState<number | null>(null);
+  const [rec, setRec] = useState<Record<number, string>>({});
+  const recordTrades = async (key: number) => {
+    setRec(r => ({ ...r, [key]: 'Recording every trade…' }));
+    try {
+      const x = await axios.post('/api/patterns/book/record-candidate', { key }, { headers: { Authorization: `Bearer ${token}` } });
+      setRec(r => ({ ...r, [key]: `Recorded ${x.data.trades} trades (${x.data.status === 'prop-ready' ? 'PROP-READY' : 'watch: does not pass the prop gate'}).` }));
+      window.dispatchEvent(new CustomEvent('jc:open-tradebook', { detail: { id: x.data.id } }));
+    } catch (e: any) { setRec(r => ({ ...r, [key]: e.response?.data?.error || 'Recording failed' })); }
+  };
   const timer = useRef<number | null>(null);
 
   const poll = async () => {
@@ -119,6 +128,12 @@ export default function EdgeHunter({ token }: { token: string }) {
                       <span className="bl-dim">{c.perDay}/day · worst streak {c.maxLosingStreak} · max DD {c.maxDdR}R</span>
                       {c.tStat != null && <span className={c.passesT ? 'bl-up' : 'bl-dim'}>t {c.tStat}{c.passesT ? ' ≥ 3' : ' (< 3)'}</span>}
                       {c.years && <span className="eh-years">{c.years.map(y => <i key={y.y} className={y.avgR > 0 ? 'up' : 'dn'} title={`${y.y}: ${r2(y.avgR)} on ${y.n} trades`}>{y.y.slice(2)}</i>)}</span>}
+                    </div>
+                    <div className="eh-rec">
+                      <button className="s1p-btn" disabled={rec[c.key] === 'Recording every trade…'} onClick={() => recordTrades(c.key)} title="Replay every trade of this rule and save it (entry, exit, management, confluence) in the AI Trade Book">
+                        <BookOpen size={12} /> Record every trade
+                      </button>
+                      {rec[c.key] && <span className="bl-dim">{rec[c.key]}</span>}
                     </div>
                     {isOpen && (
                       <div className="pf-days">

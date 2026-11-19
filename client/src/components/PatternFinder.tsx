@@ -1,12 +1,13 @@
 // Time & day pattern finder: tests one fixed trade (1 contract, target $ / stop $) entered at every
 // time of day and weekday over the chart's NQ history, split into TRAIN (older 60%) and TEST (newest
 // 40%). Also shows what the market usually does then (move, direction, volume, time of high / low).
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
 import { Play, Search, AlertTriangle } from 'lucide-react';
 import { openReplayDay } from '../utils/chartLink';
 import EdgeHunter from './EdgeHunter';
 import MarketMemory from './MarketMemory';
+import TradeBook from './TradeBook';
 import '../styles/BacktestLab.css';
 import '../styles/S1Practice.css';
 import '../styles/PatternFinder.css';
@@ -48,7 +49,13 @@ export default function PatternFinder({ token }: { token: string }) {
   const [view, setView] = useState<'test' | 'train' | 'all' | 'move' | 'vol'>('test');
   const [sel, setSel] = useState<Cell | null>(null);
   const [days, setDays] = useState<DayRow[] | null>(null);
-  const [tab, setTab] = useState<'hunt' | 'mine' | 'memory'>('hunt');
+  const [tab, setTab] = useState<'hunt' | 'mine' | 'memory' | 'book'>('hunt');
+  const [bookId, setBookId] = useState<number | null>(null);
+  useEffect(() => {
+    const go = (e: Event) => { setBookId((e as CustomEvent).detail?.id ?? null); setTab('book'); };
+    window.addEventListener('jc:open-tradebook', go);
+    return () => window.removeEventListener('jc:open-tradebook', go);
+  }, []);
 
   const params = () => ({ ...form, from: form.from || undefined, to: form.to || undefined });
   const run = async () => {
@@ -81,8 +88,9 @@ export default function PatternFinder({ token }: { token: string }) {
         <button className={tab === 'hunt' ? 'on' : ''} onClick={() => setTab('hunt')}>Edge Hunter (automatic)</button>
         <button className={tab === 'mine' ? 'on' : ''} onClick={() => setTab('mine')}>Test my own trade by time</button>
         <button className={tab === 'memory' ? 'on' : ''} onClick={() => setTab('memory')}>Market Memory</button>
+        <button className={tab === 'book' ? 'on' : ''} onClick={() => setTab('book')}>AI Trade Book</button>
       </div>
-      {tab === 'hunt' ? <EdgeHunter token={token} /> : tab === 'memory' ? <MarketMemory token={token} /> : <>
+      {tab === 'hunt' ? <EdgeHunter token={token} /> : tab === 'memory' ? <MarketMemory token={token} /> : tab === 'book' ? <TradeBook token={token} openId={bookId} /> : <>
       <div className="bl-card">
         <h3>Your trade</h3>
         <div className="bl-rules">
