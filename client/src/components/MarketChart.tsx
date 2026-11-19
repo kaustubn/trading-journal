@@ -86,7 +86,8 @@ export default function MarketChart({ token, focus }: { token: string; focus?: {
   const indActionRef = useRef<(name: string, feature: string) => void>(() => {});
   const [ftDate, setFtDate] = useState('');
   const [ftTime, setFtTime] = useState('09:25');
-  const [ftSpeed, setFtSpeed] = useState(1);
+  const [ftSpeed, setFtSpeed] = useState(10);
+  const [ftMsg, setFtMsg] = useState('');
   const [coachMsgs, setCoachMsgs] = useState<CoachMsg[]>([]);
   const [coachBusy, setCoachBusy] = useState(false);
   const [widen, setWiden] = useState<{ prev: number } | null>(null); // stop was widened: put it back or log it
@@ -394,12 +395,18 @@ export default function MarketChart({ token, focus }: { token: string; focus?: {
     else if (feature === 'gear') setIndDlg(k);
     else if (feature === 'close') update(cur => ({ ...cur, indicators: { ...cur.indicators, [k]: { ...cur.indicators[k], on: false } } }));
   };
+  /** 9:25 ET (just before the New York open) written on the chart's clock, for that day. */
+  const nyOpenOn = (day: string) => fmtWall(wallToUtc(day, '09:25', 'ET'), s.clock).slice(11, 16);
   /** Forward test: go back to a day and trade it as it happens, second by second. */
   const startForward = async () => {
-    if (!ftDate) return;
+    setFtMsg('');
+    if (!ftDate) { setFtMsg('Pick a day first.'); return; }
+    const wd = new Date(`${ftDate}T12:00:00Z`).getUTCDay();
+    if (wd === 0 || wd === 6) { setFtMsg('That is a weekend: pick a weekday.'); return; }
+    const t = wallToUtc(ftDate, ftTime || nyOpenOn(ftDate), s.clock);
     setPanel(null);
-    await startReplay(wallToUtc(ftDate, ftTime || '09:25', s.clock));
-    if (!engine.active) return;
+    await startReplay(t);
+    if (!engine.active) { setPanel('replay'); setFtMsg('No chart data at that day / time (holiday or outside the data range). Try another day.'); return; }
     engine.liveSpeed = ftSpeed;
     engine.setLive(true);
     engine.play();
@@ -709,7 +716,17 @@ export default function MarketChart({ token, focus }: { token: string; focus?: {
           Coach{coachMsgs.length ? ` · ${coachMsgs.length}` : ''}
         </button>
         <button className={`mc-btn${replayOn || replayPick || panel === 'replay' ? ' on' : ''}`} disabled={replayOn}
-          onClick={() => { setReplayPick(false); setPanel(panel === 'replay' ? null : 'replay'); }}
+          onClick={() => {
+            setReplayPick(false); setFtMsg('');
+            if (panel !== 'replay' && !ftDate && meta?.last) {
+              // default: the last weekday with data, starting just before the New York open
+              let ms = meta.last;
+              for (let i = 0; i < 7; i++) { const d = fmtWall(ms, 'ET').slice(0, 10), w = new Date(`${d}T12:00:00Z`).getUTCDay(); if (w > 0 && w < 6) break; ms -= 86400000; }
+              const day = fmtWall(ms, s.clock).slice(0, 10);
+              setFtDate(day); setFtTime(nyOpenOn(day));
+            }
+            setPanel(panel === 'replay' ? null : 'replay');
+          }}
           title="Bar replay: hide the future and trade it bar by bar — all charts move together"><Rewind size={15} /> Replay</button>
         <button className="mc-btn" disabled={replayOn} onClick={openGoTo} title="Go to a date and time (Alt+G)">Go to…</button>
         {target !== null && !replayOn && <button className="mc-btn mc-accent" onClick={goLatest} title="Back to the most recent bars">Latest »</button>}
@@ -1035,7 +1052,7 @@ export default function MarketChart({ token, focus }: { token: string; focus?: {
               <div className="mc-panel-title mc-sub-title">● Forward test a day</div>
               <div className="mc-hint">Go back to a day and trade it as if it were live: candles move second by second, you can use market, limit and stop orders, and pause any time.</div>
               <div className="mc-row">
-                <input className="mc-input" type="date" value={ftDate} onChange={e => setFtDate(e.target.value)}
+                <input className="mc-input" type="date" value={ftDate} onChange={e => { setFtMsg(''); setFtDate(e.target.value); if (e.target.value) setFtTime(nyOpenOn(e.target.value)); }}
                   min={meta?.first ? fmtWall(meta.first, s.clock).slice(0, 10) : undefined}
                   max={meta?.last ? fmtWall(meta.last, s.clock).slice(0, 10) : undefined} />
                 <input className="mc-input" type="time" value={ftTime} onChange={e => setFtTime(e.target.value)} title={`Start time (${s.clock})`} />
@@ -1044,8 +1061,10 @@ export default function MarketChart({ token, focus }: { token: string; focus?: {
                 <select className="mc-input mc-grow" value={ftSpeed} onChange={e => setFtSpeed(Number(e.target.value))} title="Speed: market time per real second">
                   {[1, 2, 5, 10, 20, 30, 60].map(v => <option key={v} value={v}>{v === 1 ? '1× real time (1 s = 1 s)' : v === 60 ? '60× (1 minute per second)' : `${v}× (1 minute in ${Math.round(60 / v)} s)`}</option>)}
                 </select>
-                <button className="mc-btn mc-primary" disabled={!ftDate} onClick={startForward}>Start</button>
+                <button className="mc-btn mc-primary" onClick={startForward}>Start</button>
               </div>
+              <div className="mc-hint">Start time is on the chart clock ({s.clock}); it is set to 9:25 ET, just before the New York open.</div>
+              {ftMsg && <div className="mc-hint" style={{ color: 'var(--red, #f23645)', fontWeight: 600 }}>{ftMsg}</div>}
             </div>
           )}
           {panel === 'goto' && (
