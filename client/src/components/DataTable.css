@@ -63,3 +63,8 @@
 .dt-side { display: inline-block; margin-left: 6px; font-size: 10.5px; font-weight: 700; padding: 0 5px; border-radius: 4px; vertical-align: 1px; }
 .dt-side.long { background: rgba(34,197,94,.15); color: #22c55e; }
 .dt-side.short { background: rgba(239,68,68,.15); color: #ef4444; }
+
+/* Pager for big trade lists */
+.dt-pager { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px; padding: 12px 8px; font-size: 13px; color: var(--text-secondary, #9aa0aa); }
+.dt-pager button { background: var(--bg-tertiary, #1b1f27); color: inherit; border: 1px solid var(--border, #2a2f3a); border-radius: 6px; padding: 5px 10px; cursor: pointer; }
+.dt-pager button:disabled { opacity: .4; cursor: default; }

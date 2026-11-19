@@ -18,10 +18,6 @@ import emotionsRouter from './api/emotions';
 import optionsRouter from './api/options';
 import ideasRouter from './api/ideas';
 import analyticsRouter from './api/analytics';
-import exportRouter from './api/export';
-import webhooksRouter from './api/webhooks';
-import notificationsRouter from './api/notifications';
-import backtestRouter from './api/backtest';
 import strategiesRouter from './api/strategies';
 import stages5to10Router from './api/stages5to10';
 import adminRouter from './api/admin';
@@ -85,12 +81,9 @@ app.use(helmet({
 app.use(compression({ threshold: 1024 }));
 
 // Request bodies: small by default; large only where files are uploaded.
-// The raw bytes of broker webhooks are kept so their HMAC signature can be checked.
-const keepRaw = (req: any, _res: any, buf: Buffer) => { req.rawBody = buf; };
 app.use('/api/import', express.json({ limit: '25mb' })); // CSV imports can be several MB
 app.use('/api/bars/upload', express.json({ limit: '25mb' })); // bar CSV uploads (admin)
 app.use('/api/notes', express.json({ limit: '12mb' })); // daily notes carry a screenshot
-app.use('/api/webhooks', express.json({ limit: '256kb', verify: keepRaw }));
 app.use(express.json({ limit: '2mb' }));
 app.use(express.text({ type: 'text/*', limit: '256kb' })); // TradingView alerts often POST text/plain
 // Render sits in front of the app: trust its proxy so req.ip is the visitor, not the proxy
@@ -108,7 +101,6 @@ app.get('/api/health', (req, res) => { res.json({ status: 'ok' }); });
 
 // Routes
 app.use('/api/auth', authRouter);
-app.use('/api/webhooks', webhooksRouter); // signed with HMAC, no login token; must sit above the '/api' mounts
 app.use('/api/admin', adminRouter);
 app.use('/api/bars', barsRouter); // own auth (admin only); keep above the '/api' mounts
 app.use('/api/coach/replay', coachReplayRouter); // own auth (admin only)
@@ -135,9 +127,6 @@ app.use('/api', verifyToken, diagnosisRouter);
 app.use('/api', verifyToken, disciplineRouter);
 app.use('/api', stages5to10Router);
 app.use('/api/analytics', verifyToken, analyticsRouter);
-app.use('/api/export', verifyToken, exportRouter);
-app.use('/api/notifications', verifyToken, notificationsRouter);
-app.use('/api/backtest', verifyToken, backtestRouter);
 app.use('/api/strategies', verifyToken, strategiesRouter);
 
 // Health check

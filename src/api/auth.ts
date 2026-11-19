@@ -109,6 +109,7 @@ router.get('/me', verifyToken, async (req: Request, res: Response) => {
     );
     res.json({ user: result.rows[0] });
   } catch (error) {
+    console.error('[auth/me]', (error as Error).message);
     res.status(500).json({ error: 'Failed to fetch user' });
   }
 });

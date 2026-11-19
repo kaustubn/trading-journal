@@ -1,4 +1,5 @@
 import { Pool, types } from 'pg';
+import { runMigrations } from './migrations';
 
 // --- Global type parsers (fixes systemic frontend crashes) ---
 // node-pg returns NUMERIC/DECIMAL (oid 1700) as strings by default, so the
@@ -547,6 +548,9 @@ export async function initializeDB() {
       CREATE TRIGGER accounts_ver_touch BEFORE UPDATE ON accounts
         FOR EACH ROW EXECUTE FUNCTION journal_account_touch();
     `);
+
+    // Versioned, run-once changes (new features add entries to src/db/migrations.ts)
+    await runMigrations(client);
 
     console.log('Database initialized successfully');
   } finally {

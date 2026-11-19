@@ -1,12 +1,10 @@
 import { Router, Request, Response } from 'express';
 import crypto from 'crypto';
 import pool from '../db';
-import { SyncService } from '../services/syncService';
 import { encrypt } from '../utils/crypto';
 import { getPlan, FREE_MAX_ACCOUNTS } from '../middleware/plan';
 
 const router = Router();
-const syncService = new SyncService();
 
 // Get all accounts for user
 router.get('/accounts', async (req: Request, res: Response) => {
@@ -447,30 +445,6 @@ router.get('/accounts/:id/prop-status', async (req: Request, res: Response) => {
   } catch (error: any) {
     console.error('Prop status error:', error);
     res.status(500).json({ error: 'Failed to compute prop status' });
-  }
-});
-
-// Manual sync trigger
-router.post('/accounts/:id/sync', async (req: Request, res: Response) => {
-  try {
-    const { id } = req.params;
-    const user_id = req.userId;
-
-    // Verify user owns this account
-    const accountCheck = await pool.query(
-      'SELECT id FROM accounts WHERE id = $1 AND user_id = $2',
-      [id, user_id]
-    );
-
-    if (accountCheck.rows.length === 0) {
-      return res.status(403).json({ error: 'Unauthorized' });
-    }
-
-    // Return success (sync backend is optional - users can add trades manually)
-    res.json({ success: true, message: 'Sync requested', inserted: 0, updated: 0 });
-  } catch (error) {
-    console.error('Error syncing account:', error);
-    res.json({ success: true, message: 'Sync completed' });
   }
 });
 

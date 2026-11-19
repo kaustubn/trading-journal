@@ -94,6 +94,14 @@ export default function DataTable({ token, account_id, accountName, attempt }: P
     return out;
   }, [rows, q, f, sort]);
 
+  // Big accounts (backtests) hold tens of thousands of trades: draw one page of rows at a time.
+  // Filters, totals and CSV export still use every matching trade.
+  const PAGE = 200;
+  const [page, setPage] = useState(0);
+  useEffect(() => { setPage(0); }, [q, f, sort, rows]);
+  const pages = Math.max(1, Math.ceil(filtered.length / PAGE));
+  const pageRows = useMemo(() => filtered.slice(page * PAGE, page * PAGE + PAGE), [filtered, page]);
+
   const totals = useMemo(() => {
     const pnl = filtered.reduce((s, t) => s + Number(t.pnl || 0), 0);
     const wins = filtered.filter(t => Number(t.pnl) > 0).length;
@@ -189,7 +197,7 @@ export default function DataTable({ token, account_id, accountName, attempt }: P
               </tr>
             </thead>
             <tbody>
-              {filtered.map(t => (
+              {pageRows.map(t => (
                 <tr key={t.id} className="dt-row" onClick={() => setOpen(t)} title="Click to review this trade">
                   <td className="nowrap">
                     {canOpenOnChart(t.symbol) && (
@@ -215,6 +223,15 @@ export default function DataTable({ token, account_id, accountName, attempt }: P
               ))}
             </tbody>
           </table>
+          {pages > 1 && (
+            <div className="dt-pager">
+              <button onClick={() => setPage(0)} disabled={page === 0}>First</button>
+              <button onClick={() => setPage(p => Math.max(0, p - 1))} disabled={page === 0}>Prev</button>
+              <span>Rows {(page * PAGE + 1).toLocaleString()}–{Math.min(filtered.length, (page + 1) * PAGE).toLocaleString()} of {filtered.length.toLocaleString()}</span>
+              <button onClick={() => setPage(p => Math.min(pages - 1, p + 1))} disabled={page >= pages - 1}>Next</button>
+              <button onClick={() => setPage(pages - 1)} disabled={page >= pages - 1}>Last</button>
+            </div>
+          )}
         </div>
       )}
       {open && (

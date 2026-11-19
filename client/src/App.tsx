@@ -10,11 +10,7 @@ import Analytics from './components/Analytics';
 import Charts from './components/Charts';
 import MarketChart from './components/MarketChart';
 import StrategyBuilder from './components/StrategyBuilder';
-import Insights from './components/Insights';
 import RiskManagement from './components/RiskManagement';
-import Social from './components/Social';
-import Automation from './components/Automation';
-import Advanced from './components/Advanced';
 import LoginForm from './components/LoginForm';
 import AddTradeModal from './components/AddTradeModal';
 import ImportModal from './components/ImportModal';
@@ -47,7 +43,7 @@ import {
   LayoutDashboard, Table2, NotebookPen, Trophy, Compass, BarChart3, Layers, Clock, Brain, Scale,
   CandlestickChart, FlaskConical, Workflow, ListChecks, ShieldCheck, Building2, Lock, Upload, Plus,
   RefreshCw, LogOut, Menu, X, BookOpen, ChevronLeft, ChevronRight, LineChart, AlertTriangle, Flame, RotateCcw,
-  Lightbulb, Users, Bot, Settings2, CalendarDays, PlusCircle, Target, ScanSearch,
+  CalendarDays, PlusCircle, Target, ScanSearch,
 } from 'lucide-react';
 import './App.css';
 
@@ -72,10 +68,6 @@ const PAGE_META: Record<string, { title: string; sub: string; icon: React.Compon
   checklist: { title: 'Entry Checklist', icon: ListChecks, sub: 'Run this before every entry. If any gate fails, there is no trade. The score decides A, B or C.' },
   risk: { title: 'Risk & Sizing', icon: ShieldCheck, sub: 'How much to risk per trade, how many contracts to trade, and when to stop for the day.' },
   propfirms: { title: 'Prop Firms', icon: Building2, sub: 'Compare 25K and 50K evaluations side by side — rules, real cost and traps — before you buy.' },
-  insights: { title: 'Insights', icon: Lightbulb, sub: 'Patterns and recommendations found in your trades.' },
-  automation: { title: 'Automation', icon: Bot, sub: 'Bots and automated positions.' },
-  advanced: { title: 'Advanced', icon: Settings2, sub: 'Portfolio, tax records and webhooks.' },
-  social: { title: 'Social', icon: Users, sub: 'Leaderboard and shared trades.' },
 };
 // Pages that share one nav entry, shown as tabs
 const SUBTABS: Record<string, { key: string; label: string }[]> = {
@@ -738,23 +730,11 @@ export default function App() {
           {token && selectedAccount && view === 'risk' && (
             <ErrorBoundary name="Risk Management"><RiskManagement token={token} account_id={selectedAccount} /></ErrorBoundary>
           )}
-          {token && selectedAccount && view === 'insights' && (
-            <ErrorBoundary name="Insights"><Insights token={token} account_id={selectedAccount} /></ErrorBoundary>
-          )}
           {token && selectedAccount && view === 'backtestlab' && (
             <ErrorBoundary name="Backtest Lab"><BacktestLab token={token} account_id={selectedAccount} attempt={selectedAttempt} /></ErrorBoundary>
           )}
           {token && selectedAccount && view === 'strategy' && (
             <ErrorBoundary name="Strategy Builder"><StrategyBuilder token={token} account_id={selectedAccount} /></ErrorBoundary>
-          )}
-          {token && selectedAccount && view === 'automation' && (
-            <ErrorBoundary name="Automation"><Automation token={token} account_id={selectedAccount} /></ErrorBoundary>
-          )}
-          {token && selectedAccount && view === 'advanced' && (
-            <ErrorBoundary name="Advanced"><Advanced token={token} user_id={userId || 0} /></ErrorBoundary>
-          )}
-          {token && selectedAccount && view === 'social' && (
-            <ErrorBoundary name="Social"><Social token={token} user_id={userId || 0} /></ErrorBoundary>
           )}
           </>}
         </div>
