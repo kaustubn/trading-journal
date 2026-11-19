@@ -1,3 +1,5 @@
+// SUPERSEDED (2026-11-19) by scripts/backup/backup.ps1 (pg_dump, weekly). This JSON dump reads every table
+// in full, including ~1.8M market bars, which costs a lot of Neon data transfer. Keep for reference only.
 // Read-only logical backup: dumps every table's rows to a timestamped JSON file.
 // Run with the DB URL injected, e.g.:  railway run node scripts/backup.js
 // Restore path (later, into Neon): the app auto-creates the schema on boot,

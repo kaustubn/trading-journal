@@ -9,6 +9,7 @@ import { recordStrategy, ensureTables, TradeSpec } from '../patterns/tradeBook';
 import { load } from '../patterns/timeScan';
 import { newsStudy } from '../patterns/news';
 import { loadSessions, sessionStats } from '../patterns/sessions';
+import { maybeAutoUpdate, updateStatus } from '../bars/ingest';
 import { buildGrid, dayMap, analog, candleStats, candleOdds, CANDLE_TYPES, GapFilter, DayTypeFilter } from '../patterns/marketMemory';
 
 const router = Router();
@@ -67,6 +68,19 @@ const memErr = (res: Response, tag: string, e: any) => {
 };
 const num = (v: unknown, d: number) => { const n = Number(v); return Number.isFinite(n) ? n : d; };
 
+// GET /api/patterns/data-status — how current the research bars are; also starts a background
+// Databento update (at most every 30 min) so opening Pattern Finder keeps the data fresh.
+router.get('/data-status', async (_req: Request, res: Response) => {
+  try {
+    maybeAutoUpdate();
+    const r = await pool.query('SELECT MAX(ts) AS ts FROM bars_1m WHERE sym = 1');
+    const st = updateStatus();
+    res.json({ lastBar: r.rows[0]?.ts ? new Date(r.rows[0].ts).toISOString() : null, autoUpdate: st.configured, lastResult: st.lastResult?.message ?? null });
+  } catch (e) {
+    console.error('[patterns/data-status]', (e as Error).message);
+    res.status(500).json({ error: 'Could not read the data status.' });
+  }
+});
 router.get('/memory/info', async (_req: Request, res: Response) => {
   try { const g = buildGrid(await load()); res.json({ days: g.D, from: g.dates[0], to: g.dates[g.D - 1], dates: g.dates, candleTypes: CANDLE_TYPES }); }
   catch (e) { memErr(res, 'info', e); }

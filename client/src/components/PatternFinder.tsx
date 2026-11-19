@@ -57,6 +57,10 @@ export default function PatternFinder({ token }: { token: string }) {
     return () => window.removeEventListener('jc:open-tradebook', go);
   }, []);
 
+  const [data, setData] = useState<{ lastBar: string | null; autoUpdate: boolean; lastResult: string | null } | null>(null);
+  useEffect(() => { axios.get('/api/patterns/data-status', auth).then(r => setData(r.data)).catch(() => {}); }, [token]);
+  const ageDays = data?.lastBar ? Math.floor((Date.now() - Date.parse(data.lastBar)) / 86400000) : null;
+
   const params = () => ({ ...form, from: form.from || undefined, to: form.to || undefined });
   const run = async () => {
     setBusy(true); setErr(''); setSel(null); setDays(null);
@@ -90,6 +94,13 @@ export default function PatternFinder({ token }: { token: string }) {
         <button className={tab === 'memory' ? 'on' : ''} onClick={() => setTab('memory')}>Market Memory</button>
         <button className={tab === 'book' ? 'on' : ''} onClick={() => setTab('book')}>AI Trade Book</button>
       </div>
+      {data && (
+        <div className={`pf-data ${ageDays != null && ageDays > 3 ? 'stale' : ''}`}>
+          Data to {data.lastBar ? new Date(data.lastBar).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' }) : '—'}
+          {ageDays != null && ` (${ageDays} day${ageDays === 1 ? '' : 's'} old)`} ·{' '}
+          {data.autoUpdate ? `Auto-update on${data.lastResult ? `: ${data.lastResult}` : ''}` : "Auto-update off: add DATABENTO_API_KEY on Render (or upload a bars CSV in the chart's Data panel)"}
+        </div>
+      )}
       {tab === 'hunt' ? <EdgeHunter token={token} /> : tab === 'memory' ? <MarketMemory token={token} /> : tab === 'book' ? <TradeBook token={token} openId={bookId} /> : <>
       <div className="bl-card">
         <h3>Your trade</h3>

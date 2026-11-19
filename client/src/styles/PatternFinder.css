@@ -73,3 +73,5 @@
 .tb-trades tr.tb-sel td { outline: 1px solid var(--brand-2); }
 .tb-timeline { margin: 4px 0 6px; padding-left: 18px; font-size: 13px; line-height: 1.5; }
 .tb-timeline b { font-variant-numeric: tabular-nums; margin-right: 4px; }
+.pf-data { font-size: 12px; color: var(--text-secondary, #8a8f98); margin: 4px 0 10px; }
+.pf-data.stale { color: #e0a33a; }
