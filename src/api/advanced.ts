@@ -78,7 +78,7 @@ router.get('/dashboard/alerts', async (req: Request, res: Response) => {
 router.post('/dashboard/alerts/:alert_id/read', async (req: Request, res: Response) => {
   try {
     const alert_id = parseInt(String(req.params.alert_id));
-    await dashboardService.markAlertRead(alert_id);
+    await dashboardService.markAlertRead(alert_id, (req as any).userId || 0);
     res.json({ success: true });
   } catch (error) {
     res.status(400).json({ error: (error as Error).message });

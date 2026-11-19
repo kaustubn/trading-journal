@@ -181,8 +181,8 @@ export class DashboardService {
     return res.rows;
   }
 
-  async markAlertRead(alert_id: number) {
-    await pool.query('UPDATE dashboard_alerts SET read = true WHERE id = $1', [alert_id]);
+  async markAlertRead(alert_id: number, user_id: number) {
+    await pool.query('UPDATE dashboard_alerts SET read = true WHERE id = $1 AND user_id = $2', [alert_id, user_id]);
   }
 
   async getLiveMetrics(user_id: number) {

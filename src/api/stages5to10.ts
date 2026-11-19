@@ -1,5 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { verifyToken } from '../middleware/auth';
+import { requireAccountParam, requireAccountQuery } from '../security';
+import { webhookUrlProblem } from '../security/webhookUrl';
 import insightsService from '../services/insightsService';
 import riskService from '../services/riskService';
 import socialService from '../services/socialService';
@@ -8,11 +10,20 @@ import { portfolioService, taxService, webhookService, dashboardService } from '
 
 const router = Router();
 
+// Errors: log the detail on the server; send the browser only a safe message.
+// Database errors (they carry a `code`) and all 500s become generic.
+function fail(res: Response, status: number, error: unknown) {
+  console.error('[stages5to10]', error);
+  const e = error as any;
+  const safe = status < 500 && e && typeof e.message === 'string' && !e.code && e.message.length < 120;
+  res.status(status).json({ success: false, error: safe ? e.message : status >= 500 ? 'Server error' : 'Request failed' });
+}
+
 // Auth middleware
 router.use(verifyToken);
 
 // === STAGE 3: INSIGHTS ===
-router.get('/insights/patterns/:account_id', async (req: Request, res: Response) => {
+router.get('/insights/patterns/:account_id', requireAccountParam, async (req: Request, res: Response) => {
   try {
     const account_id = String(req.params.account_id);
     const { days = 30 } = req.query;
@@ -22,11 +33,11 @@ router.get('/insights/patterns/:account_id', async (req: Request, res: Response)
     );
     res.json({ success: true, data: patterns });
   } catch (error) {
-    res.status(500).json({ success: false, error: (error as Error).message });
+    fail(res, 500, error);
   }
 });
 
-router.get('/insights/grades/:account_id', async (req: Request, res: Response) => {
+router.get('/insights/grades/:account_id', requireAccountParam, async (req: Request, res: Response) => {
   try {
     const account_id = String(req.params.account_id);
     const { days = 30 } = req.query;
@@ -45,11 +56,11 @@ router.get('/insights/grades/:account_id', async (req: Request, res: Response) =
       }
     });
   } catch (error) {
-    res.status(500).json({ success: false, error: (error as Error).message });
+    fail(res, 500, error);
   }
 });
 
-router.get('/insights/recommendations/:account_id', async (req: Request, res: Response) => {
+router.get('/insights/recommendations/:account_id', requireAccountParam, async (req: Request, res: Response) => {
   try {
     const account_id = String(req.params.account_id);
     const recommendations = await insightsService.generateRecommendations(parseInt(account_id));
@@ -58,11 +69,11 @@ router.get('/insights/recommendations/:account_id', async (req: Request, res: Re
     }
     res.json({ success: true, data: recommendations });
   } catch (error) {
-    res.status(500).json({ success: false, error: (error as Error).message });
+    fail(res, 500, error);
   }
 });
 
-router.get('/insights/:account_id', async (req: Request, res: Response) => {
+router.get('/insights/:account_id', requireAccountParam, async (req: Request, res: Response) => {
   try {
     const account_id = String(req.params.account_id);
     const { limit = 10 } = req.query;
@@ -72,11 +83,11 @@ router.get('/insights/:account_id', async (req: Request, res: Response) => {
     );
     res.json({ success: true, data: insights });
   } catch (error) {
-    res.status(500).json({ success: false, error: (error as Error).message });
+    fail(res, 500, error);
   }
 });
 
-router.get('/insights/calibration/:account_id', async (req: Request, res: Response) => {
+router.get('/insights/calibration/:account_id', requireAccountParam, async (req: Request, res: Response) => {
   try {
     const account_id = String(req.params.account_id);
     const { days = 60 } = req.query;
@@ -86,22 +97,22 @@ router.get('/insights/calibration/:account_id', async (req: Request, res: Respon
     );
     res.json({ success: true, data: calibration });
   } catch (error) {
-    res.status(500).json({ success: false, error: (error as Error).message });
+    fail(res, 500, error);
   }
 });
 
 // === STAGE 4: RISK ===
-router.get('/risk/metrics/:account_id', async (req: Request, res: Response) => {
+router.get('/risk/metrics/:account_id', requireAccountParam, async (req: Request, res: Response) => {
   try {
     const account_id = String(req.params.account_id);
     const metrics = await riskService.getRiskMetrics(parseInt(account_id));
     res.json({ success: true, data: metrics });
   } catch (error) {
-    res.status(500).json({ success: false, error: (error as Error).message });
+    fail(res, 500, error);
   }
 });
 
-router.get('/risk/position-size/:account_id', async (req: Request, res: Response) => {
+router.get('/risk/position-size/:account_id', requireAccountParam, async (req: Request, res: Response) => {
   try {
     const account_id = String(req.params.account_id);
     const { riskPercent = 1, stopLossPts = 15 } = req.query;
@@ -112,27 +123,27 @@ router.get('/risk/position-size/:account_id', async (req: Request, res: Response
     );
     res.json({ success: true, data: positionSize });
   } catch (error) {
-    res.status(500).json({ success: false, error: (error as Error).message });
+    fail(res, 500, error);
   }
 });
 
-router.get('/risk/kelly/:account_id', async (req: Request, res: Response) => {
+router.get('/risk/kelly/:account_id', requireAccountParam, async (req: Request, res: Response) => {
   try {
     const account_id = String(req.params.account_id);
     const kelly = await riskService.calculateKelly(parseInt(account_id));
     res.json({ success: true, data: kelly });
   } catch (error) {
-    res.status(500).json({ success: false, error: (error as Error).message });
+    fail(res, 500, error);
   }
 });
 
-router.get('/risk/circuit-breaker/:account_id', async (req: Request, res: Response) => {
+router.get('/risk/circuit-breaker/:account_id', requireAccountParam, async (req: Request, res: Response) => {
   try {
     const account_id = String(req.params.account_id);
     const status = await riskService.shouldHaltTrading(parseInt(account_id));
     res.json({ success: true, data: status });
   } catch (error) {
-    res.status(500).json({ success: false, error: (error as Error).message });
+    fail(res, 500, error);
   }
 });
 
@@ -144,7 +155,7 @@ router.get('/risk/correlation/:user_id', async (req: Request, res: Response) => 
     const correlation = await riskService.getAccountCorrelation(user_id);
     res.json({ success: true, data: correlation });
   } catch (error) {
-    res.status(500).json({ success: false, error: (error as Error).message });
+    fail(res, 500, error);
   }
 });
 
@@ -159,7 +170,7 @@ router.post('/social/follow/:user_id', async (req: Request, res: Response) => {
     const success = await socialService.followUser(follower_id, following_id);
     res.json({ success, message: success ? 'Following' : 'Already following' });
   } catch (error) {
-    res.status(500).json({ error: (error as Error).message });
+    fail(res, 500, error);
   }
 });
 
@@ -170,7 +181,7 @@ router.delete('/social/follow/:user_id', async (req: Request, res: Response) => 
     const success = await socialService.unfollowUser(follower_id, following_id);
     res.json({ success, message: success ? 'Unfollowed' : 'Not following' });
   } catch (error) {
-    res.status(500).json({ error: (error as Error).message });
+    fail(res, 500, error);
   }
 });
 
@@ -182,7 +193,7 @@ router.get('/social/profile/:user_id', async (req: Request, res: Response) => {
     const profile = await socialService.getUserProfile(requested);
     res.json({ data: { ...profile, isFollowing: false } });
   } catch (error) {
-    res.status(404).json({ error: (error as Error).message });
+    fail(res, 404, error);
   }
 });
 
@@ -192,7 +203,7 @@ router.get('/social/leaderboard', async (req: Request, res: Response) => {
     const leaderboard = await socialService.getLeaderboard(limit);
     res.json({ data: leaderboard });
   } catch (error) {
-    res.status(500).json({ error: (error as Error).message });
+    fail(res, 500, error);
   }
 });
 
@@ -204,7 +215,7 @@ router.post('/social/share/:trade_id', async (req: Request, res: Response) => {
     const sharedTrade = await socialService.shareTrade(user_id, trade_id, caption);
     res.json({ data: sharedTrade });
   } catch (error) {
-    res.status(400).json({ error: (error as Error).message });
+    fail(res, 400, error);
   }
 });
 
@@ -217,7 +228,7 @@ router.get('/social/shared/:user_id', async (req: Request, res: Response) => {
     const trades = await socialService.getSharedTrades(user_id, limit);
     res.json({ data: trades });
   } catch (error) {
-    res.status(500).json({ error: (error as Error).message });
+    fail(res, 500, error);
   }
 });
 
@@ -228,7 +239,7 @@ router.get('/social/feed', async (req: Request, res: Response) => {
     const feed = await socialService.getUserFeed(user_id, limit);
     res.json({ data: feed });
   } catch (error) {
-    res.status(500).json({ error: (error as Error).message });
+    fail(res, 500, error);
   }
 });
 
@@ -238,7 +249,7 @@ router.post('/social/like/:shared_trade_id', async (req: Request, res: Response)
     const likes = await socialService.likeTrade(shared_trade_id);
     res.json({ data: { likes } });
   } catch (error) {
-    res.status(500).json({ error: (error as Error).message });
+    fail(res, 500, error);
   }
 });
 
@@ -248,39 +259,39 @@ router.delete('/social/like/:shared_trade_id', async (req: Request, res: Respons
     const likes = await socialService.unlikeTrade(shared_trade_id);
     res.json({ data: { likes } });
   } catch (error) {
-    res.status(500).json({ error: (error as Error).message });
+    fail(res, 500, error);
   }
 });
 
 // === STAGE 6: AUTOMATION ===
-router.post('/automation/bots', async (req: Request, res: Response) => {
+router.post('/automation/bots', requireAccountQuery, async (req: Request, res: Response) => {
   try {
     const account_id = parseInt(req.query.account_id as string);
     const { name, strategy_id, config } = req.body;
     const bot = await automationService.createBot(account_id, name, strategy_id, config);
     res.json({ data: bot });
   } catch (error) {
-    res.status(400).json({ error: (error as Error).message });
+    fail(res, 400, error);
   }
 });
 
-router.get('/automation/bots/:account_id', async (req: Request, res: Response) => {
+router.get('/automation/bots/:account_id', requireAccountParam, async (req: Request, res: Response) => {
   try {
     const account_id = parseInt(String(req.params.account_id));
     const bots = await automationService.getBots(account_id);
     res.json({ data: bots });
   } catch (error) {
-    res.status(500).json({ error: (error as Error).message });
+    fail(res, 500, error);
   }
 });
 
-router.get('/automation/positions/:account_id', async (req: Request, res: Response) => {
+router.get('/automation/positions/:account_id', requireAccountParam, async (req: Request, res: Response) => {
   try {
     const account_id = parseInt(String(req.params.account_id));
     const positions = await automationService.getOpenPositions(account_id);
     res.json({ data: positions });
   } catch (error) {
-    res.status(500).json({ error: (error as Error).message });
+    fail(res, 500, error);
   }
 });
 
@@ -292,7 +303,7 @@ router.get('/advanced/portfolio', async (req: Request, res: Response) => {
     await portfolioService.saveSnapshot(user_id, snapshot);
     res.json({ data: snapshot });
   } catch (error) {
-    res.status(500).json({ error: (error as Error).message });
+    fail(res, 500, error);
   }
 });
 
@@ -303,7 +314,7 @@ router.post('/advanced/tax/report/:fiscal_year', async (req: Request, res: Respo
     const report = await taxService.generateTaxReport(user_id, fiscal_year);
     res.json({ data: report });
   } catch (error) {
-    res.status(400).json({ error: (error as Error).message });
+    fail(res, 400, error);
   }
 });
 
@@ -313,7 +324,7 @@ router.get('/advanced/tax/records', async (req: Request, res: Response) => {
     const records = await taxService.getTaxRecords(user_id);
     res.json({ data: records });
   } catch (error) {
-    res.status(500).json({ error: (error as Error).message });
+    fail(res, 500, error);
   }
 });
 
@@ -321,10 +332,15 @@ router.post('/advanced/webhooks/subscribe', async (req: Request, res: Response) 
   try {
     const user_id = req.userId || 0;
     const { service, webhook_url, events } = req.body;
+    const problem = webhookUrlProblem(service, webhook_url);
+    if (problem) return res.status(400).json({ error: problem });
+    if (events !== undefined && (!Array.isArray(events) || events.length > 20 || !events.every(e => typeof e === 'string' && e.length <= 40))) {
+      return res.status(400).json({ error: 'Invalid events list' });
+    }
     const sub = await webhookService.subscribe(user_id, service, webhook_url, events);
     res.json({ data: sub });
   } catch (error) {
-    res.status(400).json({ error: (error as Error).message });
+    fail(res, 400, error);
   }
 });
 
@@ -334,7 +350,7 @@ router.get('/advanced/webhooks/subscriptions', async (req: Request, res: Respons
     const subs = await webhookService.getSubscriptions(user_id);
     res.json({ data: subs });
   } catch (error) {
-    res.status(500).json({ error: (error as Error).message });
+    fail(res, 500, error);
   }
 });
 
@@ -345,17 +361,17 @@ router.get('/advanced/dashboard/alerts', async (req: Request, res: Response) => 
     const alerts = await dashboardService.getAlerts(user_id, limit);
     res.json({ data: alerts });
   } catch (error) {
-    res.status(500).json({ error: (error as Error).message });
+    fail(res, 500, error);
   }
 });
 
 router.post('/advanced/dashboard/alerts/:alert_id/read', async (req: Request, res: Response) => {
   try {
     const alert_id = parseInt(String(req.params.alert_id));
-    await dashboardService.markAlertRead(alert_id);
+    await dashboardService.markAlertRead(alert_id, req.userId || 0);
     res.json({ success: true });
   } catch (error) {
-    res.status(400).json({ error: (error as Error).message });
+    fail(res, 400, error);
   }
 });
 
@@ -365,7 +381,7 @@ router.get('/advanced/dashboard/metrics', async (req: Request, res: Response) =>
     const metrics = await dashboardService.getLiveMetrics(user_id);
     res.json({ data: metrics });
   } catch (error) {
-    res.status(500).json({ error: (error as Error).message });
+    fail(res, 500, error);
   }
 });
 

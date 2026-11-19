@@ -87,7 +87,8 @@ router.put('/:id', async (req: Request, res: Response) => {
     res.json({ data: strategy });
   } catch (error: any) {
     console.error('Error updating strategy:', error);
-    res.status(500).json({ error: error.message || 'Failed to update strategy' });
+    console.error('[strategies]', error);
+    res.status(500).json({ error: 'Failed to update strategy' });
   }
 });
 

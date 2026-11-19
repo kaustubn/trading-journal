@@ -70,8 +70,8 @@ export class WebhookService {
 
   private async processTradeClosed(client: any, accountId: number, data: any) {
     const existing = await client.query(
-      'SELECT id FROM trades WHERE broker_trade_id = $1',
-      [data.order_id]
+      'SELECT id FROM trades WHERE broker_trade_id = $1 AND account_id = $2',
+      [data.order_id, accountId]
     );
 
     if (existing.rows.length === 0) {
@@ -97,16 +97,16 @@ export class WebhookService {
       // Update existing trade
       await client.query(
         `UPDATE trades SET exit_price = $1, exit_time = $2, pnl = $3, updated_at = NOW()
-         WHERE broker_trade_id = $4`,
-        [data.exit_price, data.exit_time, data.pnl, data.order_id]
+         WHERE broker_trade_id = $4 AND account_id = $5`,
+        [data.exit_price, data.exit_time, data.pnl, data.order_id, accountId]
       );
     }
   }
 
   private async processTradeOpened(client: any, accountId: number, data: any) {
     const existing = await client.query(
-      'SELECT id FROM trades WHERE broker_trade_id = $1',
-      [data.order_id]
+      'SELECT id FROM trades WHERE broker_trade_id = $1 AND account_id = $2',
+      [data.order_id, accountId]
     );
 
     if (existing.rows.length === 0) {
@@ -130,15 +130,15 @@ export class WebhookService {
   private async processPositionUpdate(client: any, accountId: number, data: any) {
     // Update open position
     const existing = await client.query(
-      'SELECT id FROM trades WHERE broker_trade_id = $1 AND exit_time IS NULL',
-      [data.order_id]
+      'SELECT id FROM trades WHERE broker_trade_id = $1 AND account_id = $2 AND exit_time IS NULL',
+      [data.order_id, accountId]
     );
 
     if (existing.rows.length > 0) {
       await client.query(
         `UPDATE trades SET entry_price = $1, quantity = $2, updated_at = NOW()
-         WHERE broker_trade_id = $3`,
-        [data.entry_price, data.quantity, data.order_id]
+         WHERE broker_trade_id = $3 AND account_id = $4`,
+        [data.entry_price, data.quantity, data.order_id, accountId]
       );
     }
   }

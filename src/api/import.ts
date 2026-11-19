@@ -345,7 +345,7 @@ router.post('/import/csv', async (req: Request, res: Response) => {
     });
   } catch (error: any) {
     console.error('CSV import error:', error);
-    res.status(500).json({ error: 'Failed to import CSV: ' + error.message });
+    res.status(500).json({ error: 'Failed to import CSV' });
   }
 });
 

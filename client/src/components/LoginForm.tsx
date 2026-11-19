@@ -72,8 +72,9 @@ export default function LoginForm({ onLogin }: LoginFormProps) {
             <label>Email</label>
             <input type="email" placeholder="you@email.com" value={email} onChange={e => setEmail(e.target.value)} required autoComplete="email" />
             <label>Password</label>
-            <input type="password" placeholder="••••••••" value={password} onChange={e => setPassword(e.target.value)} required minLength={6}
+            <input type="password" placeholder="••••••••" value={password} onChange={e => setPassword(e.target.value)} required minLength={mode === 'login' ? 1 : 10} maxLength={72}
               autoComplete={mode === 'login' ? 'current-password' : 'new-password'} />
+            {mode !== 'login' && <div className="lp-hint" style={{ fontSize: 12, opacity: 0.7, marginTop: -4 }}>At least 10 characters.</div>}
             {error && <div className="lp-error">{error}</div>}
             <button type="submit" disabled={loading} className="lp-btn primary full">
               {loading ? 'Please wait…' : mode === 'login' ? 'Sign in' : 'Create free account'}

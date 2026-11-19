@@ -36,7 +36,8 @@ router.get('/dashboard', async (req: Request, res: Response) => {
       }
     });
   } catch (error) {
-    res.status(500).json({ error: (error as Error).message });
+    console.error('[admin]', error);
+    res.status(500).json({ error: 'Server error' });
   }
 });
 
@@ -45,8 +46,8 @@ router.get('/users', async (req: Request, res: Response) => {
   try {
     if (!await isAdmin(req.userId || 0)) return res.status(403).json({ error: 'Admin only' });
 
-    const page = Math.max(1, parseInt(String(req.query.page) || '1'));
-    const limit = Math.min(parseInt(String(req.query.limit) || '50'), 500);
+    const page = Math.max(1, parseInt(String(req.query.page ?? '1')) || 1);
+    const limit = Math.min(Math.max(1, parseInt(String(req.query.limit ?? '50')) || 50), 500);
     const offset = (page - 1) * limit;
 
     const result = await pool.query(
@@ -61,7 +62,8 @@ router.get('/users', async (req: Request, res: Response) => {
       pagination: { page, limit, total: Number(total.rows[0]?.count) }
     });
   } catch (error) {
-    res.status(500).json({ error: (error as Error).message });
+    console.error('[admin]', error);
+    res.status(500).json({ error: 'Server error' });
   }
 });
 
@@ -84,7 +86,8 @@ router.get('/users/:userId', async (req: Request, res: Response) => {
       stats: { trades: Number(stats.rows[0]?.count), pnl: Number(stats.rows[0]?.pnl || 0) }
     });
   } catch (error) {
-    res.status(500).json({ error: (error as Error).message });
+    console.error('[admin]', error);
+    res.status(500).json({ error: 'Server error' });
   }
 });
 
@@ -107,7 +110,8 @@ router.get('/stats', async (req: Request, res: Response) => {
 
     res.json({ period: days, data: daily.rows });
   } catch (error) {
-    res.status(500).json({ error: (error as Error).message });
+    console.error('[admin]', error);
+    res.status(500).json({ error: 'Server error' });
   }
 });
 
@@ -123,7 +127,8 @@ router.get('/brokers', async (req: Request, res: Response) => {
 
     res.json({ brokers: result.rows });
   } catch (error) {
-    res.status(500).json({ error: (error as Error).message });
+    console.error('[admin]', error);
+    res.status(500).json({ error: 'Server error' });
   }
 });
 
