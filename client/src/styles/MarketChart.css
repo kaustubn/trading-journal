@@ -660,3 +660,13 @@
 .mc-fp { display: flex; align-items: center; gap: 8px; padding: 4px 8px 4px 2px; font-size: 12px; flex-wrap: wrap; max-width: min(560px, calc(100vw - 40px)); }
 .mc-fp .mc-input.mc-small { height: 24px; padding: 0 4px; font-size: 12px; width: auto; }
 .mc-fp .mc-bad { color: #f23645; }
+
+/* side panels above the chart library's pane dividers (absolute, z-index 20), which otherwise
+   swallow taps on the panel rows they cross */
+.mc-panel { z-index: 30; }
+/* Phones / narrow windows: side panels fit the chart width (the 380 px desktop width pushed the
+   indicator ⚙ / 👁 buttons off screen, 2026-11-19) */
+@media (max-width: 899px) {
+  .mc-panel-ind, .mc-panel-levels, .mc-panel-goto { left: 8px; right: 8px; width: auto; max-width: calc(100% - 16px); }
+  .mc-ind-actions .mc-btn.mc-small { min-width: 34px; min-height: 34px; }
+}

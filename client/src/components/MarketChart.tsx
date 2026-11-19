@@ -729,7 +729,7 @@ export default function MarketChart({ token, focus }: { token: string; focus?: {
           onLockAll={v => update({ drawLocked: v })} onMeasure={setMeasureArmed}
           stay={s.stayDrawing} onStay={v => update({ stayDrawing: v })} />
           : <button className="mc-draw-show" title="Show the drawing toolbar" onClick={() => update({ drawBar: true })}>›</button>}
-        {s.favBar && <FavBar ctl={ctl} tools={s.favTools} onClose={() => update({ favBar: false })} />}
+        {s.favBar && !panel && <FavBar ctl={ctl} tools={s.favTools} onClose={() => update({ favBar: false })} />}{/* hidden while a side panel is open, so it never covers it */}
         {s.indicators.FP?.on && (
           <FootprintBar auth={auth} day={fpDay} onDay={d => setFpPick(d)} onLoaded={() => panesOf().forEach(p => p.chart.overrideIndicator({ name: 'JC_FP' }))} />
         )}
