@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import pool from '../db';
+import { tradeCache } from '../cache';
 import { requirePro } from '../middleware/plan';
 
 const router = Router();
@@ -49,7 +50,7 @@ router.get('/breakdown/:account_id', requirePro('Breakdown analytics'), async (r
     if (timeframe) { params.push(timeframe); dateFilter += ` AND timeframe = $${params.length}`; }
     if (tf_align) { params.push(Number(tf_align)); dateFilter += ` AND tf_align = $${params.length}`; }
 
-    const tr = await pool.query(
+    const tr = await tradeCache.query(account_id,
       `SELECT symbol, pnl, session, test_type, timeframe, tf_align, planned_rr,
               EXTRACT(DOW FROM entry_time)::int AS dow,
               EXTRACT(HOUR FROM entry_time)::int AS hour

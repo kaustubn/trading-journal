@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { pointValue } from '../utils/pointValue';
 import pool from '../db';
+import { tradeCache } from '../cache';
 
 const router = Router();
 
@@ -21,7 +22,7 @@ router.get('/overview/:account_id', async (req: Request, res: Response) => {
     if (to) { params.push(to); dateFilter += ` AND DATE(entry_time) <= $${params.length}`; }
     if (attempt) { params.push(attempt); dateFilter += ` AND attempt_id = $${params.length}`; }
 
-    const tr = await pool.query(
+    const tr = await tradeCache.query(account_id,
       `SELECT pnl, entry_price, stop_loss, quantity, symbol,
               to_char(DATE(entry_time), 'YYYY-MM-DD') AS d
        FROM trades

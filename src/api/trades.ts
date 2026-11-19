@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import pool from '../db';
+import { tradeCache } from '../cache';
 import { getCurrentAttemptId } from './attempts';
 
 const router = Router();
@@ -52,7 +53,11 @@ router.get('/trades', async (req: Request, res: Response) => {
 
     query += ` ORDER BY t.entry_time DESC`;
 
-    const result = await pool.query(query, params);
+    // Big accounts (backtests) are tens of thousands of rows: serve repeat reads from the cache
+    const acc = account_id ? parseInt(String(account_id)) : NaN;
+    const result = Number.isInteger(acc) && acc > 0
+      ? await tradeCache.query(acc, query, params)
+      : await pool.query(query, params);
     res.json({ data: result.rows });
   } catch (error) {
     console.error('Error fetching trades:', error);

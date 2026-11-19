@@ -503,6 +503,51 @@ export async function initializeDB() {
       $$ LANGUAGE sql STABLE;
     `);
 
+    // Packed monthly bar blocks for the pattern scanners (src/patterns/barPack.ts)
+    await client.query(`CREATE TABLE IF NOT EXISTS scan_cache (
+      key TEXT PRIMARY KEY, ver TEXT NOT NULL, data BYTEA NOT NULL, updated_at TIMESTAMPTZ DEFAULT NOW())`);
+
+    // Change counter per account, read by the server's trade cache (src/cache). Bumped by triggers on
+    // every insert / update / delete of the account's trades, and on any edit of the account row itself.
+    await client.query(`
+      ALTER TABLE accounts ADD COLUMN IF NOT EXISTS data_ver BIGINT NOT NULL DEFAULT 1;
+
+      CREATE OR REPLACE FUNCTION journal_bump_ver_new() RETURNS trigger AS $$
+      BEGIN
+        UPDATE accounts SET data_ver = data_ver + 1 WHERE id IN (SELECT DISTINCT account_id FROM new_rows);
+        RETURN NULL;
+      END $$ LANGUAGE plpgsql;
+      CREATE OR REPLACE FUNCTION journal_bump_ver_old() RETURNS trigger AS $$
+      BEGIN
+        UPDATE accounts SET data_ver = data_ver + 1 WHERE id IN (SELECT DISTINCT account_id FROM old_rows);
+        RETURN NULL;
+      END $$ LANGUAGE plpgsql;
+      CREATE OR REPLACE FUNCTION journal_bump_ver_upd() RETURNS trigger AS $$
+      BEGIN
+        UPDATE accounts SET data_ver = data_ver + 1
+         WHERE id IN (SELECT account_id FROM new_rows UNION SELECT account_id FROM old_rows);
+        RETURN NULL;
+      END $$ LANGUAGE plpgsql;
+      CREATE OR REPLACE FUNCTION journal_account_touch() RETURNS trigger AS $$
+      BEGIN
+        IF NEW.data_ver = OLD.data_ver AND NEW IS DISTINCT FROM OLD THEN NEW.data_ver := OLD.data_ver + 1; END IF;
+        RETURN NEW;
+      END $$ LANGUAGE plpgsql;
+
+      DROP TRIGGER IF EXISTS trades_ver_ins ON trades;
+      CREATE TRIGGER trades_ver_ins AFTER INSERT ON trades REFERENCING NEW TABLE AS new_rows
+        FOR EACH STATEMENT EXECUTE FUNCTION journal_bump_ver_new();
+      DROP TRIGGER IF EXISTS trades_ver_del ON trades;
+      CREATE TRIGGER trades_ver_del AFTER DELETE ON trades REFERENCING OLD TABLE AS old_rows
+        FOR EACH STATEMENT EXECUTE FUNCTION journal_bump_ver_old();
+      DROP TRIGGER IF EXISTS trades_ver_upd ON trades;
+      CREATE TRIGGER trades_ver_upd AFTER UPDATE ON trades REFERENCING OLD TABLE AS old_rows NEW TABLE AS new_rows
+        FOR EACH STATEMENT EXECUTE FUNCTION journal_bump_ver_upd();
+      DROP TRIGGER IF EXISTS accounts_ver_touch ON accounts;
+      CREATE TRIGGER accounts_ver_touch BEFORE UPDATE ON accounts
+        FOR EACH ROW EXECUTE FUNCTION journal_account_touch();
+    `);
+
     console.log('Database initialized successfully');
   } finally {
     client.release();

@@ -6,6 +6,7 @@
 // is the open of the entry minute; a bar that touches both stop and target counts as a loss.
 // Results are split by date: TRAIN = older 60% of days, TEST = newest 40% (never used to pick).
 import pool from '../db';
+import { packRows, unpackRows, BarCols } from './barPack';
 
 const MIN = 60000;
 const POINT_VALUE: Record<string, number> = { NQ: 20, MNQ: 2 };
@@ -19,36 +20,73 @@ export interface Store { m: Int16Array; t: Float64Array; o: Float64Array; h: Flo
 let store: Store | null = null;
 let loading: Promise<Store> | null = null;
 
+// Bars are read as gzipped monthly blocks (table scan_cache, see barPack.ts) instead of ~500k raw rows:
+// a month's block is rebuilt only when that month's bars change (new data), so a normal load moves a
+// few MB from the database instead of ~50 MB (the database bills data transfer).
+const RTH_FILTER = `(ts AT TIME ZONE 'America/New_York')::time >= '09:30' AND (ts AT TIME ZONE 'America/New_York')::time < '16:00'`;
+
+async function monthRows(month: string): Promise<any[][]> {
+  const from = `${month}-01`;
+  const r = await pool.query({
+    text: `SELECT extract(epoch FROM ts) * 1000 AS t, o, h, l, c, v,
+                  to_char(ts AT TIME ZONE 'America/New_York', 'YYYY-MM-DD') AS d,
+                  extract(isodow FROM ts AT TIME ZONE 'America/New_York')::int AS wd,
+                  (extract(hour FROM ts AT TIME ZONE 'America/New_York') * 60 + extract(minute FROM ts AT TIME ZONE 'America/New_York'))::int AS mod
+             FROM bars_1m
+            WHERE sym = 1 AND ts >= $1::date - interval '1 day' AND ts < ($1::date + interval '1 month') + interval '1 day'
+              AND ${RTH_FILTER}
+              AND (ts AT TIME ZONE 'America/New_York')::date >= $1::date
+              AND (ts AT TIME ZONE 'America/New_York')::date < ($1::date + interval '1 month')::date
+            ORDER BY ts`,
+    values: [from], rowMode: 'array',
+  });
+  return r.rows;
+}
+
 export async function load(): Promise<Store> {
   if (store && Date.now() - store.loadedAt < 6 * 3600 * 1000) return store;
   if (loading) return loading;
   loading = (async () => {
-    const yrs = await pool.query(`SELECT extract(year FROM min(ts))::int a, extract(year FROM max(ts))::int b FROM bars_1m WHERE sym = 1`);
-    const a = yrs.rows[0].a, b = yrs.rows[0].b;
-    const chunks: any[][] = [];
-    let total = 0;
-    for (let y = a; y <= b; y++) for (const half of [[1, 7], [7, 13]]) {
-      const from = `${y}-${String(half[0]).padStart(2, '0')}-01`;
-      const to = half[1] === 13 ? `${y + 1}-01-01` : `${y}-${String(half[1]).padStart(2, '0')}-01`;
-      const r = await pool.query({
-        text: `SELECT extract(epoch FROM ts) * 1000 AS t, o, h, l, c, v,
-                      to_char(ts AT TIME ZONE 'America/New_York', 'YYYY-MM-DD') AS d,
-                      extract(isodow FROM ts AT TIME ZONE 'America/New_York')::int AS wd,
-                      (extract(hour FROM ts AT TIME ZONE 'America/New_York') * 60 + extract(minute FROM ts AT TIME ZONE 'America/New_York'))::int AS mod
-                 FROM bars_1m
-                WHERE sym = 1 AND ts >= $1::date - interval '1 day' AND ts < $2::date + interval '1 day'
-                  AND (ts AT TIME ZONE 'America/New_York')::time >= '09:30' AND (ts AT TIME ZONE 'America/New_York')::time < '16:00'
-                  AND (ts AT TIME ZONE 'America/New_York')::date >= $1::date AND (ts AT TIME ZONE 'America/New_York')::date < $2::date
-                ORDER BY ts`,
-        values: [from, to], rowMode: 'array',
-      });
-      chunks.push(r.rows); total += r.rows.length;
+    // 1. which months exist, and a fingerprint of each (computed inside the database: tiny result)
+    const months = (await pool.query(
+      `SELECT to_char((ts AT TIME ZONE 'America/New_York')::date, 'YYYY-MM') AS mo, count(*)::int AS n,
+              extract(epoch FROM max(ts))::bigint AS mx
+         FROM bars_1m WHERE sym = 1 AND ${RTH_FILTER} GROUP BY 1 ORDER BY 1`)).rows as { mo: string; n: number; mx: string }[];
+    const verOf = (m: { n: number; mx: string }) => `${m.n}|${m.mx}`;
+    // 2. reuse blocks whose fingerprint still matches
+    const have = new Map<string, string>(
+      (await pool.query(`SELECT key, ver FROM scan_cache WHERE key LIKE 'rth1m:%'`)).rows.map((r: any) => [r.key, r.ver]));
+    const fresh = months.filter(m => have.get('rth1m:' + m.mo) === verOf(m)).map(m => 'rth1m:' + m.mo);
+    const blocks = new Map<string, Buffer>();
+    for (let i = 0; i < fresh.length; i += 12) {
+      const r = await pool.query(`SELECT key, data FROM scan_cache WHERE key = ANY($1)`, [fresh.slice(i, i + 12)]);
+      for (const row of r.rows) blocks.set(row.key, row.data);
     }
+    // 3. rebuild only the months that changed (normally just the current one)
+    const cols: BarCols[] = [];
+    let rebuilt = 0;
+    for (const m of months) {
+      const key = 'rth1m:' + m.mo;
+      let block = blocks.get(key);
+      if (!block) {
+        const rows = await monthRows(m.mo);
+        block = packRows(rows);
+        await pool.query(
+          `INSERT INTO scan_cache (key, ver, data, updated_at) VALUES ($1, $2, $3, NOW())
+           ON CONFLICT (key) DO UPDATE SET ver = EXCLUDED.ver, data = EXCLUDED.data, updated_at = NOW()`,
+          [key, verOf(m), block]);
+        rebuilt++;
+      }
+      cols.push(unpackRows(block));
+    }
+    const total = cols.reduce((a, b) => a + b.n, 0);
+    console.log(`[timeScan] ${months.length} months, ${total} bars (${rebuilt} month block(s) rebuilt)`);
+
     const s: Store = { m: new Int16Array(total), t: new Float64Array(total), o: new Float64Array(total), h: new Float64Array(total), l: new Float64Array(total), c: new Float64Array(total), v: new Float64Array(total), days: [], loadedAt: Date.now() };
     let i = 0, cur: Day | null = null;
-    for (const rows of chunks) for (const r of rows) {
-      s.m[i] = Number(r[8]); s.t[i] = Number(r[0]); s.o[i] = r[1] / 100; s.h[i] = r[2] / 100; s.l[i] = r[3] / 100; s.c[i] = r[4] / 100; s.v[i] = Number(r[5]);
-      if (!cur || cur.date !== r[6]) { cur = { date: r[6], wd: Number(r[7]) - 1, start: i, n: 0 }; s.days.push(cur); }
+    for (const b of cols) for (let k = 0; k < b.n; k++) {
+      s.m[i] = b.mod[k]; s.t[i] = b.t[k]; s.o[i] = b.o[k] / 100; s.h[i] = b.h[k] / 100; s.l[i] = b.l[k] / 100; s.c[i] = b.c[k] / 100; s.v[i] = b.v[k];
+      if (!cur || cur.date !== b.d[k]) { cur = { date: b.d[k], wd: b.wd[k] - 1, start: i, n: 0 }; s.days.push(cur); }
       cur.n++; i++;
     }
     s.days = s.days.filter(d => d.wd >= 0 && d.wd <= 4 && d.n >= 300); // full sessions only (no half days)

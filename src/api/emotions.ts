@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import pool from '../db';
+import { tradeCache } from '../cache';
 import { requirePro } from '../middleware/plan';
 
 const router = Router();
@@ -35,7 +36,7 @@ router.get('/emotions/:account_id', requirePro('Emotions analytics'), async (req
     const params: any[] = [account_id];
     let f = '';
     if (attempt) { params.push(attempt); f = ` AND attempt_id = $${params.length}`; }
-    const tr = await pool.query(
+    const tr = await tradeCache.query(account_id,
       `SELECT tags, pnl FROM trades WHERE account_id = $1 AND pnl IS NOT NULL${f}`, params);
 
     const agg: Record<string, { key: string; label: string; neg: boolean; trades: number; wins: number; net: number }> = {};

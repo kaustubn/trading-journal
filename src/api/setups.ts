@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { pointValue } from '../utils/pointValue';
 import pool from '../db';
+import { tradeCache } from '../cache';
 import { requirePro } from '../middleware/plan';
 
 const router = Router();
@@ -61,7 +62,7 @@ router.get('/setups/:account_id', requirePro('Setup Performance'), async (req: R
     // Optional: limit to one attempt/run (used by the dashboard focus panel)
     if (req.query.attempt) { params.push(Number(req.query.attempt)); dateFilter += ` AND attempt_id = $${params.length}`; }
 
-    const tr = await pool.query(
+    const tr = await tradeCache.query(account_id,
       `SELECT setup_tag, tags, grade, pnl, entry_price, stop_loss, quantity, symbol
        FROM trades WHERE account_id = $1 AND pnl IS NOT NULL${dateFilter}`,
       params

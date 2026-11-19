@@ -5,6 +5,7 @@ import path from 'path';
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
+import compression from 'compression';
 import { initializeDB } from './db';
 import { verifyToken } from './middleware/auth';
 import rateLimit from './middleware/rateLimit';
@@ -79,6 +80,9 @@ app.use(helmet({
   hsts: { maxAge: 15552000, includeSubDomains: true },
   referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
 }));
+
+// Gzip responses (the trade list for a big backtest account is ~18 MB of JSON uncompressed)
+app.use(compression({ threshold: 1024 }));
 
 // Request bodies: small by default; large only where files are uploaded.
 // The raw bytes of broker webhooks are kept so their HMAC signature can be checked.

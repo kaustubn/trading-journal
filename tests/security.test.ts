@@ -1,3 +1,4 @@
+/// <reference types="node" />
 // Security helpers: run with `npm test` (node:test + ts-node, no network, no database).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
