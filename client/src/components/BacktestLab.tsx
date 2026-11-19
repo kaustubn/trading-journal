@@ -4,6 +4,8 @@ import axios from 'axios';
 import { TradeLite, metrics, dailySeries, propSim, monteCarlo, PropRules, Metrics } from '../utils/backtestStats';
 import { withSlippage, bootstrapMean, tradesNeeded, walkForward, verdictOf } from '../utils/robustness';
 import EdgeDecay from './EdgeDecay';
+import { parseBacktestCsv, ParseResult } from '../../../shared/backtestParse';
+import { goLiveGate, splitByDate, byYear, bestDayShare, deflatedSharpe } from '../../../shared/edgeCheck';
 import '../styles/BacktestLab.css';
 
 // Backtest Lab: deep stats, a prop-firm challenge simulator that replays your trades
@@ -75,6 +77,17 @@ export default function BacktestLab({ token, account_id, attempt }: Props) {
   const [rules, setRules] = useState<PropRules | null>(null);
   const [mcRuns, setMcRuns] = useState(1000);
   const [slip, setSlip] = useState(0);   // extra points of cost per round trip (robustness test)
+  // Source: the selected journal account, or an uploaded backtest file (TradingView / NinjaTrader / CSV)
+  const [source, setSource] = useState<'journal' | 'file'>('journal');
+  const [file, setFile] = useState<{ name: string; res: ParseResult } | null>(null);
+  const [fileCost, setFileCost] = useState(0);      // $ per contract round trip to subtract (0 = file already has costs)
+  const [filePv, setFilePv] = useState(20);         // $ per point per contract (NQ 20, MNQ 2, ES 50, MES 5)
+  const [nyRoll, setNyRoll] = useState(true);       // times are New York: trades after 18:00 belong to the next day
+  const [variants, setVariants] = useState(1);      // how many versions of the idea were tried (for the deflated Sharpe)
+  const readFile = (f: File) => {
+    if (f.size > 20 * 1024 * 1024) { alert('That file is over 20 MB.'); return; }
+    f.text().then(text => setFile({ name: f.name, res: parseBacktestCsv(text) })).catch(() => alert('Could not read the file.'));
+  };
 
   useEffect(() => { setAtt(attempt); }, [attempt, account_id]);
   useEffect(() => {
@@ -100,15 +113,23 @@ export default function BacktestLab({ token, account_id, attempt }: Props) {
 
   const setups = useMemo(() => [...new Set((rows || []).map(r => r.setup_tag).filter(Boolean) as string[])].sort(), [rows]);
   const sessions = useMemo(() => [...new Set((rows || []).map(r => r.session).filter(Boolean) as string[])].sort(), [rows]);
-  const trades = useMemo(() => (rows || [])
+  const fileTrades = useMemo((): TradeLite[] => (file?.res.trades || []).map(t => {
+    const wall = new Date(t.entry).toISOString();
+    let day = wall.slice(0, 10);
+    if (nyRoll && Number(wall.slice(11, 13)) >= 18) day = nextDay(day);
+    const qty = t.qty ?? 1;
+    return { t: t.entry, day, pnl: (t.pnl - fileCost * qty) * size, r: null, ppt: filePv > 0 ? filePv * qty * size : undefined };
+  }), [file, fileCost, filePv, nyRoll, size]);
+  const trades = useMemo(() => (source === 'file' ? fileTrades : (rows || [])
     .filter(r => (!setup || r.setup_tag === setup) && (!session || r.session === session))
-    .map(r => toLite(r, acct?.timezone, size)).filter(Boolean) as TradeLite[], [rows, setup, session, size, acct?.timezone]);
+    .map(r => toLite(r, acct?.timezone, size)).filter(Boolean) as TradeLite[]), [source, fileTrades, rows, setup, session, size, acct?.timezone]);
 
   const m = useMemo(() => metrics(trades, R.start), [trades, R.start]);
   const daily = useMemo(() => dailySeries(trades), [trades]);
   const sim = useMemo(() => (trades.length ? propSim(trades, R) : null), [trades, R]);
   const mc = useMemo(() => (trades.length >= 5 ? monteCarlo(trades.map(t => t.pnl), { runs: mcRuns, ruinDrawdown: R.maxDrawdown }) : null), [trades, mcRuns, R.maxDrawdown]);
   const bySetup = useMemo(() => {
+    if (source === 'file') return [{ k: file?.name ?? 'file', m: metrics(fileTrades) }];
     const g = new Map<string, TradeLite[]>();
     (rows || []).filter(r => !session || r.session === session).forEach(r => {
       const t = toLite(r, acct?.timezone, size);
@@ -117,7 +138,7 @@ export default function BacktestLab({ token, account_id, attempt }: Props) {
       g.set(k, [...(g.get(k) || []), t]);
     });
     return [...g.entries()].map(([k, list]) => ({ k, m: metrics(list) })).sort((a, b) => b.m.net - a.m.net);
-  }, [rows, session, size, acct?.timezone]);
+  }, [rows, session, size, acct?.timezone, source, file, fileTrades]);
 
   // ---- robustness: slippage stress, bootstrap ranges, walk-forward ----
   const stressed = useMemo(() => withSlippage(trades, slip), [trades, slip]);
@@ -129,6 +150,7 @@ export default function BacktestLab({ token, account_id, attempt }: Props) {
   const wf = useMemo(() => walkForward(stressed, 4), [stressed]);
   const verdict = verdictOf(bootUsd);
   const decayGroups = useMemo(() => {
+    if (source === 'file') return [{ k: file?.name ?? 'file', trades: withSlippage(fileTrades, slip) }];
     const g = new Map<string, TradeLite[]>();
     (rows || []).filter(r => !session || r.session === session).forEach(r => {
       const t = toLite(r, acct?.timezone, size);
@@ -137,7 +159,14 @@ export default function BacktestLab({ token, account_id, attempt }: Props) {
       g.set(k, [...(g.get(k) || []), t]);
     });
     return [...g.entries()].map(([k, list]) => ({ k, trades: withSlippage(list, slip) }));
-  }, [rows, session, size, slip, acct?.timezone]);
+  }, [rows, session, size, slip, acct?.timezone, source, file, fileTrades]);
+  // ---- overfitting / go-live check (after the slippage stress) ----
+  const ecTrades = useMemo(() => stressed.map(t => ({ day: t.day, pnl: t.pnl })), [stressed]);
+  const gate = useMemo(() => (ecTrades.length ? goLiveGate(ecTrades, { variants, maxDrawdownLimit: R.maxDrawdown }) : null), [ecTrades, variants, R.maxDrawdown]);
+  const parts = useMemo(() => splitByDate(ecTrades), [ecTrades]);
+  const years = useMemo(() => byYear(ecTrades), [ecTrades]);
+  const bestShare = useMemo(() => bestDayShare(ecTrades), [ecTrades]);
+  const dsr = useMemo(() => deflatedSharpe(ecTrades.map(t => t.pnl), variants), [ecTrades, variants]);
   const noPpt = trades.length > 0 && trades.every(t => !t.ppt);
 
   const setRule = (patch: Partial<PropRules>) => setRules({ ...R, ...patch });
@@ -152,15 +181,47 @@ export default function BacktestLab({ token, account_id, attempt }: Props) {
     </label>
   );
 
-  if (rows === null) return <div className="bl"><p className="bl-dim">Loading trades…</p></div>;
+  if (rows === null && source === 'journal') return <div className="bl"><p className="bl-dim">Loading trades…</p></div>;
 
   return (
     <div className="bl">
+      <div className="bl-source" role="tablist" aria-label="What to analyse">
+        <button role="tab" aria-selected={source === 'journal'} className={source === 'journal' ? 'on' : ''} onClick={() => setSource('journal')}>Journal account</button>
+        <button role="tab" aria-selected={source === 'file'} className={source === 'file' ? 'on' : ''} onClick={() => setSource('file')}>Analyze a backtest file</button>
+      </div>
+      {source === 'file' && (
+        <section className="bl-card">
+          <h3>Backtest file</h3>
+          <p className="bl-dim">TradingView (Strategy Tester → List of trades → Export), NinjaTrader (Strategy Analyzer → Trades → Export) or any CSV
+            with a date/time column and a P&L column. Read in your browser only; nothing is saved.</p>
+          <div className="bl-rules">
+            <label className="bl-field">File <input type="file" accept=".csv,.txt,text/csv" onChange={e => { const f = e.target.files?.[0]; if (f) readFile(f); }} /></label>
+            <label className="bl-field" title="Subtract this per contract per round trip if the file has no costs. NQ: $3.50 commission + 0.5 pt slippage = $13.50; MNQ: $1 + 0.5 pt = $2.">Costs to subtract ($/contract)
+              <input type="number" min={0} step={0.5} value={fileCost} onChange={e => setFileCost(Math.max(0, Number(e.target.value) || 0))} />
+            </label>
+            <div className="bl-field">Presets
+              <span className="bl-presets"><button onClick={() => { setFileCost(13.5); setFilePv(20); }}>NQ $13.50</button><button onClick={() => { setFileCost(2); setFilePv(2); }}>MNQ $2</button><button onClick={() => setFileCost(0)}>Already in file</button></span>
+            </div>
+            <label className="bl-field" title="Used by the slippage stress test">$ per point
+              <select value={filePv} onChange={e => setFilePv(Number(e.target.value))}>{([[20, 'NQ 20'], [2, 'MNQ 2'], [50, 'ES 50'], [5, 'MES 5'], [0, 'other']] as [number, string][]).map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select>
+            </label>
+            <label className="bl-field bl-check"><input type="checkbox" checked={nyRoll} onChange={e => setNyRoll(e.target.checked)} /> Times are New York (6 pm starts the next day)</label>
+          </div>
+          {file && (
+            <p className={file.res.trades.length ? 'bl-dim' : 'bl-bad'}>
+              <b>{file.name}</b>: {file.res.format === 'tradingview' ? 'TradingView' : file.res.format === 'ninjatrader' ? 'NinjaTrader' : 'CSV'} ·
+              {' '}{file.res.trades.length} trades{file.res.skipped ? ` · ${file.res.skipped} rows skipped` : ''}
+              {file.res.warnings.map((w, i) => <span key={i} className="bl-warn-line"> · {w}</span>)}
+            </p>
+          )}
+        </section>
+      )}
       <div className="bl-head">
         <div>
-          <p className="bl-dim">{acct?.account_name ?? 'Account'} · {trades.length} trades · {m.tradingDays} days</p>
+          <p className="bl-dim">{source === 'file' ? (file?.name ?? 'No file yet') : (acct?.account_name ?? 'Account')} · {trades.length} trades · {m.tradingDays} days</p>
         </div>
         <div className="bl-filters">
+          {source === 'journal' && <>
           <label className="bl-field">Attempt
             <select value={att ?? ''} onChange={e => setAtt(e.target.value ? Number(e.target.value) : null)}>
               <option value="">All attempts</option>
@@ -179,6 +240,7 @@ export default function BacktestLab({ token, account_id, attempt }: Props) {
               {sessions.map(x => <option key={x} value={x}>{x}</option>)}
             </select>
           </label>
+          </>}
           <label className="bl-field" title="Scale every trade's P&L, e.g. 0.5 = half size, 2 = double size">Size ×
             <select value={size} onChange={e => setSize(Number(e.target.value))}>
               {[0.25, 0.5, 1, 1.5, 2, 3].map(x => <option key={x} value={x}>{x}</option>)}
@@ -187,7 +249,7 @@ export default function BacktestLab({ token, account_id, attempt }: Props) {
         </div>
       </div>
       {err && <p className="bl-bad">{err}</p>}
-      {!trades.length ? <p className="bl-dim">No trades with P&L for this selection.</p> : (
+      {!trades.length ? <p className="bl-dim">{source === 'file' ? 'Choose a backtest file above.' : 'No trades with P&L for this selection.'}</p> : (
         <>
           <Tiles m={m} />
           <section className="bl-card">
@@ -298,6 +360,53 @@ export default function BacktestLab({ token, account_id, attempt }: Props) {
               </>
             ) : <p className="bl-dim">Needs at least 5 trades.</p>}
           </section>
+
+          {gate && (
+            <section className="bl-card">
+              <h3>Overfitting & go-live check</h3>
+              <p className="bl-dim">Your go-live gate applied to these trades after costs{slip ? ` and ${slip} pt extra slippage` : ''}. The periods are split by
+                trading days: the newest 25% is the holdout. If you tried several versions of this idea (settings, filters, stops), say how many —
+                the more you tried, the more a good result can be luck.</p>
+              <div className="bl-rules">
+                <label className="bl-field">Versions tried
+                  <input type="number" min={1} step={1} value={variants} onChange={e => setVariants(Math.max(1, Math.floor(Number(e.target.value) || 1)))} />
+                </label>
+              </div>
+              <div className={`bl-gate bl-v-${gate.verdict.replace(' ', '')}`}>
+                <b>{gate.verdict === 'pass' ? 'PASS' : gate.verdict === 'watch' ? 'WATCH' : gate.verdict === 'reject' ? 'REJECT' : 'TOO FEW TRADES'}</b> — {gate.reason}
+              </div>
+              <table className="bl-table">
+                <tbody>
+                  {gate.checks.map(c => (
+                    <tr key={c.key}>
+                      <td>{c.pass === true ? <Check className="ic-sm bl-up" /> : c.pass === false ? <X className="ic-sm bl-down" /> : '—'}</td>
+                      <td>{c.label}</td><td className="bl-dim">{c.value}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <h4 className="bl-sub">Split by date</h4>
+              <table className="bl-table">
+                <thead><tr><th>Period</th><th>From</th><th>To</th><th>Trades</th><th>Net</th><th>Avg / trade</th></tr></thead>
+                <tbody>{parts.map(p => (
+                  <tr key={p.label}><td>{p.label}</td><td>{p.from ?? '—'}</td><td>{p.to ?? '—'}</td><td>{p.n}</td>
+                    <td className={p.net >= 0 ? 'bl-up' : 'bl-down'}>{usd(p.net, true)}</td><td className={p.avg >= 0 ? 'bl-up' : 'bl-down'}>{usd(p.avg, true)}</td></tr>
+                ))}</tbody>
+              </table>
+              <h4 className="bl-sub">By year</h4>
+              <table className="bl-table">
+                <thead><tr><th>Year</th><th>Trades</th><th>Win %</th><th>Net</th><th>Avg / trade</th></tr></thead>
+                <tbody>{years.map(y => (
+                  <tr key={y.year}><td>{y.year}</td><td>{y.n}</td><td>{pct(y.win)}</td>
+                    <td className={y.net >= 0 ? 'bl-up' : 'bl-down'}>{usd(y.net, true)}</td><td className={y.avg >= 0 ? 'bl-up' : 'bl-down'}>{usd(y.avg, true)}</td></tr>
+                ))}</tbody>
+              </table>
+              <p className="bl-dim">
+                Deflated Sharpe: {dsr ? `${(dsr.prob * 100).toFixed(0)}% chance the edge is real after ${dsr.variants} version${dsr.variants === 1 ? '' : 's'} (per-trade Sharpe ${dsr.sr.toFixed(3)} vs ${dsr.sr0.toFixed(3)} expected from luck)` : 'needs 10+ trades'}.
+                {' '}Best day = {bestShare == null ? '—' : pct(bestShare)} of all profit (prop consistency rules often cap this at 30-50%).
+              </p>
+            </section>
+          )}
 
           <section className="bl-card">
             <h3>By setup</h3>

@@ -78,3 +78,16 @@
 .ed-empty { font-size: 12px; color: var(--muted); padding: 20px 0; text-align: center; }
 /* phones: selects never wider than the screen */
 @media (max-width: 640px) { .bl-field { min-width: 0; max-width: 100%; } .bl-field select, .bl-field input { max-width: 100%; min-width: 0; } .bl-filters > .bl-field:first-child { flex: 1 1 100%; } }
+
+/* Source switch + backtest-file analyzer */
+.bl-source { display: inline-flex; gap: 4px; padding: 3px; border: 1px solid var(--border); border-radius: 8px; background: var(--card); align-self: flex-start; }
+.bl-source button { background: none; border: none; color: var(--text-dim); padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 13px; }
+.bl-source button.on { background: var(--panel); color: var(--text); box-shadow: 0 0 0 1px var(--border); }
+.bl-presets { display: inline-flex; flex-wrap: wrap; gap: 4px; }
+.bl-presets button { background: var(--card); color: var(--text); border: 1px solid var(--border); border-radius: 5px; padding: 3px 8px; cursor: pointer; font-size: 12px; }
+.bl-check { flex-direction: row !important; align-items: center; gap: 6px; }
+.bl-warn-line { color: #e0a33a; }
+.bl-gate { margin: 10px 0; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border); }
+.bl-v-pass { border-color: var(--green, #26a69a); background: rgba(38, 166, 154, .12); }
+.bl-v-watch { border-color: #e0a33a; background: rgba(224, 163, 58, .12); }
+.bl-v-reject, .bl-v-toofew { border-color: var(--red, #ef5350); background: rgba(239, 83, 80, .1); }
