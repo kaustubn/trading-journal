@@ -414,3 +414,61 @@ function cellOut(x: Cell, b: Cell, rep: number) {
 }
 
 export function _resetCaches() { gridCache = null; accCache.clear(); }
+
+// ------------------------------------------------------------------ 4. candle odds inside a time window
+/**
+ * For every candle type: on what share of days does it appear at least 1 / 2 / 3 times inside the window,
+ * and at least 2 / 3 times IN A ROW; average count; older vs newer half of the days (does the odds repeat?).
+ * Window is New York time inside 9:30-16:00 (the data's day session); candles are aligned to 9:30.
+ */
+export function candleOdds(g: Grid, p: { tf: number; from: string; to: string }) {
+  const tf = [1, 3, 5, 15, 30, 60].includes(p.tf) ? p.tf : 5;
+  const toMin = (t: string) => { const m = /^(\d{1,2}):(\d{2})$/.exec(t); return m ? Number(m[1]) * 60 + Number(m[2]) - 570 : NaN; };
+  const a = toMin(p.from), b = toMin(p.to);
+  if (!(a >= 0 && b <= SESSION_MIN && b - a >= tf)) throw Object.assign(new Error('Window must be inside 9:30-16:00 ET and at least one candle long.'), { status: 400 });
+  const perDay = Math.floor(SESSION_MIN / tf), half = Math.floor((g.D - 20) / 2) + 20;
+  type Acc = { days: number; ge1: number; ge2: number; ge3: number; run2: number; run3: number; sum: number; dist: number[] };
+  const mk = (): Acc => ({ days: 0, ge1: 0, ge2: 0, ge3: 0, run2: 0, run3: 0, sum: 0, dist: new Array(7).fill(0) });
+  const KEYS = [...TYPE_KEYS, 'engulfAny'];
+  const NAMES: Record<string, string> = { ...CANDLE_TYPES, engulfAny: 'Engulfing (either colour)' };
+  const acc = KEYS.map(() => ({ all: mk(), older: mk(), newer: mk() }));
+  let windowCandles = 0;
+  for (let di = 20; di < g.D; di++) {
+    const base = di * SESSION_MIN, o: number[] = [], h: number[] = [], l: number[] = [], c: number[] = [];
+    for (let s = 0; s < perDay; s++) {
+      const x = base + s * tf;
+      let hi = -Infinity, lo = Infinity; for (let j = x; j < x + tf; j++) { if (g.H[j] > hi) hi = g.H[j]; if (g.L[j] < lo) lo = g.L[j]; }
+      o.push(g.O[x]); h.push(hi); l.push(lo); c.push(g.C[x + tf - 1]);
+    }
+    const count = new Array(KEYS.length).fill(0), run = new Array(KEYS.length).fill(0), best = new Array(KEYS.length).fill(0);
+    const bodies: number[] = [];
+    let wc = 0;
+    for (let s = 0; s < perDay; s++) {
+      const avgBody = bodies.length ? bodies.slice(-20).reduce((x, y) => x + y, 0) / Math.min(20, bodies.length) : 0;
+      const start = s * tf, inWin = start >= a && start + tf <= b;
+      const types = new Set(classify(o, h, l, c, s, avgBody));
+      if (types.has('bullEngulf') || types.has('bearEngulf')) types.add('engulfAny');
+      bodies.push(Math.abs(c[s] - o[s]));
+      if (!inWin) continue;
+      wc++;
+      KEYS.forEach((k, ti) => {
+        if (types.has(k)) { count[ti]++; run[ti]++; best[ti] = Math.max(best[ti], run[ti]); } else run[ti] = 0;
+      });
+    }
+    windowCandles = wc;
+    KEYS.forEach((_, ti) => {
+      for (const A of [acc[ti].all, di < half ? acc[ti].older : acc[ti].newer]) {
+        A.days++; A.sum += count[ti]; A.dist[Math.min(6, count[ti])]++;
+        if (count[ti] >= 1) A.ge1++; if (count[ti] >= 2) A.ge2++; if (count[ti] >= 3) A.ge3++;
+        if (best[ti] >= 2) A.run2++; if (best[ti] >= 3) A.run3++;
+      }
+    });
+  }
+  const pr = (A: Acc) => ({ days: A.days, avgCount: r2(A.sum / (A.days || 1)), atLeast1: r3(A.ge1 / (A.days || 1)), atLeast2: r3(A.ge2 / (A.days || 1)),
+    atLeast3: r3(A.ge3 / (A.days || 1)), twoInARow: r3(A.run2 / (A.days || 1)), threeInARow: r3(A.run3 / (A.days || 1)), dist: A.dist.map(x => r3(x / (A.days || 1))) });
+  return {
+    tf, window: `${hhmm(a)}-${hhmm(b)}`, candlesInWindow: windowCandles, days: g.D - 20, from: g.dates[20], to: g.dates[g.D - 1], olderTo: g.dates[half - 1],
+    types: KEYS.map((k, ti) => ({ key: k, name: NAMES[k], all: pr(acc[ti].all), older: pr(acc[ti].older), newer: pr(acc[ti].newer) })),
+    note: 'This says how OFTEN a candle forms in the window, not whether it predicts anything. A % that is about the same in older and newer years is a stable habit of the market.',
+  };
+}

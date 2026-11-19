@@ -9,6 +9,7 @@ import { Search, AlertTriangle, CandlestickChart } from 'lucide-react';
 import { openReplayDay } from '../utils/chartLink';
 import '../styles/BacktestLab.css';
 import '../styles/PatternFinder.css';
+import { Odds, News, Sessions } from './MarketMemoryMore';
 
 const WD = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
 const pct = (x: number) => `${Math.round(x * 100)}%`;
@@ -78,7 +79,7 @@ function Seg<T extends string | number>({ value, options, onChange }: { value: T
 
 // ------------------------------------------------------------------ main
 export default function MarketMemory({ token }: { token: string }) {
-  const [tab, setTab] = useState<'day' | 'analog' | 'candles'>('day');
+  const [tab, setTab] = useState<'day' | 'analog' | 'candles' | 'odds' | 'news' | 'sessions'>('day');
   const auth = useMemo(() => ({ headers: { Authorization: `Bearer ${token}` } }), [token]);
   const [info, setInfo] = useState<{ from: string; to: string; days: number; dates: string[] } | null>(null);
   useEffect(() => { axios.get('/api/patterns/memory/info', auth).then(r => setInfo(r.data)).catch(() => {}); }, [auth]);
@@ -90,11 +91,17 @@ export default function MarketMemory({ token }: { token: string }) {
           <button className={tab === 'day' ? 'on' : ''} onClick={() => setTab('day')}>Average day</button>
           <button className={tab === 'analog' ? 'on' : ''} onClick={() => setTab('analog')}>Look-alike days</button>
           <button className={tab === 'candles' ? 'on' : ''} onClick={() => setTab('candles')}>Candles by time</button>
+          <button className={tab === 'odds' ? 'on' : ''} onClick={() => setTab('odds')}>Candle odds</button>
+          <button className={tab === 'news' ? 'on' : ''} onClick={() => setTab('news')}>News reaction</button>
+          <button className={tab === 'sessions' ? 'on' : ''} onClick={() => setTab('sessions')}>Sessions &amp; calendar</button>
         </div>
       </div>
       {tab === 'day' && <DayMap auth={auth} />}
       {tab === 'analog' && <Analog auth={auth} info={info} />}
       {tab === 'candles' && <Candles auth={auth} />}
+      {tab === 'odds' && <Odds auth={auth} />}
+      {tab === 'news' && <News auth={auth} />}
+      {tab === 'sessions' && <Sessions auth={auth} />}
     </>
   );
 }

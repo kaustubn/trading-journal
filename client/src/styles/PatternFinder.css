@@ -54,3 +54,6 @@
 .mm-candles .pf-slot { position: sticky; left: 0; background: var(--bg, var(--card)); z-index: 1; text-align: left; min-width: 150px; }
 .mm-candles .pf-cell { font-size: 11px; min-width: 38px; }
 .mm-detail { display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: baseline; margin-top: 8px; padding: 8px 10px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--card); font-size: 13px; }
+.mm-odds td { white-space: nowrap; }
+.mm-news { border-top: 1px solid var(--border); padding-top: 10px; margin-top: 10px; }
+.mm-news:first-of-type { border-top: 0; margin-top: 4px; }

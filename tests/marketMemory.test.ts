@@ -113,3 +113,22 @@ test('candleStats: finds a planted "big green candle at 10:00 keeps going" patte
   assert.equal(at10.repeats, 1, JSON.stringify(at10));
   assert.ok(r.repeating > r.luckRepeating);
 });
+
+import { candleOdds } from '../src/patterns/marketMemory';
+test('candleOdds: a flat market is all dojis -> 100% at least 1 / 2 in a row; probabilities stay in [0, 1]', () => {
+  _resetCaches();
+  const g = buildGrid(makeStore(60, () => 0));
+  const r = candleOdds(g, { tf: 5, from: '9:30', to: '10:30' });
+  assert.equal(r.candlesInWindow, 12);
+  const doji = r.types.find(t => t.key === 'doji')!;
+  assert.equal(doji.all.atLeast1, 1); assert.equal(doji.all.twoInARow, 1); assert.equal(doji.all.avgCount, 12);
+  const g2 = buildGrid(makeStore(120, noise, 4));
+  const r2 = candleOdds(g2, { tf: 5, from: '10:00', to: '11:00' });
+  for (const t of r2.types) for (const v of [t.all.atLeast1, t.all.atLeast2, t.all.twoInARow, t.older.atLeast1, t.newer.atLeast1]) assert.ok(v >= 0 && v <= 1);
+  assert.ok(r2.types.find(t => t.key === 'inside')!.all.atLeast1 > 0);
+});
+test('candleOdds: window outside the session is refused', () => {
+  _resetCaches();
+  const g = buildGrid(makeStore(30, noise));
+  assert.throws(() => candleOdds(g, { tf: 5, from: '9:00', to: '10:00' }), /inside 9:30-16:00/);
+});

@@ -5,7 +5,9 @@ import { requireAdmin } from '../middleware/admin';
 import { scan, cellDays, DIR_RULES, DirRule, ScanParams } from '../patterns/timeScan';
 import { startHunt, latest, edgeStatus } from '../patterns/edgeHunter';
 import { load } from '../patterns/timeScan';
-import { buildGrid, dayMap, analog, candleStats, CANDLE_TYPES, GapFilter, DayTypeFilter } from '../patterns/marketMemory';
+import { newsStudy } from '../patterns/news';
+import { loadSessions, sessionStats } from '../patterns/sessions';
+import { buildGrid, dayMap, analog, candleStats, candleOdds, CANDLE_TYPES, GapFilter, DayTypeFilter } from '../patterns/marketMemory';
 
 const router = Router();
 router.use(verifyToken, requireAdmin);
@@ -85,6 +87,17 @@ router.get('/memory/analog', async (req: Request, res: Response) => {
 router.get('/memory/candles', async (req: Request, res: Response) => {
   try { res.json(candleStats(buildGrid(await load()), { tf: num(req.query.tf, 5), next: num(req.query.next, 3) })); }
   catch (e) { memErr(res, 'candles', e); }
+});
+
+router.get('/memory/odds', async (req: Request, res: Response) => {
+  try { res.json(candleOdds(buildGrid(await load()), { tf: num(req.query.tf, 5), from: String(req.query.from || '9:30'), to: String(req.query.to || '10:30') })); }
+  catch (e) { memErr(res, 'odds', e); }
+});
+router.get('/memory/news', async (_req: Request, res: Response) => {
+  try { res.json(await newsStudy()); } catch (e) { memErr(res, 'news', e); }
+});
+router.get('/memory/sessions', async (_req: Request, res: Response) => {
+  try { res.json(sessionStats(await loadSessions())); } catch (e) { memErr(res, 'sessions', e); }
 });
 
 export default router;
