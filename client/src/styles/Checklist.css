@@ -37,3 +37,26 @@
 
 .app .cl-flow { font-size: var(--fs-md); color: var(--text-dim); margin: 0 0 var(--sp-4); }
 .cl-flow b { color: var(--accent-ink); }
+
+/* interactive ticks (2026-11-19) */
+.cl-factors button {
+  background: var(--raised); border: 1px solid var(--border); color: var(--text-dim);
+  padding: 8px 10px; border-radius: 8px; font-size: 12px; text-align: center; cursor: pointer; min-height: 36px; font: inherit; font-size: 12px;
+}
+.cl-factors button.on { border-color: rgba(34,197,94,.6); background: rgba(34,197,94,.14); color: var(--text); font-weight: 600; }
+.cl-ticks { list-style: none; padding-left: 0; }
+.cl-ticks li { margin: 2px 0; }
+.cl-ticks label { display: flex; gap: 10px; align-items: flex-start; padding: 7px 8px; border-radius: 8px; cursor: pointer; min-height: 36px; }
+.cl-ticks label:hover { background: var(--raised); }
+.cl-ticks label.on { color: var(--text); background: rgba(34,197,94,.08); }
+.cl-ticks input { width: 18px; height: 18px; margin-top: 1px; flex-shrink: 0; accent-color: #22c55e; }
+.cl-result {
+  position: sticky; bottom: 12px; z-index: 5; display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  margin-top: 14px; padding: 12px 16px; border-radius: 10px; font-weight: 600; font-size: 14px; box-shadow: var(--shadow);
+  background: var(--surface); border: 1px solid var(--border-strong); color: var(--text);
+}
+.cl-result.idle { font-weight: 500; color: var(--text-dim); }
+.cl-result.a { background: rgba(34,197,94,.18); border-color: rgba(34,197,94,.5); }
+.cl-result.b { background: rgba(245,166,35,.18); border-color: rgba(245,166,35,.5); }
+.cl-result.c { background: rgba(239,68,68,.18); border-color: rgba(239,68,68,.5); }
+.cl-result button { background: var(--raised); border: 1px solid var(--border-strong); color: var(--text); border-radius: 8px; padding: 6px 12px; cursor: pointer; min-height: 34px; flex-shrink: 0; }

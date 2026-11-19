@@ -1,21 +1,41 @@
-import React from 'react';
+import { useState } from 'react';
 import '../styles/Checklist.css';
 
+// Tick the gates and confluence factors before an entry; the result updates live.
+const GATES = [
+  'Prime session (open→~2 hrs / power hour) — no lunch chop (12–1 ET)',
+  'ATR-14: 8–30 normal · 30–40 cut size 40% · >40 SKIP',
+  'Day classified at IB (10:00 ET): trend/expansion vs range/reversal',
+  'No news next 5 min · normal spread/volatility',
+  'Entry references a real level (VWAP/POC/VAH-VAL/PDH-PDL/swing/round#)',
+  'Stop + R:R + size defined before entry',
+  'Scanned BOTH directions — not married to a bias',
+];
+const FACTORS = ['Level stack (2+)', '15m HTF aligned', 'Clean structure', 'Tape / delta confirm', 'ATR 8–30', 'R:R ≥ 2.5', 'Major level', 'Prime time'];
+
 export default function Checklist() {
+  const [gates, setGates] = useState<boolean[]>(() => GATES.map(() => false));
+  const [factors, setFactors] = useState<boolean[]>(() => FACTORS.map(() => false));
+  const flip = (arr: boolean[], i: number) => arr.map((v, k) => (k === i ? !v : v));
+  const gatesOk = gates.filter(Boolean).length, allGates = gatesOk === GATES.length;
+  const pts = factors.filter(Boolean).length;
+  const grade = pts >= 6 ? 'A' : pts >= 4 ? 'B' : 'C';
+  const touched = gatesOk + pts > 0;
+  const result = !touched ? { cls: 'idle', text: 'Tick the gates and factors for the trade you are looking at.' }
+    : !allGates ? { cls: 'c', text: `NO TRADE — ${GATES.length - gatesOk} gate${GATES.length - gatesOk > 1 ? 's' : ''} not passed. Any gate fails → no trade.` }
+      : grade === 'A' ? { cls: 'a', text: `A setup — ${pts} pts → full size, take it.` }
+        : grade === 'B' ? { cls: 'b', text: `B setup — ${pts} pts → half size / selective.` }
+          : { cls: 'c', text: `C — only ${pts} pts → NO TRADE. That's a hope, not an edge.` };
   return (
     <div className="checklist">
       <p className="cl-flow">Work top-down: <b>1</b> universal gates → <b>2</b> day type → <b>3</b> setup criteria → <b>4</b> score &amp; rank. Any gate fails → no trade.</p>
 
       <div className="cl-card">
-        <h3>1 · Universal Gates <span className="cl-note">(all must pass)</span></h3>
-        <ul>
-          <li>Prime session (open→~2 hrs / power hour) — no lunch chop (12–1 ET)</li>
-          <li>ATR-14: 8–30 normal · 30–40 cut size 40% · <strong>&gt;40 SKIP</strong></li>
-          <li>Day classified at IB (10:00 ET): trend/expansion vs range/reversal</li>
-          <li>No news next 5 min · normal spread/volatility</li>
-          <li>Entry references a real level (VWAP/POC/VAH-VAL/PDH-PDL/swing/round#)</li>
-          <li>Stop + R:R + size defined <strong>before</strong> entry</li>
-          <li>Scanned BOTH directions — not married to a bias</li>
+        <h3>1 · Universal Gates <span className="cl-note">(all must pass · {gatesOk}/{GATES.length} ticked)</span></h3>
+        <ul className="cl-ticks">
+          {GATES.map((g, i) => (
+            <li key={g}><label className={gates[i] ? 'on' : ''}><input type="checkbox" checked={gates[i]} onChange={() => setGates(cur => flip(cur, i))} /> {g}</label></li>
+          ))}
         </ul>
       </div>
 
@@ -72,11 +92,11 @@ export default function Checklist() {
       </div>
 
       <div className="cl-card score">
-        <h3>4 · Confluence Score → Rank <span className="cl-note">(1 pt each)</span></h3>
+        <h3>4 · Confluence Score → Rank <span className="cl-note">(1 pt each · {pts}/8)</span></h3>
         <div className="cl-factors">
-          <span>Level stack (2+)</span><span>15m HTF aligned</span><span>Clean structure</span>
-          <span>Tape / delta confirm</span><span>ATR 8–30</span><span>R:R ≥ 2.5</span>
-          <span>Major level</span><span>Prime time</span>
+          {FACTORS.map((f, i) => (
+            <button key={f} type="button" className={factors[i] ? 'on' : ''} aria-pressed={factors[i]} onClick={() => setFactors(cur => flip(cur, i))}>{factors[i] ? '✓ ' : ''}{f}</button>
+          ))}
         </div>
         <div className="cl-ranks">
           <div className="cl-rank a"><strong>A</strong> 6–8 pts → full size, take it</div>
@@ -84,6 +104,11 @@ export default function Checklist() {
           <div className="cl-rank c"><strong>C</strong> ≤3 pts → <strong>NO TRADE</strong> — where accounts bleed</div>
         </div>
         <p className="cl-rule">Only A and B. Can't tick 4+? That's a hope, not an edge.</p>
+      </div>
+
+      <div className={`cl-result ${result.cls}`} role="status">
+        <span>{result.text}</span>
+        {touched && <button type="button" onClick={() => { setGates(GATES.map(() => false)); setFactors(FACTORS.map(() => false)); }}>Reset</button>}
       </div>
 
       <div className="cl-card">

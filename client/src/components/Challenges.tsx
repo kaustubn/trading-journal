@@ -135,20 +135,20 @@ export default function Challenges({ token, account_id, accountName, onChanged }
                   <td className="dim">{a.seq}</td>
                   <td className="ch-name" onClick={() => rename(a)} title="Click to rename">{a.label}</td>
                   <td><span className={`ch-badge ${st.cls}`}><st.icon className="ic-sm" /> {st.label}</span></td>
-                  <td className={`r ${a.netPnl >= 0 ? 'pos' : 'neg'}`}>{money(a.netPnl)}</td>
-                  <td className="r">{a.trades}</td>
-                  <td className="r">{a.trades > 0 ? `${a.winRate.toFixed(0)}%` : '—'}</td>
-                  <td className="r">{a.profitFactor != null ? a.profitFactor.toFixed(2) : (a.trades > 0 ? '∞' : '—')}</td>
-                  <td className="r">{a.days}</td>
-                  <td className="dim ch-when">{a.firstTrade || a.startedAt || '—'}{a.endedAt ? ` → ${a.endedAt}` : ''}</td>
-                  <td>
+                  <td data-label="Net P&L" className={`r ${a.netPnl >= 0 ? 'pos' : 'neg'}`}>{money(a.netPnl)}</td>
+                  <td data-label="Trades" className="r">{a.trades}</td>
+                  <td data-label="Win%" className="r">{a.trades > 0 ? `${a.winRate.toFixed(0)}%` : '—'}</td>
+                  <td data-label="PF" className="r">{a.profitFactor != null ? a.profitFactor.toFixed(2) : (a.trades > 0 ? '∞' : '—')}</td>
+                  <td data-label="Days" className="r">{a.days}</td>
+                  <td data-label="When" className="dim ch-when">{a.firstTrade || a.startedAt || '—'}{a.endedAt ? ` → ${a.endedAt}` : ''}</td>
+                  <td className="ch-setstatus">
                     <div className="ch-statusbtns">
                       <button className={`sb sb-pass ${a.status === 'passed' ? 'on' : ''}`} onClick={() => setStatus(a.id, 'passed')} title="Mark passed" aria-label="Mark passed"><CheckCircle2 className="ic-sm" /></button>
                       <button className={`sb sb-blow ${a.status === 'blown' ? 'on' : ''}`} onClick={() => setStatus(a.id, 'blown')} title="Mark blown" aria-label="Mark blown"><Flame className="ic-sm" /></button>
                       <button className={`sb sb-active ${a.status === 'active' ? 'on' : ''}`} onClick={() => setStatus(a.id, 'active')} title="Mark active / in progress" aria-label="Mark active"><CircleDot className="ic-sm" /></button>
                     </div>
                   </td>
-                  <td><button className="ch-del" onClick={() => del(a)} title="Delete this run and its trades" aria-label="Delete run"><Trash2 className="ic-sm" /></button></td>
+                  <td className="ch-delcell"><button className="ch-del" onClick={() => del(a)} title="Delete this run and its trades" aria-label="Delete run"><Trash2 className="ic-sm" /></button></td>
                 </tr>
               );
             })}

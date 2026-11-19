@@ -25,9 +25,17 @@ export function Floating({ id, title, children, onClose, initial, width, classNa
   const ref = useRef<HTMLDivElement>(null);
   const clamp = (p: { x: number; y: number }) => {
     const el = ref.current, w = el?.offsetWidth ?? 200, h = el?.offsetHeight ?? 40;
-    return { x: Math.max(0, Math.min(window.innerWidth - Math.min(w, 80), p.x)), y: Math.max(0, Math.min(window.innerHeight - Math.min(h, 32), p.y)) };
+    // keep the whole panel on screen when it fits (phones: a position saved on a wide screen would push it off the edge)
+    const W = window.innerWidth, H = window.innerHeight;
+    const keepW = w <= W ? w : Math.min(w, 80), keepH = h <= H ? Math.min(h, H) : Math.min(h, 32);
+    return { x: Math.max(0, Math.min(W - keepW, p.x)), y: Math.max(0, Math.min(H - keepH, p.y)) };
   };
-  useEffect(() => { setPos(p => clamp(p)); }, []);
+  useEffect(() => {
+    setPos(p => clamp(p));
+    const onResize = () => setPos(p => clamp(p)); // phone turned / window resized
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
   // Pointer events: one path for mouse, finger and pen (touch drags never fired mouse events)
   const startDrag = (e: React.PointerEvent) => {
     if ((e.target as HTMLElement).closest('button, input, select, textarea')) return;

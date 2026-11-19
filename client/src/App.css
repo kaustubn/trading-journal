@@ -184,3 +184,13 @@ body {
   .nav-backdrop { display: block; position: fixed; inset: var(--hdr-h) 0 0 0; z-index: 65; background: rgba(0,0,0,.5); }
 }
 @media (min-width: 861px) and (min-height: 501px), (min-width: 861px) and (pointer: fine) { .brand-name { display: inline; } }
+
+/* ---- Touch screens: every tap target at least ~32 px (found by the 2026-11-19 phone sweep). Desktop unchanged. ---- */
+@media (pointer: coarse) {
+  .dt-chart-btn, .ch-del { min-width: 32px; min-height: 32px; display: inline-flex; align-items: center; justify-content: center; }
+  .dt-chip, .bd-chip, .sb, .s1p-btn, .focus-link, .ov-cost-btn, .focus-more { min-height: 32px; }
+  .focus-more { display: inline-flex; align-items: center; }
+  .mc-seg button, .mc-btn.mc-small, .mc-header .mc-btn { min-height: 30px; }
+  .mc-fav .mc-fav-close { min-height: 32px; min-width: 32px; }
+  .eh-head, .pf-gloss-toggle, .pf-tabs button, .pf-seg button { min-height: 32px; }
+}

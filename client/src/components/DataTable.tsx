@@ -56,6 +56,15 @@ export default function DataTable({ token, account_id, accountName, attempt }: P
       .finally(() => setLoading(false));
   }, [account_id, attempt, token, reload]);
 
+  // Long / short: from the tags if the import set them, else from the price move and the P&L sign
+  const sideOf = (t: any): string => {
+    const tags: string[] = t.tags || [];
+    if (tags.includes('Long')) return 'long';
+    if (tags.includes('Short')) return 'short';
+    const e = Number(t.entry_price), x = Number(t.exit_price), p = Number(t.pnl);
+    if (Number.isFinite(e) && Number.isFinite(x) && Number.isFinite(p) && x !== e && p !== 0) return (x - e) * p > 0 ? 'long' : 'short';
+    return '';
+  };
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase();
     let out = rows.filter(t => {
@@ -67,7 +76,7 @@ export default function DataTable({ token, account_id, accountName, attempt }: P
       if (f.result === 'win' && !(Number(t.pnl) > 0)) return false;
       if (f.result === 'loss' && !(Number(t.pnl) < 0)) return false;
       if (needle) {
-        const hay = [t.symbol, t.setup_tag, t.session, t.test_type, t.timeframe, t.planned_rr,
+        const hay = [t.symbol, sideOf(t), t.setup_tag, t.session, t.test_type, t.timeframe, t.planned_rr,
           (t.tags || []).join(' '), t.notes].join(' ').toLowerCase();
         if (!hay.includes(needle)) return false;
       }
@@ -188,7 +197,7 @@ export default function DataTable({ token, account_id, accountName, attempt }: P
                     )}
                     {new Date(t.entry_time).toLocaleString()}
                   </td>
-                  <td className="strong">{t.symbol}</td>
+                  <td className="strong">{t.symbol}{sideOf(t) && <span className={`dt-side ${sideOf(t)}`}>{sideOf(t) === 'long' ? 'L' : 'S'}</span>}</td>
                   <td className="r">{t.quantity}</td>
                   <td className="r">{t.entry_price != null ? num(t.entry_price).toFixed(2) : ''}</td>
                   <td className="r">{t.exit_price != null ? num(t.exit_price).toFixed(2) : ''}</td>
