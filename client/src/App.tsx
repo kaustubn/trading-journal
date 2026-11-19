@@ -37,6 +37,8 @@ import BacktestLab from './components/BacktestLab';
 import S1Practice from './components/S1Practice';
 import PatternFinder from './components/PatternFinder';
 import PracticeLog from './components/PracticeLog';
+import NewsAnalyzer from './components/NewsAnalyzer';
+import NewsBlackoutBanner from './components/NewsBlackoutBanner';
 import { setChartLinkEnabled, OPEN_CHART_EVENT } from './utils/chartLink';
 import FocusPanel from './components/FocusPanel';
 import { PageHeader, SubTabs } from './components/ui';
@@ -44,7 +46,7 @@ import {
   LayoutDashboard, Table2, NotebookPen, Trophy, Compass, BarChart3, Layers, Clock, Brain, Scale,
   CandlestickChart, FlaskConical, Workflow, ListChecks, ShieldCheck, Building2, Lock, Upload, Plus,
   RefreshCw, LogOut, Menu, X, BookOpen, ChevronLeft, ChevronRight, LineChart, AlertTriangle, Flame, RotateCcw,
-  CalendarDays, PlusCircle, Target, ScanSearch, Timer,
+  CalendarDays, PlusCircle, Target, ScanSearch, Timer, Newspaper,
 } from 'lucide-react';
 import './App.css';
 
@@ -69,6 +71,7 @@ const PAGE_META: Record<string, { title: string; sub: string; icon: React.Compon
   strategy: { title: 'Strategy Rules', icon: Workflow, sub: 'Write down each strategy’s entry, exit and risk rules so you trade it the same way every time.' },
   checklist: { title: 'Entry Checklist', icon: ListChecks, sub: 'Run this before every entry. If any gate fails, there is no trade. The score decides A, B or C.' },
   risk: { title: 'Risk & Sizing', icon: ShieldCheck, sub: 'How much to risk per trade, how many contracts to trade, and when to stop for the day.' },
+  news: { title: 'News Analyzer', icon: Newspaper, sub: 'CPI, jobs, PPI, retail sales and the Fed: first-release numbers and how NQ reacted, by surprise. Research only.' },
   propfirms: { title: 'Prop Firms', icon: Building2, sub: 'Compare 25K and 50K evaluations side by side — rules, real cost and traps — before you buy.' },
 };
 // Pages that share one nav entry, shown as tabs
@@ -197,6 +200,7 @@ export default function App() {
         { key: 'checklist', label: 'Entry Checklist', icon: ListChecks },
         { key: 'risk', label: 'Risk & Sizing', icon: ShieldCheck },
         { key: 'propfirms', label: 'Prop Firms', icon: Building2 },
+        ...(isAdmin ? [{ key: 'news', label: 'News Analyzer', icon: Newspaper }] : []),
       ]
     },
   ];
@@ -569,6 +573,7 @@ export default function App() {
 
           {!showWall && <>
           {/* ---- DASHBOARD ---- */}
+          {token && <NewsBlackoutBanner token={token} accountId={selectedAccount || null} />}
           {/* Date-range bar (filters Overview + Setup Performance + Breakdown + Report) */}
           {token && selectedAccount && ['dashboard', 'setups', 'breakdown', 'report'].includes(view) && (
             <DateRangeBar range={range} onChange={setRange} />
@@ -688,6 +693,9 @@ export default function App() {
           )}
           {view === 'checklist' && (
             <ErrorBoundary name="Checklist"><Checklist /></ErrorBoundary>
+          )}
+          {token && isAdmin && view === 'news' && (
+            <ErrorBoundary name="News Analyzer"><NewsAnalyzer token={token} account_id={selectedAccount || null} /></ErrorBoundary>
           )}
           {view === 'propfirms' && (
             <ErrorBoundary name="Prop Firms"><PropFirms /></ErrorBoundary>

@@ -40,7 +40,7 @@ let cache: { key: string; days: Map<string, DayGrid>; normal: Map<string, { m830
 export async function loadNewsData() {
   const evs = allEvents();
   const dates = [...new Set(evs.map(e => e.date))].sort();
-  const key = `${dates.length}|${dates[0]}|${dates[dates.length - 1]}|v1`;
+  const key = `${dates.length}|${dates[0]}|${dates[dates.length - 1]}|v2`; // v2: Oct 2026 CPI/NFP dates corrected
   if (cache && cache.key === key) return cache;
   const have = await pool.query(`SELECT ver, data FROM scan_cache WHERE key = 'news1m'`);
   let rows: any[][];

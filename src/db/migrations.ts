@@ -67,6 +67,23 @@ export const MIGRATIONS: Migration[] = [
       CREATE INDEX IF NOT EXISTS idx_trades_bt_session ON trades(bt_session_id) WHERE bt_session_id IS NOT NULL;
     `,
   },
+  {
+    // News Event Analyzer: imported consensus forecasts (and upcoming release dates) + prop-firm news blackout per account
+    id: '003_news_analyzer',
+    sql: `
+      CREATE TABLE IF NOT EXISTS econ_forecasts (
+        event VARCHAR(10) NOT NULL,
+        release_date DATE NOT NULL,
+        release_time VARCHAR(5),
+        forecast NUMERIC,
+        source VARCHAR(100),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        PRIMARY KEY (event, release_date)
+      );
+      ALTER TABLE accounts ADD COLUMN IF NOT EXISTS news_blackout_before_min INT;
+      ALTER TABLE accounts ADD COLUMN IF NOT EXISTS news_blackout_after_min INT;
+    `,
+  },
 ];
 
 export async function runMigrations(client: PoolClient, list: Migration[] = MIGRATIONS): Promise<string[]> {

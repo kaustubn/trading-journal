@@ -2,6 +2,9 @@ import { Router, Request, Response } from 'express';
 import Anthropic from '@anthropic-ai/sdk';
 import pool from '../db';
 import { requirePro } from '../middleware/plan';
+import { coachFindings } from '../services/coachRules';
+import { getReleases } from '../news/econData';
+import { nyToUtc } from '../news/econStats';
 
 const router = Router();
 
@@ -122,6 +125,35 @@ router.post('/coach', requirePro('the AI coach'), async (req: Request, res: Resp
       return res.json({ configured: true, answer: 'The coach is busy right now. Give it a few seconds and ask again.' });
     }
     res.status(500).json({ error: 'Coach failed. Please try again.' });
+  }
+});
+
+// GET /api/coach/findings?account_id= — rule-based coach (no AI): costly habits ranked by the money they cost
+router.get('/coach/findings', async (req: Request, res: Response) => {
+  const acc = Number(req.query.account_id);
+  if (!Number.isInteger(acc)) return res.status(400).json({ error: 'account_id is required' });
+  try {
+    const a = await pool.query(
+      `SELECT prop_daily_loss_limit, news_blackout_before_min, news_blackout_after_min, currency FROM accounts WHERE id = $1 AND user_id = $2`, [acc, req.userId]);
+    if (!a.rows.length) return res.status(404).json({ error: 'Account not found' });
+    const t = await pool.query(
+      `SELECT t.id, to_char(t.entry_time, 'YYYY-MM-DD') AS day,
+              extract(epoch FROM journal_wall_to_utc(t.entry_time, ac.timezone)) * 1000 AS entry,
+              extract(epoch FROM journal_wall_to_utc(t.exit_time, ac.timezone)) * 1000 AS exit,
+              t.pnl, t.quantity, COALESCE(t.tags, '{}') AS tags
+         FROM trades t JOIN accounts ac ON ac.id = t.account_id
+        WHERE t.account_id = $1 AND t.pnl IS NOT NULL AND t.entry_time IS NOT NULL`, [acc]);
+    const r = a.rows[0];
+    const blackout = r.news_blackout_before_min != null || r.news_blackout_after_min != null
+      ? { before: Number(r.news_blackout_before_min ?? 0), after: Number(r.news_blackout_after_min ?? 0) } : null;
+    const releasesUtc = blackout ? (await getReleases()).map(x => nyToUtc(x.date, x.time).getTime()) : [];
+    const findings = coachFindings(t.rows.map((x: any) => ({ id: x.id, day: x.day, entry: Number(x.entry), exit: x.exit == null ? null : Number(x.exit),
+      pnl: Number(x.pnl), qty: x.quantity == null ? null : Number(x.quantity), tags: x.tags })),
+      { dailyLossLimit: r.prop_daily_loss_limit == null ? null : Number(r.prop_daily_loss_limit), blackout, releasesUtc });
+    res.json({ trades: t.rows.length, currency: r.currency || 'USD', findings });
+  } catch (error) {
+    console.error('[coach/findings]', (error as Error).message);
+    res.status(500).json({ error: 'Could not compute the findings' });
   }
 });
 

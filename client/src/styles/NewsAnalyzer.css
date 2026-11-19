@@ -1,0 +1,44 @@
+/* News Event Analyzer + prop-firm news blackout banner */
+.na { display: flex; flex-direction: column; gap: 14px; margin: 16px 0; color: var(--text); }
+.na-dim { color: var(--text-dim); font-weight: 400; font-size: 12.5px; }
+.na-err { color: var(--red, #ef5350); }
+.na-warn { color: #e0a33a; font-size: 13px; }
+.na-card { background: var(--panel, var(--card)); border: 1px solid var(--border); border-radius: var(--radius, 10px); padding: 14px 16px; min-width: 0; }
+.na-card h3 { margin: 0 0 8px; font-size: 15px; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
+.na-card h4 { margin: 12px 0 6px; font-size: 14px; }
+.na-disclaimer { display: flex; gap: 8px; align-items: flex-start; padding: 10px 12px; border: 1px solid #e0a33a; border-radius: 8px; background: rgba(224, 163, 58, .1); font-size: 13px; }
+.na-filters { display: flex; flex-wrap: wrap; gap: 6px 8px; align-items: center; }
+.na-chip { background: var(--card); color: var(--text-dim); border: 1px solid var(--border); border-radius: 14px; padding: 3px 10px; font-size: 12.5px; cursor: pointer; }
+.na-chip.on { color: var(--text); border-color: var(--brand-500, #6366f1); background: rgba(99, 102, 241, .15); }
+.na-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; align-items: center; }
+.na-controls { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; font-size: 12.5px; color: var(--text-dim); margin: 6px 0; }
+.na-controls label { display: inline-flex; align-items: center; gap: 6px; }
+.na-controls input[type=number], .na-controls select { width: 70px; background: var(--card); color: var(--text); border: 1px solid var(--border); border-radius: 5px; padding: 3px 6px; }
+.na-controls select { width: auto; }
+.na-check { max-width: 360px; }
+.na-btn { display: inline-flex; align-items: center; gap: 6px; background: var(--card); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 5px 12px; cursor: pointer; font-size: 12.5px; }
+.na-btn:disabled { opacity: .5; cursor: default; }
+.na-table-wrap { overflow-x: auto; }
+.na-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.na-table th { text-align: left; color: var(--text-dim); font-weight: 600; padding: 5px 8px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+.na-table td { padding: 5px 8px; border-bottom: 1px solid var(--border); font-variant-numeric: tabular-nums; }
+.na-table .r { text-align: right; } .na-table .nowrap { white-space: nowrap; } .na-table .strong { font-weight: 700; }
+.na-click { cursor: pointer; } .na-click:hover { background: rgba(99, 102, 241, .08); }
+.na-sub td { color: var(--text-dim); }
+.na-up { color: var(--green, #26a69a); } .na-down { color: var(--red, #ef5350); }
+.na-impact { color: var(--red, #ef5350); font-weight: 600; font-size: 11.5px; }
+.na-shared { margin-left: 5px; font-size: 10.5px; color: #e0a33a; border: 1px solid #e0a33a; border-radius: 4px; padding: 0 4px; }
+.na-vol { font-size: 12px; font-weight: 600; color: #fff; background: var(--red, #ef5350); border-radius: 5px; padding: 1px 8px; }
+.na-insufficient { color: #e0a33a; font-style: italic; }
+.na-bucket { border-top: 1px solid var(--border); margin-top: 10px; }
+.na-details { margin-top: 10px; } .na-details summary { cursor: pointer; color: var(--text-dim); font-size: 13px; }
+.na-method { color: var(--text-dim); font-size: 11.5px; margin-top: 10px; }
+.na-text { width: 100%; box-sizing: border-box; background: var(--card); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 8px; font-family: ui-monospace, monospace; font-size: 12px; }
+code { font-size: 12px; }
+
+.nb { display: flex; align-items: center; gap: 8px; padding: 8px 12px; margin: 0 0 10px; border-radius: 8px; font-size: 13px; }
+.nb-active { background: rgba(239, 83, 80, .15); border: 1px solid var(--red, #ef5350); }
+.nb-soon { background: rgba(224, 163, 58, .12); border: 1px solid #e0a33a; }
+.na-summary { border: 1px solid var(--border); border-left: 3px solid var(--brand-500, #6366f1); border-radius: 8px; padding: 8px 12px; margin: 8px 0; background: rgba(99, 102, 241, .06); }
+.na-summary-label { font-size: 11.5px; color: var(--text-dim); text-transform: none; margin-bottom: 4px; }
+.na-summary ul { margin: 0; padding-left: 18px; font-size: 13px; line-height: 1.5; }

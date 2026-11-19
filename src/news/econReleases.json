@@ -1,0 +1,3066 @@
+{
+ "builtAt": "2026-11-19T21:29:10.629Z",
+ "source": "ALFRED / FRED (St. Louis Fed), first-release vintages",
+ "releases": [
+  {
+   "event": "NFP",
+   "date": "2021-06-04",
+   "time": "08:30",
+   "period": "2021-05",
+   "actual": 559,
+   "previous": 278,
+   "unit": "k jobs",
+   "revised": 583
+  },
+  {
+   "event": "CPI",
+   "date": "2021-06-10",
+   "time": "08:30",
+   "period": "2021-05",
+   "actual": 0.6,
+   "previous": 0.8,
+   "unit": "% m/m",
+   "revised": 0.6
+  },
+  {
+   "event": "PPI",
+   "date": "2021-06-15",
+   "time": "08:30",
+   "period": "2021-05",
+   "actual": 0.8,
+   "previous": 0.6,
+   "unit": "% m/m",
+   "revised": 0.8
+  },
+  {
+   "event": "RETAIL",
+   "date": "2021-06-15",
+   "time": "08:30",
+   "period": "2021-05",
+   "actual": -1.3,
+   "previous": 0.9,
+   "unit": "% m/m",
+   "revised": -1.7
+  },
+  {
+   "event": "FOMC",
+   "date": "2021-06-16",
+   "time": "14:00",
+   "period": "2021-06",
+   "actual": 0,
+   "previous": 0.25,
+   "revised": null,
+   "unit": "bp change (upper bound)"
+  },
+  {
+   "event": "NFP",
+   "date": "2021-07-02",
+   "time": "08:30",
+   "period": "2021-06",
+   "actual": 850,
+   "previous": 583,
+   "unit": "k jobs",
+   "revised": 938
+  },
+  {
+   "event": "CPI",
+   "date": "2021-07-13",
+   "time": "08:30",
+   "period": "2021-06",
+   "actual": 0.9,
+   "previous": 0.6,
+   "unit": "% m/m",
+   "revised": 0.9
+  },
+  {
+   "event": "PPI",
+   "date": "2021-07-14",
+   "time": "08:30",
+   "period": "2021-06",
+   "actual": 1,
+   "previous": 0.8,
+   "unit": "% m/m",
+   "revised": 1
+  },
+  {
+   "event": "RETAIL",
+   "date": "2021-07-16",
+   "time": "08:30",
+   "period": "2021-06",
+   "actual": 0.6,
+   "previous": -1.7,
+   "unit": "% m/m",
+   "revised": 0.7
+  },
+  {
+   "event": "FOMC",
+   "date": "2021-07-28",
+   "time": "14:00",
+   "period": "2021-07",
+   "actual": 0,
+   "previous": 0.25,
+   "revised": null,
+   "unit": "bp change (upper bound)"
+  },
+  {
+   "event": "NFP",
+   "date": "2021-08-06",
+   "time": "08:30",
+   "period": "2021-07",
+   "actual": 943,
+   "previous": 938,
+   "unit": "k jobs",
+   "revised": 1053
+  },
+  {
+   "event": "CPI",
+   "date": "2021-08-11",
+   "time": "08:30",
+   "period": "2021-07",
+   "actual": 0.5,
+   "previous": 0.9,
+   "unit": "% m/m",
+   "revised": 0.5
+  },
+  {
+   "event": "PPI",
+   "date": "2021-08-12",
+   "time": "08:30",
+   "period": "2021-07",
+   "actual": 1,
+   "previous": 1,
+   "unit": "% m/m",
+   "revised": 1
+  },
+  {
+   "event": "RETAIL",
+   "date": "2021-08-17",
+   "time": "08:30",
+   "period": "2021-07",
+   "actual": -1.1,
+   "previous": 0.7,
+   "unit": "% m/m",
+   "revised": -1.8
+  },
+  {
+   "event": "NFP",
+   "date": "2021-09-03",
+   "time": "08:30",
+   "period": "2021-08",
+   "actual": 235,
+   "previous": 1053,
+   "unit": "k jobs",
+   "revised": 366
+  },
+  {
+   "event": "PPI",
+   "date": "2021-09-10",
+   "time": "08:30",
+   "period": "2021-08",
+   "actual": 0.7,
+   "previous": 1,
+   "unit": "% m/m",
+   "revised": 0.7
+  },
+  {
+   "event": "CPI",
+   "date": "2021-09-14",
+   "time": "08:30",
+   "period": "2021-08",
+   "actual": 0.3,
+   "previous": 0.5,
+   "unit": "% m/m",
+   "revised": 0.3
+  },
+  {
+   "event": "RETAIL",
+   "date": "2021-09-16",
+   "time": "08:30",
+   "period": "2021-08",
+   "actual": 0.7,
+   "previous": -1.8,
+   "unit": "% m/m",
+   "revised": 0.9
+  },
+  {
+   "event": "FOMC",
+   "date": "2021-09-22",
+   "time": "14:00",
+   "period": "2021-09",
+   "actual": 0,
+   "previous": 0.25,
+   "revised": null,
+   "unit": "bp change (upper bound)"
+  },
+  {
+   "event": "NFP",
+   "date": "2021-10-08",
+   "time": "08:30",
+   "period": "2021-09",
+   "actual": 194,
+   "previous": 366,
+   "unit": "k jobs",
+   "revised": 312
+  },
+  {
+   "event": "CPI",
+   "date": "2021-10-13",
+   "time": "08:30",
+   "period": "2021-09",
+   "actual": 0.4,
+   "previous": 0.3,
+   "unit": "% m/m",
+   "revised": 0.4
+  },
+  {
+   "event": "PPI",
+   "date": "2021-10-14",
+   "time": "08:30",
+   "period": "2021-09",
+   "actual": 0.5,
+   "previous": 0.7,
+   "unit": "% m/m",
+   "revised": 0.5
+  },
+  {
+   "event": "RETAIL",
+   "date": "2021-10-15",
+   "time": "08:30",
+   "period": "2021-09",
+   "actual": 0.7,
+   "previous": 0.9,
+   "unit": "% m/m",
+   "revised": 0.8
+  },
+  {
+   "event": "FOMC",
+   "date": "2021-11-03",
+   "time": "14:00",
+   "period": "2021-11",
+   "actual": 0,
+   "previous": 0.25,
+   "revised": null,
+   "unit": "bp change (upper bound)"
+  },
+  {
+   "event": "NFP",
+   "date": "2021-11-05",
+   "time": "08:30",
+   "period": "2021-10",
+   "actual": 531,
+   "previous": 312,
+   "unit": "k jobs",
+   "revised": 546
+  },
+  {
+   "event": "PPI",
+   "date": "2021-11-09",
+   "time": "08:30",
+   "period": "2021-10",
+   "actual": 0.6,
+   "previous": 0.5,
+   "unit": "% m/m",
+   "revised": 0.6
+  },
+  {
+   "event": "CPI",
+   "date": "2021-11-10",
+   "time": "08:30",
+   "period": "2021-10",
+   "actual": 0.9,
+   "previous": 0.4,
+   "unit": "% m/m",
+   "revised": 0.9
+  },
+  {
+   "event": "RETAIL",
+   "date": "2021-11-16",
+   "time": "08:30",
+   "period": "2021-10",
+   "actual": 1.7,
+   "previous": 0.8,
+   "unit": "% m/m",
+   "revised": 1.8
+  },
+  {
+   "event": "NFP",
+   "date": "2021-12-03",
+   "time": "08:30",
+   "period": "2021-11",
+   "actual": 210,
+   "previous": 546,
+   "unit": "k jobs",
+   "revised": 249
+  },
+  {
+   "event": "CPI",
+   "date": "2021-12-10",
+   "time": "08:30",
+   "period": "2021-11",
+   "actual": 0.8,
+   "previous": 0.9,
+   "unit": "% m/m",
+   "revised": 0.8
+  },
+  {
+   "event": "PPI",
+   "date": "2021-12-14",
+   "time": "08:30",
+   "period": "2021-11",
+   "actual": 0.8,
+   "previous": 0.6,
+   "unit": "% m/m",
+   "revised": 1
+  },
+  {
+   "event": "RETAIL",
+   "date": "2021-12-15",
+   "time": "08:30",
+   "period": "2021-11",
+   "actual": 0.3,
+   "previous": 1.8,
+   "unit": "% m/m",
+   "revised": 0.2
+  },
+  {
+   "event": "FOMC",
+   "date": "2021-12-15",
+   "time": "14:00",
+   "period": "2021-12",
+   "actual": 0,
+   "previous": 0.25,
+   "revised": null,
+   "unit": "bp change (upper bound)"
+  },
+  {
+   "event": "NFP",
+   "date": "2022-01-07",
+   "time": "08:30",
+   "period": "2021-12",
+   "actual": 199,
+   "previous": 249,
+   "unit": "k jobs",
+   "revised": 510
+  },
+  {
+   "event": "CPI",
+   "date": "2022-01-12",
+   "time": "08:30",
+   "period": "2021-12",
+   "actual": 0.5,
+   "previous": 0.8,
+   "unit": "% m/m",
+   "revised": 0.6
+  },
+  {
+   "event": "PPI",
+   "date": "2022-01-13",
+   "time": "08:30",
+   "period": "2021-12",
+   "actual": 0.2,
+   "previous": 1,
+   "unit": "% m/m",
+   "revised": 0.4
+  },
+  {
+   "event": "RETAIL",
+   "date": "2022-01-14",
+   "time": "08:30",
+   "period": "2021-12",
+   "actual": -1.9,
+   "previous": 0.2,
+   "unit": "% m/m",
+   "revised": -2.5
+  },
+  {
+   "event": "FOMC",
+   "date": "2022-01-26",
+   "time": "14:00",
+   "period": "2022-01",
+   "actual": 0,
+   "previous": 0.25,
+   "revised": null,
+   "unit": "bp change (upper bound)"
+  },
+  {
+   "event": "NFP",
+   "date": "2022-02-04",
+   "time": "08:30",
+   "period": "2022-01",
+   "actual": 467,
+   "previous": 510,
+   "unit": "k jobs",
+   "revised": 481
+  },
+  {
+   "event": "CPI",
+   "date": "2022-02-10",
+   "time": "08:30",
+   "period": "2022-01",
+   "actual": 0.6,
+   "previous": 0.6,
+   "unit": "% m/m",
+   "revised": 0.6
+  },
+  {
+   "event": "PPI",
+   "date": "2022-02-15",
+   "time": "08:30",
+   "period": "2022-01",
+   "actual": 1,
+   "previous": 0.4,
+   "unit": "% m/m",
+   "revised": 1.2
+  },
+  {
+   "event": "RETAIL",
+   "date": "2022-02-16",
+   "time": "08:30",
+   "period": "2022-01",
+   "actual": 3.8,
+   "previous": -2.5,
+   "unit": "% m/m",
+   "revised": 4.9
+  },
+  {
+   "event": "NFP",
+   "date": "2022-03-04",
+   "time": "08:30",
+   "period": "2022-02",
+   "actual": 678,
+   "previous": 481,
+   "unit": "k jobs",
+   "revised": 750
+  },
+  {
+   "event": "CPI",
+   "date": "2022-03-10",
+   "time": "08:30",
+   "period": "2022-02",
+   "actual": 0.8,
+   "previous": 0.6,
+   "unit": "% m/m",
+   "revised": 0.8
+  },
+  {
+   "event": "PPI",
+   "date": "2022-03-15",
+   "time": "08:30",
+   "period": "2022-02",
+   "actual": 0.8,
+   "previous": 1.2,
+   "unit": "% m/m",
+   "revised": 0.9
+  },
+  {
+   "event": "RETAIL",
+   "date": "2022-03-16",
+   "time": "08:30",
+   "period": "2022-02",
+   "actual": 0.3,
+   "previous": 4.9,
+   "unit": "% m/m",
+   "revised": 0.8
+  },
+  {
+   "event": "FOMC",
+   "date": "2022-03-16",
+   "time": "14:00",
+   "period": "2022-03",
+   "actual": 25,
+   "previous": 0.25,
+   "revised": null,
+   "unit": "bp change (upper bound)"
+  },
+  {
+   "event": "NFP",
+   "date": "2022-04-01",
+   "time": "08:30",
+   "period": "2022-03",
+   "actual": 431,
+   "previous": 750,
+   "unit": "k jobs",
+   "revised": 428
+  },
+  {
+   "event": "CPI",
+   "date": "2022-04-12",
+   "time": "08:30",
+   "period": "2022-03",
+   "actual": 1.2,
+   "previous": 0.8,
+   "unit": "% m/m",
+   "revised": 1.2
+  },
+  {
+   "event": "PPI",
+   "date": "2022-04-13",
+   "time": "08:30",
+   "period": "2022-03",
+   "actual": 1.4,
+   "previous": 0.9,
+   "unit": "% m/m",
+   "revised": 1.6
+  },
+  {
+   "event": "RETAIL",
+   "date": "2022-04-14",
+   "time": "08:30",
+   "period": "2022-03",
+   "actual": 0.5,
+   "previous": 0.8,
+   "unit": "% m/m",
+   "revised": 1.4
+  },
+  {
+   "event": "FOMC",
+   "date": "2022-05-04",
+   "time": "14:00",
+   "period": "2022-05",
+   "actual": 50,
+   "previous": 0.5,
+   "revised": null,
+   "unit": "bp change (upper bound)"
+  },
+  {
+   "event": "NFP",
+   "date": "2022-05-06",
+   "time": "08:30",
+   "period": "2022-04",
+   "actual": 428,
+   "previous": 428,
+   "unit": "k jobs",
+   "revised": 436
+  },
+  {
+   "event": "CPI",
+   "date": "2022-05-11",
+   "time": "08:30",
+   "period": "2022-04",
+   "actual": 0.3,
+   "previous": 1.2,
+   "unit": "% m/m",
+   "revised": 0.3
+  },
+  {
+   "event": "PPI",
+   "date": "2022-05-12",
+   "time": "08:30",
+   "period": "2022-04",
+   "actual": 0.5,
+   "previous": 1.6,
+   "unit": "% m/m",
+   "revised": 0.4
+  },
+  {
+   "event": "RETAIL",
+   "date": "2022-05-17",
+   "time": "08:30",
+   "period": "2022-04",
+   "actual": 0.9,
+   "previous": 1.4,
+   "unit": "% m/m",
+   "revised": 0.7
+  },
+  {
+   "event": "NFP",
+   "date": "2022-06-03",
+   "time": "08:30",
+   "period": "2022-05",
+   "actual": 390,
+   "previous": 436,
+   "unit": "k jobs",
+   "revised": 384
+  },
+  {
+   "event": "CPI",
+   "date": "2022-06-10",
+   "time": "08:30",
+   "period": "2022-05",
+   "actual": 1,
+   "previous": 0.3,
+   "unit": "% m/m",
+   "revised": 1
+  },
+  {
+   "event": "PPI",
+   "date": "2022-06-14",
+   "time": "08:30",
+   "period": "2022-05",
+   "actual": 0.8,
+   "previous": 0.4,
+   "unit": "% m/m",
+   "revised": 0.9
+  },
+  {
+   "event": "RETAIL",
+   "date": "2022-06-15",
+   "time": "08:30",
+   "period": "2022-05",
+   "actual": -0.3,
+   "previous": 0.7,
+   "unit": "% m/m",
+   "revised": -0.1
+  },
+  {
+   "event": "FOMC",
+   "date": "2022-06-15",
+   "time": "14:00",
+   "period": "2022-06",
+   "actual": 75,
+   "previous": 1,
+   "revised": null,
+   "unit": "bp change (upper bound)"
+  },
+  {
+   "event": "NFP",
+   "date": "2022-07-08",
+   "time": "08:30",
+   "period": "2022-06",
+   "actual": 372,
+   "previous": 384,
+   "unit": "k jobs",
+   "revised": 398
+  },
+  {
+   "event": "CPI",
+   "date": "2022-07-13",
+   "time": "08:30",
+   "period": "2022-06",
+   "actual": 1.3,
+   "previous": 1,
+   "unit": "% m/m",
+   "revised": 1.3
+  },
+  {
+   "event": "PPI",
+   "date": "2022-07-14",
+   "time": "08:30",
+   "period": "2022-06",
+   "actual": 1.1,
+   "previous": 0.9,
+   "unit": "% m/m",
+   "revised": 1
+  },
+  {
+   "event": "RETAIL",
+   "date": "2022-07-15",
+   "time": "08:30",
+   "period": "2022-06",
+   "actual": 1,
+   "previous": -0.1,
+   "unit": "% m/m",
+   "revised": 0.8
+  },
+  {
+   "event": "FOMC",
+   "date": "2022-07-27",
+   "time": "14:00",
+   "period": "2022-07",
+   "actual": 75,
+   "previous": 1.75,
+   "revised": null,
+   "unit": "bp change (upper bound)"
+  },
+  {
+   "event": "NFP",
+   "date": "2022-08-05",
+   "time": "08:30",
+   "period": "2022-07",
+   "actual": 528,
+   "previous": 398,
+   "unit": "k jobs",
+   "revised": 526
+  },
+  {
+   "event": "CPI",
+   "date": "2022-08-10",
+   "time": "08:30",
+   "period": "2022-07",
+   "actual": 0,
+   "previous": 1.3,
+   "unit": "% m/m",
+   "revised": 0
+  },
+  {
+   "event": "PPI",
+   "date": "2022-08-11",
+   "time": "08:30",
+   "period": "2022-07",
+   "actual": -0.5,
+   "previous": 1,
+   "unit": "% m/m",
+   "revised": -0.4
+  },
+  {
+   "event": "RETAIL",
+   "date": "2022-08-17",
+   "time": "08:30",
+   "period": "2022-07",
+   "actual": 0,
+   "previous": 0.8,
+   "unit": "% m/m",
+   "revised": -0.4
+  },
+  {
+   "event": "NFP",
+   "date": "2022-09-02",
+   "time": "08:30",
+   "period": "2022-08",
+   "actual": 315,
+   "previous": 526,
+   "unit": "k jobs",
+   "revised": 315
+  },
+  {
+   "event": "CPI",
+   "date": "2022-09-13",
+   "time": "08:30",
+   "period": "2022-08",
+   "actual": 0.1,
+   "previous": 0,
+   "unit": "% m/m",
+   "revised": 0.1
+  },
+  {
+   "event": "PPI",
+   "date": "2022-09-14",
+   "time": "08:30",
+   "period": "2022-08",
+   "actual": -0.1,
+   "previous": -0.4,
+   "unit": "% m/m",
+   "revised": -0.2
+  },
+  {
+   "event": "RETAIL",
+   "date": "2022-09-15",
+   "time": "08:30",
+   "period": "2022-08",
+   "actual": 0.3,
+   "previous": -0.4,
+   "unit": "% m/m",
+   "revised": 0.4
+  },
+  {
+   "event": "FOMC",
+   "date": "2022-09-21",
+   "time": "14:00",
+   "period": "2022-09",
+   "actual": 75,
+   "previous": 2.5,
+   "revised": null,
+   "unit": "bp change (upper bound)"
+  },
+  {
+   "event": "NFP",
+   "date": "2022-10-07",
+   "time": "08:30",
+   "period": "2022-09",
+   "actual": 263,
+   "previous": 315,
+   "unit": "k jobs",
+   "revised": 315
+  },
+  {
+   "event": "PPI",
+   "date": "2022-10-12",
+   "time": "08:30",
+   "period": "2022-09",
+   "actual": 0.4,
+   "previous": -0.2,
+   "unit": "% m/m",
+   "revised": 0.2
+  },
+  {
+   "event": "CPI",
+   "date": "2022-10-13",
+   "time": "08:30",
+   "period": "2022-09",
+   "actual": 0.4,
+   "previous": 0.1,
+   "unit": "% m/m",
+   "revised": 0.4
+  },
+  {
+   "event": "RETAIL",
+   "date": "2022-10-14",
+   "time": "08:30",
+   "period": "2022-09",
+   "actual": 0,
+   "previous": 0.4,
+   "unit": "% m/m",
+   "revised": 0
+  },
+  {
+   "event": "FOMC",
+   "date": "2022-11-02",
+   "time": "14:00",
+   "period": "2022-11",
+   "actual": 75,
+   "previous": 3.25,
+   "revised": null,
+   "unit": "bp change (upper bound)"
+  },
+  {
+   "event": "NFP",
+   "date": "2022-11-04",
+   "time": "08:30",
+   "period": "2022-10",
+   "actual": 261,
+   "previous": 315,
+   "unit": "k jobs",
+   "revised": 284
+  },
+  {
+   "event": "CPI",
+   "date": "2022-11-10",
+   "time": "08:30",
+   "period": "2022-10",
+   "actual": 0.4,
+   "previous": 0.4,
+   "unit": "% m/m",
+   "revised": 0.4
+  },
+  {
+   "event": "PPI",
+   "date": "2022-11-15",
+   "time": "08:30",
+   "period": "2022-10",
+   "actual": 0.2,
+   "previous": 0.2,
+   "unit": "% m/m",
+   "revised": 0.3
+  },
+  {
+   "event": "RETAIL",
+   "date": "2022-11-16",
+   "time": "08:30",
+   "period": "2022-10",
+   "actual": 1.3,
+   "previous": 0,
+   "unit": "% m/m",
+   "revised": 1.3
+  },
+  {
+   "event": "NFP",
+   "date": "2022-12-02",
+   "time": "08:30",
+   "period": "2022-11",
+   "actual": 263,
+   "previous": 284,
+   "unit": "k jobs",
+   "revised": 256
+  },
+  {
+   "event": "PPI",
+   "date": "2022-12-09",
+   "time": "08:30",
+   "period": "2022-11",
+   "actual": 0.3,
+   "previous": 0.3,
+   "unit": "% m/m",
+   "revised": 0.2
+  },
+  {
+   "event": "CPI",
+   "date": "2022-12-13",
+   "time": "08:30",
+   "period": "2022-11",
+   "actual": 0.1,
+   "previous": 0.4,
+   "unit": "% m/m",
+   "revised": 0.1
+  },
+  {
+   "event": "FOMC",
+   "date": "2022-12-14",
+   "time": "14:00",
+   "period": "2022-12",
+   "actual": 50,
+   "previous": 4,
+   "revised": null,
+   "unit": "bp change (upper bound)"
+  },
+  {
+   "event": "RETAIL",
+   "date": "2022-12-15",
+   "time": "08:30",
+   "period": "2022-11",
+   "actual": -0.6,
+   "previous": 1.3,
+   "unit": "% m/m",
+   "revised": -1
+  },
+  {
+   "event": "NFP",
+   "date": "2023-01-06",
+   "time": "08:30",
+   "period": "2022-12",
+   "actual": 223,
+   "previous": 256,
+   "unit": "k jobs",
+   "revised": 260
+  },
+  {
+   "event": "CPI",
+   "date": "2023-01-12",
+   "time": "08:30",
+   "period": "2022-12",
+   "actual": -0.1,
+   "previous": 0.1,
+   "unit": "% m/m",
+   "revised": 0.1
+  },
+  {
+   "event": "PPI",
+   "date": "2023-01-18",
+   "time": "08:30",
+   "period": "2022-12",
+   "actual": -0.5,
+   "previous": 0.2,
+   "unit": "% m/m",
+   "revised": -0.2
+  },
+  {
+   "event": "RETAIL",
+   "date": "2023-01-18",
+   "time": "08:30",
+   "period": "2022-12",
+   "actual": -1.1,
+   "previous": -1,
+   "unit": "% m/m",
+   "revised": -1.1
+  },
+  {
+   "event": "FOMC",
+   "date": "2023-02-01",
+   "time": "14:00",
+   "period": "2023-02",
+   "actual": 25,
+   "previous": 4.5,
+   "revised": null,
+   "unit": "bp change (upper bound)"
+  },
+  {
+   "event": "NFP",
+   "date": "2023-02-03",
+   "time": "08:30",
+   "period": "2023-01",
+   "actual": 517,
+   "previous": 260,
+   "unit": "k jobs",
+   "revised": 504
+  },
+  {
+   "event": "CPI",
+   "date": "2023-02-14",
+   "time": "08:30",
+   "period": "2023-01",
+   "actual": 0.5,
+   "previous": 0.1,
+   "unit": "% m/m",
+   "revised": 0.5
+  },
+  {
+   "event": "RETAIL",
+   "date": "2023-02-15",
+   "time": "08:30",
+   "period": "2023-01",
+   "actual": 3,
+   "previous": -1.1,
+   "unit": "% m/m",
+   "revised": 3.2
+  },
+  {
+   "event": "PPI",
+   "date": "2023-02-16",
+   "time": "08:30",
+   "period": "2023-01",
+   "actual": 0.7,
+   "previous": -0.2,
+   "unit": "% m/m",
+   "revised": 0.3
+  },
+  {
+   "event": "NFP",
+   "date": "2023-03-10",
+   "time": "08:30",
+   "period": "2023-02",
+   "actual": 311,
+   "previous": 504,
+   "unit": "k jobs",
+   "revised": 326
+  },
+  {
+   "event": "CPI",
+   "date": "2023-03-14",
+   "time": "08:30",
+   "period": "2023-02",
+   "actual": 0.4,
+   "previous": 0.5,
+   "unit": "% m/m",
+   "revised": 0.4
+  },
+  {
+   "event": "PPI",
+   "date": "2023-03-15",
+   "time": "08:30",
+   "period": "2023-02",
+   "actual": -0.1,
+   "previous": 0.3,
+   "unit": "% m/m",
+   "revised": 0
+  },
+  {
+   "event": "RETAIL",
+   "date": "2023-03-15",
+   "time": "08:30",
+   "period": "2023-02",
+   "actual": -0.4,
+   "previous": 3.2,
+   "unit": "% m/m",
+   "revised": -0.2
+  },
+  {
+   "event": "FOMC",
+   "date": "2023-03-22",
+   "time": "14:00",
+   "period": "2023-03",
+   "actual": 25,
+   "previous": 4.75,
+   "revised": null,
+   "unit": "bp change (upper bound)"
+  },
+  {
+   "event": "NFP",
+   "date": "2023-04-07",
+   "time": "08:30",
+   "period": "2023-03",
+   "actual": 236,
+   "previous": 326,
+   "unit": "k jobs",
+   "revised": 165
+  },
+  {
+   "event": "CPI",
+   "date": "2023-04-12",
+   "time": "08:30",
+   "period": "2023-03",
+   "actual": 0.1,
+   "previous": 0.4,
+   "unit": "% m/m",
+   "revised": 0.1
+  },
+  {
+   "event": "PPI",
+   "date": "2023-04-13",
+   "time": "08:30",
+   "period": "2023-03",
+   "actual": -0.5,
+   "previous": 0,
+   "unit": "% m/m",
+   "revised": -0.4
+  },
+  {
+   "event": "RETAIL",
+   "date": "2023-04-14",
+   "time": "08:30",
+   "period": "2023-03",
+   "actual": -1,
+   "previous": -0.2,
+   "unit": "% m/m",
+   "revised": -0.7
+  },
+  {
+   "event": "FOMC",
+   "date": "2023-05-03",
+   "time": "14:00",
+   "period": "2023-05",
+   "actual": 25,
+   "previous": 5,
+   "revised": null,
+   "unit": "bp change (upper bound)"
+  },
+  {
+   "event": "NFP",
+   "date": "2023-05-05",
+   "time": "08:30",
+   "period": "2023-04",
+   "actual": 253,
+   "previous": 165,
+   "unit": "k jobs",
+   "revised": 294
+  },
+  {
+   "event": "CPI",
+   "date": "2023-05-10",
+   "time": "08:30",
+   "period": "2023-04",
+   "actual": 0.4,
+   "previous": 0.1,
+   "unit": "% m/m",
+   "revised": 0.4
+  },
+  {
+   "event": "PPI",
+   "date": "2023-05-11",
+   "time": "08:30",
+   "period": "2023-04",
+   "actual": 0.2,
+   "previous": -0.4,
+   "unit": "% m/m",
+   "revised": 0.2
+  },
+  {
+   "event": "RETAIL",
+   "date": "2023-05-16",
+   "time": "08:30",
+   "period": "2023-04",
+   "actual": 0.4,
+   "previous": -0.7,
+   "unit": "% m/m",
+   "revised": 0.4
+  },
+  {
+   "event": "NFP",
+   "date": "2023-06-02",
+   "time": "08:30",
+   "period": "2023-05",
+   "actual": 339,
+   "previous": 294,
+   "unit": "k jobs",
+   "revised": 306
+  },
+  {
+   "event": "CPI",
+   "date": "2023-06-13",
+   "time": "08:30",
+   "period": "2023-05",
+   "actual": 0.1,
+   "previous": 0.4,
+   "unit": "% m/m",
+   "revised": 0.1
+  },
+  {
+   "event": "PPI",
+   "date": "2023-06-14",
+   "time": "08:30",
+   "period": "2023-05",
+   "actual": -0.3,
+   "previous": 0.2,
+   "unit": "% m/m",
+   "revised": -0.4
+  },
+  {
+   "event": "FOMC",
+   "date": "2023-06-14",
+   "time": "14:00",
+   "period": "2023-06",
+   "actual": 0,
+   "previous": 5.25,
+   "revised": null,
+   "unit": "bp change (upper bound)"
+  },
+  {
+   "event": "RETAIL",
+   "date": "2023-06-15",
+   "time": "08:30",
+   "period": "2023-05",
+   "actual": 0.3,
+   "previous": 0.4,
+   "unit": "% m/m",
+   "revised": 0.5
+  },
+  {
+   "event": "NFP",
+   "date": "2023-07-07",
+   "time": "08:30",
+   "period": "2023-06",
+   "actual": 209,
+   "previous": 306,
+   "unit": "k jobs",
+   "revised": 185
+  },
+  {
+   "event": "CPI",
+   "date": "2023-07-12",
+   "time": "08:30",
+   "period": "2023-06",
+   "actual": 0.2,
+   "previous": 0.1,
+   "unit": "% m/m",
+   "revised": 0.2
+  },
+  {
+   "event": "PPI",
+   "date": "2023-07-13",
+   "time": "08:30",
+   "period": "2023-06",
+   "actual": 0.1,
+   "previous": -0.4,
+   "unit": "% m/m",
+   "revised": 0
+  },
+  {
+   "event": "RETAIL",
+   "date": "2023-07-18",
+   "time": "08:30",
+   "period": "2023-06",
+   "actual": 0.2,
+   "previous": 0.5,
+   "unit": "% m/m",
+   "revised": 0.3
+  },
+  {
+   "event": "FOMC",
+   "date": "2023-07-26",
+   "time": "14:00",
+   "period": "2023-07",
+   "actual": 25,
+   "previous": 5.25,
+   "revised": null,
+   "unit": "bp change (upper bound)"
+  },
+  {
+   "event": "NFP",
+   "date": "2023-08-04",
+   "time": "08:30",
+   "period": "2023-07",
+   "actual": 187,
+   "previous": 185,
+   "unit": "k jobs",
+   "revised": 157
+  },
+  {
+   "event": "CPI",
+   "date": "2023-08-10",
+   "time": "08:30",
+   "period": "2023-07",
+   "actual": 0.2,
+   "previous": 0.2,
+   "unit": "% m/m",
+   "revised": 0.2
+  },
+  {
+   "event": "PPI",
+   "date": "2023-08-11",
+   "time": "08:30",
+   "period": "2023-07",
+   "actual": 0.3,
+   "previous": 0,
+   "unit": "% m/m",
+   "revised": 0.4
+  },
+  {
+   "event": "RETAIL",
+   "date": "2023-08-15",
+   "time": "08:30",
+   "period": "2023-07",
+   "actual": 0.7,
+   "previous": 0.3,
+   "unit": "% m/m",
+   "revised": 0.5
+  },
+  {
+   "event": "NFP",
+   "date": "2023-09-01",
+   "time": "08:30",
+   "period": "2023-08",
+   "actual": 187,
+   "previous": 157,
+   "unit": "k jobs",
+   "revised": 227
+  },
+  {
+   "event": "CPI",
+   "date": "2023-09-13",
+   "time": "08:30",
+   "period": "2023-08",
+   "actual": 0.6,
+   "previous": 0.2,
+   "unit": "% m/m",
+   "revised": 0.6
+  },
+  {
+   "event": "PPI",
+   "date": "2023-09-14",
+   "time": "08:30",
+   "period": "2023-08",
+   "actual": 0.7,
+   "previous": 0.4,
+   "unit": "% m/m",
+   "revised": 0.7
+  },
+  {
+   "event": "RETAIL",
+   "date": "2023-09-14",
+   "time": "08:30",
+   "period": "2023-08",
+   "actual": 0.6,
+   "previous": 0.5,
+   "unit": "% m/m",
+   "revised": 0.8
+  },
+  {
+   "event": "FOMC",
+   "date": "2023-09-20",
+   "time": "14:00",
+   "period": "2023-09",
+   "actual": 0,
+   "previous": 5.5,
+   "revised": null,
+   "unit": "bp change (upper bound)"
+  },
+  {
+   "event": "NFP",
+   "date": "2023-10-06",
+   "time": "08:30",
+   "period": "2023-09",
+   "actual": 336,
+   "previous": 227,
+   "unit": "k jobs",
+   "revised": 297
+  },
+  {
+   "event": "PPI",
+   "date": "2023-10-11",
+   "time": "08:30",
+   "period": "2023-09",
+   "actual": 0.5,
+   "previous": 0.7,
+   "unit": "% m/m",
+   "revised": 0.4
+  },
+  {
+   "event": "CPI",
+   "date": "2023-10-12",
+   "time": "08:30",
+   "period": "2023-09",
+   "actual": 0.4,
+   "previous": 0.6,
+   "unit": "% m/m",
+   "revised": 0.4
+  },
+  {
+   "event": "RETAIL",
+   "date": "2023-10-17",
+   "time": "08:30",
+   "period": "2023-09",
+   "actual": 0.7,
+   "previous": 0.8,
+   "unit": "% m/m",
+   "revised": 0.9
+  },
+  {
+   "event": "FOMC",
+   "date": "2023-11-01",
+   "time": "14:00",
+   "period": "2023-11",
+   "actual": 0,
+   "previous": 5.5,
+   "revised": null,
+   "unit": "bp change (upper bound)"
+  },
+  {
+   "event": "NFP",
+   "date": "2023-11-03",
+   "time": "08:30",
+   "period": "2023-10",
+   "actual": 150,
+   "previous": 297,
+   "unit": "k jobs",
+   "revised": 150
+  },
+  {
+   "event": "CPI",
+   "date": "2023-11-14",
+   "time": "08:30",
+   "period": "2023-10",
+   "actual": 0,
+   "previous": 0.4,
+   "unit": "% m/m",
+   "revised": 0
+  },
+  {
+   "event": "PPI",
+   "date": "2023-11-15",
+   "time": "08:30",
+   "period": "2023-10",
+   "actual": -0.5,
+   "previous": 0.4,
+   "unit": "% m/m",
+   "revised": -0.4
+  },
+  {
+   "event": "RETAIL",
+   "date": "2023-11-15",
+   "time": "08:30",
+   "period": "2023-10",
+   "actual": -0.1,
+   "previous": 0.9,
+   "unit": "% m/m",
+   "revised": -0.2
+  },
+  {
+   "event": "NFP",
+   "date": "2023-12-08",
+   "time": "08:30",
+   "period": "2023-11",
+   "actual": 199,
+   "previous": 150,
+   "unit": "k jobs",
+   "revised": 173
+  },
+  {
+   "event": "CPI",
+   "date": "2023-12-12",
+   "time": "08:30",
+   "period": "2023-11",
+   "actual": 0.1,
+   "previous": 0,
+   "unit": "% m/m",
+   "revised": 0.1
+  },
+  {
+   "event": "PPI",
+   "date": "2023-12-13",
+   "time": "08:30",
+   "period": "2023-11",
+   "actual": 0,
+   "previous": -0.4,
+   "unit": "% m/m",
+   "revised": -0.1
+  },
+  {
+   "event": "FOMC",
+   "date": "2023-12-13",
+   "time": "14:00",
+   "period": "2023-12",
+   "actual": 0,
+   "previous": 5.5,
+   "revised": null,
+   "unit": "bp change (upper bound)"
+  },
+  {
+   "event": "RETAIL",
+   "date": "2023-12-14",
+   "time": "08:30",
+   "period": "2023-11",
+   "actual": 0.3,
+   "previous": -0.2,
+   "unit": "% m/m",
+   "revised": 0.3
+  },
+  {
+   "event": "NFP",
+   "date": "2024-01-05",
+   "time": "08:30",
+   "period": "2023-12",
+   "actual": 216,
+   "previous": 173,
+   "unit": "k jobs",
+   "revised": 333
+  },
+  {
+   "event": "CPI",
+   "date": "2024-01-11",
+   "time": "08:30",
+   "period": "2023-12",
+   "actual": 0.3,
+   "previous": 0.1,
+   "unit": "% m/m",
+   "revised": 0.2
+  },
+  {
+   "event": "PPI",
+   "date": "2024-01-12",
+   "time": "08:30",
+   "period": "2023-12",
+   "actual": -0.1,
+   "previous": -0.1,
+   "unit": "% m/m",
+   "revised": -0.1
+  },
+  {
+   "event": "RETAIL",
+   "date": "2024-01-17",
+   "time": "08:30",
+   "period": "2023-12",
+   "actual": 0.6,
+   "previous": 0.3,
+   "unit": "% m/m",
+   "revised": 0.4
+  },
+  {
+   "event": "FOMC",
+   "date": "2024-01-31",
+   "time": "14:00",
+   "period": "2024-01",
+   "actual": 0,
+   "previous": 5.5,
+   "revised": null,
+   "unit": "bp change (upper bound)"
+  },
+  {
+   "event": "NFP",
+   "date": "2024-02-02",
+   "time": "08:30",
+   "period": "2024-01",
+   "actual": 353,
+   "previous": 333,
+   "unit": "k jobs",
+   "revised": 229
+  },
+  {
+   "event": "CPI",
+   "date": "2024-02-13",
+   "time": "08:30",
+   "period": "2024-01",
+   "actual": 0.3,
+   "previous": 0.2,
+   "unit": "% m/m",
+   "revised": 0.3
+  },
+  {
+   "event": "RETAIL",
+   "date": "2024-02-15",
+   "time": "08:30",
+   "period": "2024-01",
+   "actual": -0.8,
+   "previous": 0.4,
+   "unit": "% m/m",
+   "revised": -1.1
+  },
+  {
+   "event": "PPI",
+   "date": "2024-02-16",
+   "time": "08:30",
+   "period": "2024-01",
+   "actual": 0.3,
+   "previous": -0.1,
+   "unit": "% m/m",
+   "revised": 0.3
+  },
+  {
+   "event": "NFP",
+   "date": "2024-03-08",
+   "time": "08:30",
+   "period": "2024-02",
+   "actual": 275,
+   "previous": 229,
+   "unit": "k jobs",
+   "revised": 270
+  },
+  {
+   "event": "CPI",
+   "date": "2024-03-12",
+   "time": "08:30",
+   "period": "2024-02",
+   "actual": 0.4,
+   "previous": 0.3,
+   "unit": "% m/m",
+   "revised": 0.4
+  },
+  {
+   "event": "PPI",
+   "date": "2024-03-14",
+   "time": "08:30",
+   "period": "2024-02",
+   "actual": 0.6,
+   "previous": 0.3,
+   "unit": "% m/m",
+   "revised": 0.6
+  },
+  {
+   "event": "RETAIL",
+   "date": "2024-03-14",
+   "time": "08:30",
+   "period": "2024-02",
+   "actual": 0.6,
+   "previous": -1.1,
+   "unit": "% m/m",
+   "revised": 0.9
+  },
+  {
+   "event": "FOMC",
+   "date": "2024-03-20",
+   "time": "14:00",
+   "period": "2024-03",
+   "actual": 0,
+   "previous": 5.5,
+   "revised": null,
+   "unit": "bp change (upper bound)"
+  },
+  {
+   "event": "NFP",
+   "date": "2024-04-05",
+   "time": "08:30",
+   "period": "2024-03",
+   "actual": 303,
+   "previous": 270,
+   "unit": "k jobs",
+   "revised": 315
+  },
+  {
+   "event": "CPI",
+   "date": "2024-04-10",
+   "time": "08:30",
+   "period": "2024-03",
+   "actual": 0.4,
+   "previous": 0.4,
+   "unit": "% m/m",
+   "revised": 0.4
+  },
+  {
+   "event": "PPI",
+   "date": "2024-04-11",
+   "time": "08:30",
+   "period": "2024-03",
+   "actual": 0.2,
+   "previous": 0.6,
+   "unit": "% m/m",
+   "revised": -0.1
+  },
+  {
+   "event": "RETAIL",
+   "date": "2024-04-15",
+   "time": "08:30",
+   "period": "2024-03",
+   "actual": 0.7,
+   "previous": 0.9,
+   "unit": "% m/m",
+   "revised": 0.6
+  },
+  {
+   "event": "FOMC",
+   "date": "2024-05-01",
+   "time": "14:00",
+   "period": "2024-05",
+   "actual": 0,
+   "previous": 5.5,
+   "revised": null,
+   "unit": "bp change (upper bound)"
+  },
+  {
+   "event": "NFP",
+   "date": "2024-05-03",
+   "time": "08:30",
+   "period": "2024-04",
+   "actual": 175,
+   "previous": 315,
+   "unit": "k jobs",
+   "revised": 165
+  },
+  {
+   "event": "PPI",
+   "date": "2024-05-14",
+   "time": "08:30",
+   "period": "2024-04",
+   "actual": 0.5,
+   "previous": -0.1,
+   "unit": "% m/m",
+   "revised": 0.5
+  },
+  {
+   "event": "CPI",
+   "date": "2024-05-15",
+   "time": "08:30",
+   "period": "2024-04",
+   "actual": 0.3,
+   "previous": 0.4,
+   "unit": "% m/m",
+   "revised": 0.3
+  },
+  {
+   "event": "RETAIL",
+   "date": "2024-05-15",
+   "time": "08:30",
+   "period": "2024-04",
+   "actual": 0,
+   "previous": 0.6,
+   "unit": "% m/m",
+   "revised": -0.2
+  },
+  {
+   "event": "NFP",
+   "date": "2024-06-07",
+   "time": "08:30",
+   "period": "2024-05",
+   "actual": 272,
+   "previous": 165,
+   "unit": "k jobs",
+   "revised": 218
+  },
+  {
+   "event": "CPI",
+   "date": "2024-06-12",
+   "time": "08:30",
+   "period": "2024-05",
+   "actual": 0,
+   "previous": 0.3,
+   "unit": "% m/m",
+   "revised": 0
+  },
+  {
+   "event": "FOMC",
+   "date": "2024-06-12",
+   "time": "14:00",
+   "period": "2024-06",
+   "actual": 0,
+   "previous": 5.5,
+   "revised": null,
+   "unit": "bp change (upper bound)"
+  },
+  {
+   "event": "PPI",
+   "date": "2024-06-13",
+   "time": "08:30",
+   "period": "2024-05",
+   "actual": -0.2,
+   "previous": 0.5,
+   "unit": "% m/m",
+   "revised": 0
+  },
+  {
+   "event": "RETAIL",
+   "date": "2024-06-18",
+   "time": "08:30",
+   "period": "2024-05",
+   "actual": 0.1,
+   "previous": -0.2,
+   "unit": "% m/m",
+   "revised": 0.3
+  },
+  {
+   "event": "NFP",
+   "date": "2024-07-05",
+   "time": "08:30",
+   "period": "2024-06",
+   "actual": 206,
+   "previous": 218,
+   "unit": "k jobs",
+   "revised": 179
+  },
+  {
+   "event": "CPI",
+   "date": "2024-07-11",
+   "time": "08:30",
+   "period": "2024-06",
+   "actual": -0.1,
+   "previous": 0,
+   "unit": "% m/m",
+   "revised": -0.1
+  },
+  {
+   "event": "PPI",
+   "date": "2024-07-12",
+   "time": "08:30",
+   "period": "2024-06",
+   "actual": 0.2,
+   "previous": 0,
+   "unit": "% m/m",
+   "revised": 0.2
+  },
+  {
+   "event": "RETAIL",
+   "date": "2024-07-16",
+   "time": "08:30",
+   "period": "2024-06",
+   "actual": 0,
+   "previous": 0.3,
+   "unit": "% m/m",
+   "revised": -0.2
+  },
+  {
+   "event": "FOMC",
+   "date": "2024-07-31",
+   "time": "14:00",
+   "period": "2024-07",
+   "actual": 0,
+   "previous": 5.5,
+   "revised": null,
+   "unit": "bp change (upper bound)"
+  },
+  {
+   "event": "NFP",
+   "date": "2024-08-02",
+   "time": "08:30",
+   "period": "2024-07",
+   "actual": 114,
+   "previous": 179,
+   "unit": "k jobs",
+   "revised": 89
+  },
+  {
+   "event": "PPI",
+   "date": "2024-08-13",
+   "time": "08:30",
+   "period": "2024-07",
+   "actual": 0.1,
+   "previous": 0.2,
+   "unit": "% m/m",
+   "revised": 0
+  },
+  {
+   "event": "CPI",
+   "date": "2024-08-14",
+   "time": "08:30",
+   "period": "2024-07",
+   "actual": 0.2,
+   "previous": -0.1,
+   "unit": "% m/m",
+   "revised": 0.2
+  },
+  {
+   "event": "RETAIL",
+   "date": "2024-08-15",
+   "time": "08:30",
+   "period": "2024-07",
+   "actual": 1,
+   "previous": -0.2,
+   "unit": "% m/m",
+   "revised": 1.1
+  },
+  {
+   "event": "NFP",
+   "date": "2024-09-06",
+   "time": "08:30",
+   "period": "2024-08",
+   "actual": 142,
+   "previous": 89,
+   "unit": "k jobs",
+   "revised": 159
+  },
+  {
+   "event": "CPI",
+   "date": "2024-09-11",
+   "time": "08:30",
+   "period": "2024-08",
+   "actual": 0.2,
+   "previous": 0.2,
+   "unit": "% m/m",
+   "revised": 0.2
+  },
+  {
+   "event": "PPI",
+   "date": "2024-09-12",
+   "time": "08:30",
+   "period": "2024-08",
+   "actual": 0.2,
+   "previous": 0,
+   "unit": "% m/m",
+   "revised": 0.2
+  },
+  {
+   "event": "RETAIL",
+   "date": "2024-09-17",
+   "time": "08:30",
+   "period": "2024-08",
+   "actual": 0.1,
+   "previous": 1.1,
+   "unit": "% m/m",
+   "revised": 0.1
+  },
+  {
+   "event": "FOMC",
+   "date": "2024-09-18",
+   "time": "14:00",
+   "period": "2024-09",
+   "actual": -50,
+   "previous": 5.5,
+   "revised": null,
+   "unit": "bp change (upper bound)"
+  },
+  {
+   "event": "NFP",
+   "date": "2024-10-04",
+   "time": "08:30",
+   "period": "2024-09",
+   "actual": 254,
+   "previous": 159,
+   "unit": "k jobs",
+   "revised": 223
+  },
+  {
+   "event": "CPI",
+   "date": "2024-10-10",
+   "time": "08:30",
+   "period": "2024-09",
+   "actual": 0.2,
+   "previous": 0.2,
+   "unit": "% m/m",
+   "revised": 0.2
+  },
+  {
+   "event": "PPI",
+   "date": "2024-10-11",
+   "time": "08:30",
+   "period": "2024-09",
+   "actual": 0,
+   "previous": 0.2,
+   "unit": "% m/m",
+   "revised": 0.1
+  },
+  {
+   "event": "RETAIL",
+   "date": "2024-10-17",
+   "time": "08:30",
+   "period": "2024-09",
+   "actual": 0.4,
+   "previous": 0.1,
+   "unit": "% m/m",
+   "revised": 0.8
+  },
+  {
+   "event": "NFP",
+   "date": "2024-11-01",
+   "time": "08:30",
+   "period": "2024-10",
+   "actual": 12,
+   "previous": 223,
+   "unit": "k jobs",
+   "revised": 36
+  },
+  {
+   "event": "FOMC",
+   "date": "2024-11-07",
+   "time": "14:00",
+   "period": "2024-11",
+   "actual": -25,
+   "previous": 5,
+   "revised": null,
+   "unit": "bp change (upper bound)"
+  },
+  {
+   "event": "CPI",
+   "date": "2024-11-13",
+   "time": "08:30",
+   "period": "2024-10",
+   "actual": 0.2,
+   "previous": 0.2,
+   "unit": "% m/m",
+   "revised": 0.2
+  },
+  {
+   "event": "PPI",
+   "date": "2024-11-14",
+   "time": "08:30",
+   "period": "2024-10",
+   "actual": 0.2,
+   "previous": 0.1,
+   "unit": "% m/m",
+   "revised": 0.3
+  },
+  {
+   "event": "RETAIL",
+   "date": "2024-11-15",
+   "time": "08:30",
+   "period": "2024-10",
+   "actual": 0.4,
+   "previous": 0.8,
+   "unit": "% m/m",
+   "revised": 0.5
+  },
+  {
+   "event": "NFP",
+   "date": "2024-12-06",
+   "time": "08:30",
+   "period": "2024-11",
+   "actual": 227,
+   "previous": 36,
+   "unit": "k jobs",
+   "revised": 212
+  },
+  {
+   "event": "CPI",
+   "date": "2024-12-11",
+   "time": "08:30",
+   "period": "2024-11",
+   "actual": 0.3,
+   "previous": 0.2,
+   "unit": "% m/m",
+   "revised": 0.3
+  },
+  {
+   "event": "PPI",
+   "date": "2024-12-12",
+   "time": "08:30",
+   "period": "2024-11",
+   "actual": 0.4,
+   "previous": 0.3,
+   "unit": "% m/m",
+   "revised": 0.4
+  },
+  {
+   "event": "RETAIL",
+   "date": "2024-12-17",
+   "time": "08:30",
+   "period": "2024-11",
+   "actual": 0.7,
+   "previous": 0.5,
+   "unit": "% m/m",
+   "revised": 0.8
+  },
+  {
+   "event": "FOMC",
+   "date": "2024-12-18",
+   "time": "14:00",
+   "period": "2024-12",
+   "actual": -25,
+   "previous": 4.75,
+   "revised": null,
+   "unit": "bp change (upper bound)"
+  },
+  {
+   "event": "NFP",
+   "date": "2025-01-10",
+   "time": "08:30",
+   "period": "2024-12",
+   "actual": 256,
+   "previous": 212,
+   "unit": "k jobs",
+   "revised": 307
+  },
+  {
+   "event": "PPI",
+   "date": "2025-01-14",
+   "time": "08:30",
+   "period": "2024-12",
+   "actual": 0.2,
+   "previous": 0.4,
+   "unit": "% m/m",
+   "revised": 0.5
+  },
+  {
+   "event": "CPI",
+   "date": "2025-01-15",
+   "time": "08:30",
+   "period": "2024-12",
+   "actual": 0.4,
+   "previous": 0.3,
+   "unit": "% m/m",
+   "revised": 0.4
+  },
+  {
+   "event": "RETAIL",
+   "date": "2025-01-16",
+   "time": "08:30",
+   "period": "2024-12",
+   "actual": 0.4,
+   "previous": 0.8,
+   "unit": "% m/m",
+   "revised": 0.7
+  },
+  {
+   "event": "FOMC",
+   "date": "2025-01-29",
+   "time": "14:00",
+   "period": "2025-01",
+   "actual": 0,
+   "previous": 4.5,
+   "revised": null,
+   "unit": "bp change (upper bound)"
+  },
+  {
+   "event": "NFP",
+   "date": "2025-02-07",
+   "time": "08:30",
+   "period": "2025-01",
+   "actual": 143,
+   "previous": 307,
+   "unit": "k jobs",
+   "revised": 125
+  },
+  {
+   "event": "CPI",
+   "date": "2025-02-12",
+   "time": "08:30",
+   "period": "2025-01",
+   "actual": 0.5,
+   "previous": 0.4,
+   "unit": "% m/m",
+   "revised": 0.5
+  },
+  {
+   "event": "PPI",
+   "date": "2025-02-13",
+   "time": "08:30",
+   "period": "2025-01",
+   "actual": 0.4,
+   "previous": 0.5,
+   "unit": "% m/m",
+   "revised": 0.6
+  },
+  {
+   "event": "RETAIL",
+   "date": "2025-02-14",
+   "time": "08:30",
+   "period": "2025-01",
+   "actual": -0.9,
+   "previous": 0.7,
+   "unit": "% m/m",
+   "revised": -1.2
+  },
+  {
+   "event": "NFP",
+   "date": "2025-03-07",
+   "time": "08:30",
+   "period": "2025-02",
+   "actual": 151,
+   "previous": 125,
+   "unit": "k jobs",
+   "revised": 117
+  },
+  {
+   "event": "CPI",
+   "date": "2025-03-12",
+   "time": "08:30",
+   "period": "2025-02",
+   "actual": 0.2,
+   "previous": 0.5,
+   "unit": "% m/m",
+   "revised": 0.2
+  },
+  {
+   "event": "PPI",
+   "date": "2025-03-13",
+   "time": "08:30",
+   "period": "2025-02",
+   "actual": 0,
+   "previous": 0.6,
+   "unit": "% m/m",
+   "revised": 0.1
+  },
+  {
+   "event": "RETAIL",
+   "date": "2025-03-17",
+   "time": "08:30",
+   "period": "2025-02",
+   "actual": 0.2,
+   "previous": -1.2,
+   "unit": "% m/m",
+   "revised": 0.2
+  },
+  {
+   "event": "FOMC",
+   "date": "2025-03-19",
+   "time": "14:00",
+   "period": "2025-03",
+   "actual": 0,
+   "previous": 4.5,
+   "revised": null,
+   "unit": "bp change (upper bound)"
+  },
+  {
+   "event": "NFP",
+   "date": "2025-04-04",
+   "time": "08:30",
+   "period": "2025-03",
+   "actual": 228,
+   "previous": 117,
+   "unit": "k jobs",
+   "revised": 185
+  },
+  {
+   "event": "CPI",
+   "date": "2025-04-10",
+   "time": "08:30",
+   "period": "2025-03",
+   "actual": -0.1,
+   "previous": 0.2,
+   "unit": "% m/m",
+   "revised": -0.1
+  },
+  {
+   "event": "PPI",
+   "date": "2025-04-11",
+   "time": "08:30",
+   "period": "2025-03",
+   "actual": -0.4,
+   "previous": 0.1,
+   "unit": "% m/m",
+   "revised": 0
+  },
+  {
+   "event": "RETAIL",
+   "date": "2025-04-16",
+   "time": "08:30",
+   "period": "2025-03",
+   "actual": 1.4,
+   "previous": 0.2,
+   "unit": "% m/m",
+   "revised": 1.7
+  },
+  {
+   "event": "NFP",
+   "date": "2025-05-02",
+   "time": "08:30",
+   "period": "2025-04",
+   "actual": 177,
+   "previous": 185,
+   "unit": "k jobs",
+   "revised": 147
+  },
+  {
+   "event": "FOMC",
+   "date": "2025-05-07",
+   "time": "14:00",
+   "period": "2025-05",
+   "actual": 0,
+   "previous": 4.5,
+   "revised": null,
+   "unit": "bp change (upper bound)"
+  },
+  {
+   "event": "CPI",
+   "date": "2025-05-13",
+   "time": "08:30",
+   "period": "2025-04",
+   "actual": 0.2,
+   "previous": -0.1,
+   "unit": "% m/m",
+   "revised": 0.2
+  },
+  {
+   "event": "PPI",
+   "date": "2025-05-15",
+   "time": "08:30",
+   "period": "2025-04",
+   "actual": -0.5,
+   "previous": 0,
+   "unit": "% m/m",
+   "revised": -0.2
+  },
+  {
+   "event": "RETAIL",
+   "date": "2025-05-15",
+   "time": "08:30",
+   "period": "2025-04",
+   "actual": 0.1,
+   "previous": 1.7,
+   "unit": "% m/m",
+   "revised": -0.1
+  },
+  {
+   "event": "NFP",
+   "date": "2025-06-06",
+   "time": "08:30",
+   "period": "2025-05",
+   "actual": 139,
+   "previous": 147,
+   "unit": "k jobs",
+   "revised": 144
+  },
+  {
+   "event": "CPI",
+   "date": "2025-06-11",
+   "time": "08:30",
+   "period": "2025-05",
+   "actual": 0.1,
+   "previous": 0.2,
+   "unit": "% m/m",
+   "revised": 0.1
+  },
+  {
+   "event": "PPI",
+   "date": "2025-06-12",
+   "time": "08:30",
+   "period": "2025-05",
+   "actual": 0.1,
+   "previous": -0.2,
+   "unit": "% m/m",
+   "revised": 0.3
+  },
+  {
+   "event": "RETAIL",
+   "date": "2025-06-17",
+   "time": "08:30",
+   "period": "2025-05",
+   "actual": -0.9,
+   "previous": -0.1,
+   "unit": "% m/m",
+   "revised": -0.9
+  },
+  {
+   "event": "FOMC",
+   "date": "2025-06-18",
+   "time": "14:00",
+   "period": "2025-06",
+   "actual": 0,
+   "previous": 4.5,
+   "revised": null,
+   "unit": "bp change (upper bound)"
+  },
+  {
+   "event": "NFP",
+   "date": "2025-07-03",
+   "time": "08:30",
+   "period": "2025-06",
+   "actual": 147,
+   "previous": 144,
+   "unit": "k jobs",
+   "revised": 14
+  },
+  {
+   "event": "CPI",
+   "date": "2025-07-15",
+   "time": "08:30",
+   "period": "2025-06",
+   "actual": 0.3,
+   "previous": 0.1,
+   "unit": "% m/m",
+   "revised": 0.3
+  },
+  {
+   "event": "PPI",
+   "date": "2025-07-16",
+   "time": "08:30",
+   "period": "2025-06",
+   "actual": 0,
+   "previous": 0.3,
+   "unit": "% m/m",
+   "revised": 0
+  },
+  {
+   "event": "RETAIL",
+   "date": "2025-07-17",
+   "time": "08:30",
+   "period": "2025-06",
+   "actual": 0.6,
+   "previous": -0.9,
+   "unit": "% m/m",
+   "revised": 0.9
+  },
+  {
+   "event": "FOMC",
+   "date": "2025-07-30",
+   "time": "14:00",
+   "period": "2025-07",
+   "actual": 0,
+   "previous": 4.5,
+   "revised": null,
+   "unit": "bp change (upper bound)"
+  },
+  {
+   "event": "NFP",
+   "date": "2025-08-01",
+   "time": "08:30",
+   "period": "2025-07",
+   "actual": 73,
+   "previous": 14,
+   "unit": "k jobs",
+   "revised": 79
+  },
+  {
+   "event": "CPI",
+   "date": "2025-08-12",
+   "time": "08:30",
+   "period": "2025-07",
+   "actual": 0.2,
+   "previous": 0.3,
+   "unit": "% m/m",
+   "revised": 0.2
+  },
+  {
+   "event": "PPI",
+   "date": "2025-08-14",
+   "time": "08:30",
+   "period": "2025-07",
+   "actual": 0.9,
+   "previous": 0,
+   "unit": "% m/m",
+   "revised": 0.7
+  },
+  {
+   "event": "RETAIL",
+   "date": "2025-08-15",
+   "time": "08:30",
+   "period": "2025-07",
+   "actual": 0.5,
+   "previous": 0.9,
+   "unit": "% m/m",
+   "revised": 0.6
+  },
+  {
+   "event": "NFP",
+   "date": "2025-09-05",
+   "time": "08:30",
+   "period": "2025-08",
+   "actual": 22,
+   "previous": 79,
+   "unit": "k jobs",
+   "revised": -4
+  },
+  {
+   "event": "PPI",
+   "date": "2025-09-10",
+   "time": "08:30",
+   "period": "2025-08",
+   "actual": -0.1,
+   "previous": 0.7,
+   "unit": "% m/m",
+   "revised": -0.1
+  },
+  {
+   "event": "CPI",
+   "date": "2025-09-11",
+   "time": "08:30",
+   "period": "2025-08",
+   "actual": 0.4,
+   "previous": 0.2,
+   "unit": "% m/m",
+   "revised": 0.4
+  },
+  {
+   "event": "RETAIL",
+   "date": "2025-09-16",
+   "time": "08:30",
+   "period": "2025-08",
+   "actual": 0.6,
+   "previous": 0.6,
+   "unit": "% m/m",
+   "revised": 0.6
+  },
+  {
+   "event": "FOMC",
+   "date": "2025-09-17",
+   "time": "14:00",
+   "period": "2025-09",
+   "actual": -25,
+   "previous": 4.5,
+   "revised": null,
+   "unit": "bp change (upper bound)"
+  },
+  {
+   "event": "CPI",
+   "date": "2025-10-24",
+   "time": "08:30",
+   "period": "2025-09",
+   "actual": 0.3,
+   "previous": 0.4,
+   "unit": "% m/m",
+   "revised": 0.3
+  },
+  {
+   "event": "FOMC",
+   "date": "2025-10-29",
+   "time": "14:00",
+   "period": "2025-10",
+   "actual": -25,
+   "previous": 4.25,
+   "revised": null,
+   "unit": "bp change (upper bound)"
+  },
+  {
+   "event": "NFP",
+   "date": "2025-11-20",
+   "time": "08:30",
+   "period": "2025-09",
+   "actual": 119,
+   "previous": -4,
+   "unit": "k jobs",
+   "revised": 108
+  },
+  {
+   "event": "PPI",
+   "date": "2025-11-25",
+   "time": "08:30",
+   "period": "2025-09",
+   "actual": 0.3,
+   "previous": -0.1,
+   "unit": "% m/m",
+   "revised": 0.6
+  },
+  {
+   "event": "RETAIL",
+   "date": "2025-11-25",
+   "time": "08:30",
+   "period": "2025-09",
+   "actual": 0.2,
+   "previous": 0.6,
+   "unit": "% m/m",
+   "revised": 0.1
+  },
+  {
+   "event": "FOMC",
+   "date": "2025-12-10",
+   "time": "14:00",
+   "period": "2025-12",
+   "actual": -25,
+   "previous": 4,
+   "revised": null,
+   "unit": "bp change (upper bound)"
+  },
+  {
+   "event": "NFP",
+   "date": "2025-12-16",
+   "time": "08:30",
+   "period": "2025-11",
+   "actual": 64,
+   "previous": -105,
+   "unit": "k jobs",
+   "revised": 56
+  },
+  {
+   "event": "RETAIL",
+   "date": "2025-12-16",
+   "time": "08:30",
+   "period": "2025-10",
+   "actual": 0,
+   "previous": 0.1,
+   "unit": "% m/m",
+   "revised": -0.1
+  },
+  {
+   "event": "CPI",
+   "date": "2025-12-18",
+   "time": "08:30",
+   "period": "2025-11",
+   "actual": null,
+   "previous": -100,
+   "unit": "% m/m",
+   "revised": null
+  },
+  {
+   "event": "NFP",
+   "date": "2026-01-09",
+   "time": "08:30",
+   "period": "2025-12",
+   "actual": 50,
+   "previous": 56,
+   "unit": "k jobs",
+   "revised": 48
+  },
+  {
+   "event": "CPI",
+   "date": "2026-01-13",
+   "time": "08:30",
+   "period": "2025-12",
+   "actual": 0.3,
+   "previous": null,
+   "unit": "% m/m",
+   "revised": 0.3
+  },
+  {
+   "event": "PPI",
+   "date": "2026-01-14",
+   "time": "08:30",
+   "period": "2025-11",
+   "actual": 0.2,
+   "previous": 0.1,
+   "unit": "% m/m",
+   "revised": 0.2
+  },
+  {
+   "event": "RETAIL",
+   "date": "2026-01-14",
+   "time": "08:30",
+   "period": "2025-11",
+   "actual": 0.6,
+   "previous": -0.1,
+   "unit": "% m/m",
+   "revised": 0.6
+  },
+  {
+   "event": "FOMC",
+   "date": "2026-01-28",
+   "time": "14:00",
+   "period": "2026-01",
+   "actual": 0,
+   "previous": 3.75,
+   "revised": null,
+   "unit": "bp change (upper bound)"
+  },
+  {
+   "event": "PPI",
+   "date": "2026-01-30",
+   "time": "08:30",
+   "period": "2025-12",
+   "actual": 0.5,
+   "previous": 0.2,
+   "unit": "% m/m",
+   "revised": 0.4
+  },
+  {
+   "event": "RETAIL",
+   "date": "2026-02-10",
+   "time": "08:30",
+   "period": "2025-12",
+   "actual": 0,
+   "previous": 0.6,
+   "unit": "% m/m",
+   "revised": 0
+  },
+  {
+   "event": "NFP",
+   "date": "2026-02-11",
+   "time": "08:30",
+   "period": "2026-01",
+   "actual": 130,
+   "previous": 48,
+   "unit": "k jobs",
+   "revised": 126
+  },
+  {
+   "event": "CPI",
+   "date": "2026-02-13",
+   "time": "08:30",
+   "period": "2026-01",
+   "actual": 0.2,
+   "previous": 0.3,
+   "unit": "% m/m",
+   "revised": 0.2
+  },
+  {
+   "event": "PPI",
+   "date": "2026-02-27",
+   "time": "08:30",
+   "period": "2026-01",
+   "actual": 0.5,
+   "previous": 0.4,
+   "unit": "% m/m",
+   "revised": 0.5
+  },
+  {
+   "event": "NFP",
+   "date": "2026-03-06",
+   "time": "08:30",
+   "period": "2026-02",
+   "actual": -92,
+   "previous": 126,
+   "unit": "k jobs",
+   "revised": -133
+  },
+  {
+   "event": "RETAIL",
+   "date": "2026-03-06",
+   "time": "08:30",
+   "period": "2026-01",
+   "actual": -0.2,
+   "previous": 0,
+   "unit": "% m/m",
+   "revised": -0.1
+  },
+  {
+   "event": "CPI",
+   "date": "2026-03-11",
+   "time": "08:30",
+   "period": "2026-02",
+   "actual": 0.3,
+   "previous": 0.2,
+   "unit": "% m/m",
+   "revised": 0.3
+  },
+  {
+   "event": "PPI",
+   "date": "2026-03-18",
+   "time": "08:30",
+   "period": "2026-02",
+   "actual": 0.7,
+   "previous": 0.5,
+   "unit": "% m/m",
+   "revised": 0.5
+  },
+  {
+   "event": "FOMC",
+   "date": "2026-03-18",
+   "time": "14:00",
+   "period": "2026-03",
+   "actual": 0,
+   "previous": 3.75,
+   "revised": null,
+   "unit": "bp change (upper bound)"
+  },
+  {
+   "event": "RETAIL",
+   "date": "2026-04-01",
+   "time": "08:30",
+   "period": "2026-02",
+   "actual": 0.6,
+   "previous": -0.1,
+   "unit": "% m/m",
+   "revised": 0.7
+  },
+  {
+   "event": "NFP",
+   "date": "2026-04-03",
+   "time": "08:30",
+   "period": "2026-03",
+   "actual": 178,
+   "previous": -133,
+   "unit": "k jobs",
+   "revised": 185
+  },
+  {
+   "event": "CPI",
+   "date": "2026-04-10",
+   "time": "08:30",
+   "period": "2026-03",
+   "actual": 0.9,
+   "previous": 0.3,
+   "unit": "% m/m",
+   "revised": 0.9
+  },
+  {
+   "event": "PPI",
+   "date": "2026-04-14",
+   "time": "08:30",
+   "period": "2026-03",
+   "actual": 0.5,
+   "previous": 0.5,
+   "unit": "% m/m",
+   "revised": 0.7
+  },
+  {
+   "event": "RETAIL",
+   "date": "2026-04-21",
+   "time": "08:30",
+   "period": "2026-03",
+   "actual": 1.7,
+   "previous": 0.7,
+   "unit": "% m/m",
+   "revised": 1.6
+  },
+  {
+   "event": "FOMC",
+   "date": "2026-04-29",
+   "time": "14:00",
+   "period": "2026-04",
+   "actual": 0,
+   "previous": 3.75,
+   "revised": null,
+   "unit": "bp change (upper bound)"
+  },
+  {
+   "event": "NFP",
+   "date": "2026-05-08",
+   "time": "08:30",
+   "period": "2026-04",
+   "actual": 115,
+   "previous": 185,
+   "unit": "k jobs",
+   "revised": 179
+  },
+  {
+   "event": "CPI",
+   "date": "2026-05-12",
+   "time": "08:30",
+   "period": "2026-04",
+   "actual": 0.6,
+   "previous": 0.9,
+   "unit": "% m/m",
+   "revised": 0.6
+  },
+  {
+   "event": "PPI",
+   "date": "2026-05-13",
+   "time": "08:30",
+   "period": "2026-04",
+   "actual": 1.4,
+   "previous": 0.7,
+   "unit": "% m/m",
+   "revised": 1.1
+  },
+  {
+   "event": "RETAIL",
+   "date": "2026-05-14",
+   "time": "08:30",
+   "period": "2026-04",
+   "actual": 0.5,
+   "previous": 1.6,
+   "unit": "% m/m",
+   "revised": 0.4
+  },
+  {
+   "event": "NFP",
+   "date": "2026-06-05",
+   "time": "08:30",
+   "period": "2026-05",
+   "actual": 172,
+   "previous": 179,
+   "unit": "k jobs",
+   "revised": 129
+  },
+  {
+   "event": "CPI",
+   "date": "2026-06-10",
+   "time": "08:30",
+   "period": "2026-05",
+   "actual": 0.5,
+   "previous": 0.6,
+   "unit": "% m/m",
+   "revised": 0.5
+  },
+  {
+   "event": "PPI",
+   "date": "2026-06-11",
+   "time": "08:30",
+   "period": "2026-05",
+   "actual": 1.1,
+   "previous": 1.1,
+   "unit": "% m/m",
+   "revised": 0.6
+  },
+  {
+   "event": "RETAIL",
+   "date": "2026-06-17",
+   "time": "08:30",
+   "period": "2026-05",
+   "actual": 0.9,
+   "previous": 0.4,
+   "unit": "% m/m",
+   "revised": 1
+  },
+  {
+   "event": "FOMC",
+   "date": "2026-06-17",
+   "time": "14:00",
+   "period": "2026-06",
+   "actual": 0,
+   "previous": 3.75,
+   "revised": null,
+   "unit": "bp change (upper bound)"
+  },
+  {
+   "event": "NFP",
+   "date": "2026-07-02",
+   "time": "08:30",
+   "period": "2026-06",
+   "actual": 57,
+   "previous": 129,
+   "unit": "k jobs",
+   "revised": 20
+  },
+  {
+   "event": "CPI",
+   "date": "2026-07-14",
+   "time": "08:30",
+   "period": "2026-06",
+   "actual": -0.4,
+   "previous": 0.5,
+   "unit": "% m/m",
+   "revised": -0.4
+  },
+  {
+   "event": "PPI",
+   "date": "2026-07-15",
+   "time": "08:30",
+   "period": "2026-06",
+   "actual": -0.3,
+   "previous": 0.6,
+   "unit": "% m/m",
+   "revised": -0.1
+  },
+  {
+   "event": "RETAIL",
+   "date": "2026-07-16",
+   "time": "08:30",
+   "period": "2026-06",
+   "actual": 0.2,
+   "previous": 1,
+   "unit": "% m/m",
+   "revised": 0.2
+  },
+  {
+   "event": "FOMC",
+   "date": "2026-07-29",
+   "time": "14:00",
+   "period": "2026-07",
+   "actual": 0,
+   "previous": 3.75,
+   "revised": null,
+   "unit": "bp change (upper bound)"
+  },
+  {
+   "event": "NFP",
+   "date": "2026-08-07",
+   "time": "08:30",
+   "period": "2026-07",
+   "actual": -23,
+   "previous": 20,
+   "unit": "k jobs",
+   "revised": 21
+  },
+  {
+   "event": "CPI",
+   "date": "2026-08-12",
+   "time": "08:30",
+   "period": "2026-07",
+   "actual": 0.1,
+   "previous": -0.4,
+   "unit": "% m/m",
+   "revised": 0.1
+  },
+  {
+   "event": "PPI",
+   "date": "2026-08-13",
+   "time": "08:30",
+   "period": "2026-07",
+   "actual": 0,
+   "previous": -0.1,
+   "unit": "% m/m",
+   "revised": 0.1
+  },
+  {
+   "event": "RETAIL",
+   "date": "2026-08-14",
+   "time": "08:30",
+   "period": "2026-07",
+   "actual": -0.6,
+   "previous": 0.2,
+   "unit": "% m/m",
+   "revised": -0.5
+  },
+  {
+   "event": "NFP",
+   "date": "2026-09-04",
+   "time": "08:30",
+   "period": "2026-08",
+   "actual": 162,
+   "previous": 21,
+   "unit": "k jobs",
+   "revised": 133
+  },
+  {
+   "event": "PPI",
+   "date": "2026-09-10",
+   "time": "08:30",
+   "period": "2026-08",
+   "actual": 0.4,
+   "previous": 0.1,
+   "unit": "% m/m",
+   "revised": 0.5
+  },
+  {
+   "event": "CPI",
+   "date": "2026-09-11",
+   "time": "08:30",
+   "period": "2026-08",
+   "actual": 0.4,
+   "previous": 0.1,
+   "unit": "% m/m",
+   "revised": 0.4
+  },
+  {
+   "event": "RETAIL",
+   "date": "2026-09-16",
+   "time": "08:30",
+   "period": "2026-08",
+   "actual": 1.2,
+   "previous": -0.5,
+   "unit": "% m/m",
+   "revised": 1.3
+  },
+  {
+   "event": "FOMC",
+   "date": "2026-09-16",
+   "time": "14:00",
+   "period": "2026-09",
+   "actual": 25,
+   "previous": 3.75,
+   "revised": null,
+   "unit": "bp change (upper bound)"
+  },
+  {
+   "event": "NFP",
+   "date": "2026-10-02",
+   "time": "08:30",
+   "period": "2026-09",
+   "actual": 29,
+   "previous": 133,
+   "unit": "k jobs",
+   "revised": 60
+  },
+  {
+   "event": "CPI",
+   "date": "2026-10-14",
+   "time": "08:30",
+   "period": "2026-09",
+   "actual": 0.6,
+   "previous": 0.4,
+   "unit": "% m/m",
+   "revised": 0.6
+  },
+  {
+   "event": "PPI",
+   "date": "2026-10-15",
+   "time": "08:30",
+   "period": "2026-09",
+   "actual": 1.3,
+   "previous": 0.5,
+   "unit": "% m/m",
+   "revised": 1.4
+  },
+  {
+   "event": "RETAIL",
+   "date": "2026-10-15",
+   "time": "08:30",
+   "period": "2026-09",
+   "actual": 0.8,
+   "previous": 1.3,
+   "unit": "% m/m",
+   "revised": 0.8
+  },
+  {
+   "event": "FOMC",
+   "date": "2026-10-28",
+   "time": "14:00",
+   "period": "2026-10",
+   "actual": 0,
+   "previous": 4,
+   "revised": null,
+   "unit": "bp change (upper bound)"
+  },
+  {
+   "event": "NFP",
+   "date": "2026-11-06",
+   "time": "08:30",
+   "period": "2026-10",
+   "actual": 165,
+   "previous": 60,
+   "unit": "k jobs",
+   "revised": null
+  },
+  {
+   "event": "CPI",
+   "date": "2026-11-10",
+   "time": "08:30",
+   "period": "2026-10",
+   "actual": 0.4,
+   "previous": 0.6,
+   "unit": "% m/m",
+   "revised": null
+  },
+  {
+   "event": "PPI",
+   "date": "2026-11-13",
+   "time": "08:30",
+   "period": "2026-10",
+   "actual": 0.3,
+   "previous": 1.4,
+   "unit": "% m/m",
+   "revised": null
+  },
+  {
+   "event": "RETAIL",
+   "date": "2026-11-17",
+   "time": "08:30",
+   "period": "2026-10",
+   "actual": 0.2,
+   "previous": 0.8,
+   "unit": "% m/m",
+   "revised": null
+  },
+  {
+   "event": "FOMC",
+   "date": "2026-12-09",
+   "time": "14:00",
+   "period": "2026-12",
+   "actual": null,
+   "previous": 4,
+   "revised": null,
+   "unit": "bp change (upper bound)"
+  }
+ ]
+}

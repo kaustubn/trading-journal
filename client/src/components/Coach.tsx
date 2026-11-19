@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import axios from 'axios';
+import CoachFindings from './CoachFindings';
 import { Compass, User, Send, Sparkles } from 'lucide-react';
 import { loadCoachData, InsightCard } from './FocusPanel';
 import { buildInsights, Insight, CoachData, RULES } from '../utils/coaching';
@@ -121,6 +122,7 @@ export default function Coach({ token, account_id, attempt, isAdmin, onNavigate 
 
   return (
     <div className="coach">
+      {account_id ? <CoachFindings token={token} account_id={account_id} /> : null}
       <section className="coach-section">
         <div className="coach-sec-head">
           <h2>What to work on</h2>
