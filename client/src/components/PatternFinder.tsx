@@ -6,6 +6,7 @@ import axios from 'axios';
 import { Play, Search, AlertTriangle } from 'lucide-react';
 import { openReplayDay } from '../utils/chartLink';
 import EdgeHunter from './EdgeHunter';
+import MarketMemory from './MarketMemory';
 import '../styles/BacktestLab.css';
 import '../styles/S1Practice.css';
 import '../styles/PatternFinder.css';
@@ -47,7 +48,7 @@ export default function PatternFinder({ token }: { token: string }) {
   const [view, setView] = useState<'test' | 'train' | 'all' | 'move' | 'vol'>('test');
   const [sel, setSel] = useState<Cell | null>(null);
   const [days, setDays] = useState<DayRow[] | null>(null);
-  const [tab, setTab] = useState<'hunt' | 'mine'>('hunt');
+  const [tab, setTab] = useState<'hunt' | 'mine' | 'memory'>('hunt');
 
   const params = () => ({ ...form, from: form.from || undefined, to: form.to || undefined });
   const run = async () => {
@@ -79,8 +80,9 @@ export default function PatternFinder({ token }: { token: string }) {
       <div className="pf-tabs">
         <button className={tab === 'hunt' ? 'on' : ''} onClick={() => setTab('hunt')}>Edge Hunter (automatic)</button>
         <button className={tab === 'mine' ? 'on' : ''} onClick={() => setTab('mine')}>Test my own trade by time</button>
+        <button className={tab === 'memory' ? 'on' : ''} onClick={() => setTab('memory')}>Market Memory</button>
       </div>
-      {tab === 'hunt' ? <EdgeHunter token={token} /> : <>
+      {tab === 'hunt' ? <EdgeHunter token={token} /> : tab === 'memory' ? <MarketMemory token={token} /> : <>
       <div className="bl-card">
         <h3>Your trade</h3>
         <div className="bl-rules">

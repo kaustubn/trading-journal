@@ -4,6 +4,8 @@ import { verifyToken } from '../middleware/auth';
 import { requireAdmin } from '../middleware/admin';
 import { scan, cellDays, DIR_RULES, DirRule, ScanParams } from '../patterns/timeScan';
 import { startHunt, latest, edgeStatus } from '../patterns/edgeHunter';
+import { load } from '../patterns/timeScan';
+import { buildGrid, dayMap, analog, candleStats, CANDLE_TYPES, GapFilter, DayTypeFilter } from '../patterns/marketMemory';
 
 const router = Router();
 router.use(verifyToken, requireAdmin);
@@ -51,6 +53,38 @@ router.get('/edge', async (_req: Request, res: Response) => {
 router.post('/edge/run', (_req: Request, res: Response) => {
   startHunt().catch(e => console.error('[patterns/edge run]', e.message));
   res.json({ status: edgeStatus() });
+});
+
+// ---- Market Memory (src/patterns/marketMemory.ts) ----
+const memErr = (res: Response, tag: string, e: any) => {
+  if (e?.status) return res.status(e.status).json({ error: e.message });
+  console.error(`[patterns/memory/${tag}]`, e);
+  res.status(500).json({ error: 'Market Memory failed' });
+};
+const num = (v: unknown, d: number) => { const n = Number(v); return Number.isFinite(n) ? n : d; };
+
+router.get('/memory/info', async (_req: Request, res: Response) => {
+  try { const g = buildGrid(await load()); res.json({ days: g.D, from: g.dates[0], to: g.dates[g.D - 1], dates: g.dates, candleTypes: CANDLE_TYPES }); }
+  catch (e) { memErr(res, 'info', e); }
+});
+router.get('/memory/daymap', async (req: Request, res: Response) => {
+  const gap = String(req.query.gap || 'all'), dayType = String(req.query.dayType || 'all'), unit = String(req.query.unit || 'pts');
+  const wd = num(req.query.wd, -1);
+  if (!['all', 'up', 'down', 'flat'].includes(gap) || !['all', 'trend', 'range'].includes(dayType) || !['pts', 'atr'].includes(unit) || !(wd >= -1 && wd <= 4))
+    return res.status(400).json({ error: 'bad filter' });
+  try { res.json(dayMap(buildGrid(await load()), { wd, gap: gap as GapFilter, dayType: dayType as DayTypeFilter, unit: unit as 'pts' | 'atr' })); }
+  catch (e) { memErr(res, 'daymap', e); }
+});
+router.get('/memory/analog', async (req: Request, res: Response) => {
+  const date = req.query.date ? String(req.query.date) : undefined, time = String(req.query.time || '10:30');
+  if (date && !/^\d{4}-\d{2}-\d{2}$/.test(date)) return res.status(400).json({ error: 'date must be YYYY-MM-DD' });
+  try {
+    res.json(analog(buildGrid(await load()), { date, time, lookback: num(req.query.lookback, 60), ahead: num(req.query.ahead, 30), k: num(req.query.k, 40), tol: num(req.query.tol, 10) }));
+  } catch (e) { memErr(res, 'analog', e); }
+});
+router.get('/memory/candles', async (req: Request, res: Response) => {
+  try { res.json(candleStats(buildGrid(await load()), { tf: num(req.query.tf, 5), next: num(req.query.next, 3) })); }
+  catch (e) { memErr(res, 'candles', e); }
 });
 
 export default router;

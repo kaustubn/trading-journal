@@ -37,3 +37,20 @@
 .eh-years i.up { background: rgba(8,153,129,.25); color: var(--green); }
 .eh-years i.dn { background: rgba(242,54,69,.2); color: var(--red); }
 .eh-all3 td:first-child { box-shadow: inset 3px 0 0 var(--green); font-weight: 600; }
+
+/* Market Memory */
+.mm-two { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; margin-top: 8px; }
+.mm-bars { display: flex; align-items: flex-end; gap: 2px; height: 90px; padding-bottom: 16px; }
+.mm-bar { flex: 1; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; position: relative; min-width: 4px; }
+.mm-bar i { display: block; border-radius: 2px 2px 0 0; min-height: 1px; }
+.mm-bar span { position: absolute; bottom: -15px; left: 0; font-size: 9.5px; color: var(--text-dim); white-space: nowrap; }
+.mm-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 8px; }
+.mm-chips span { font-size: 12px; padding: 3px 8px; border-radius: 999px; border: 1px solid var(--border); background: var(--card); font-variant-numeric: tabular-nums; }
+.mm-table td { text-align: center; padding: 4px 6px; background: var(--card); border-radius: 4px; white-space: nowrap; }
+.mm-table td.bl-up { color: var(--green); }
+.mm-table td.bl-down { color: var(--red); }
+.mm-link { background: none; border: 1px solid var(--border); color: var(--brand-2); border-radius: var(--radius-sm); padding: 3px 8px; font-size: 12px; cursor: pointer; min-height: 28px; }
+.mm-candles { min-width: 1500px; }
+.mm-candles .pf-slot { position: sticky; left: 0; background: var(--bg, var(--card)); z-index: 1; text-align: left; min-width: 150px; }
+.mm-candles .pf-cell { font-size: 11px; min-width: 38px; }
+.mm-detail { display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: baseline; margin-top: 8px; padding: 8px 10px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--card); font-size: 13px; }
