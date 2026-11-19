@@ -133,19 +133,29 @@ router.post('/trades', async (req: Request, res: Response) => {
       attemptId = ins.rows[0].id;
     }
 
+    // Practice session this trade belongs to (Backtest Session Tracker); only the caller's own sessions count
+    let btSessionId: number | null = null;
+    if (Number.isInteger(b.bt_session_id)) {
+      const own = await pool.query('SELECT id FROM bt_sessions WHERE id = $1 AND user_id = $2', [b.bt_session_id, req.userId]);
+      btSessionId = own.rows[0]?.id ?? null;
+    }
+
     const result = await pool.query(
       `INSERT INTO trades (account_id, broker_trade_id, symbol, entry_time, exit_time, entry_price, exit_price,
-         quantity, pnl, setup_tag, notes, tags, stop_loss, target, attempt_id, session, timeframe, planned_rr, screenshot)
+         quantity, pnl, setup_tag, notes, tags, stop_loss, target, attempt_id, session, timeframe, planned_rr, screenshot, bt_session_id)
        VALUES ($1, $2, $3, journal_utc_to_wall($4::timestamptz, $19), journal_utc_to_wall($5::timestamptz, $19), $6, $7,
-         $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $20)
+         $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $20, $21)
        ON CONFLICT (broker_trade_id) DO NOTHING
        RETURNING *`,
       [
         accountId, brokerTradeId, symbol, entryDate.toISOString(), exitDate.toISOString(), entry_price, exit_price,
         quantity, pnl, setupTag, notes, ['Bar replay', sideLabel, ...(ruleBreaks.length ? ['Rule break'] : [])], stop_loss, target, attemptId,
-        sessionFor(entryDate), timeframe, plannedRr, tz, shot,
+        sessionFor(entryDate), timeframe, plannedRr, tz, shot, btSessionId,
       ]
     );
+    if (btSessionId && result.rows.length) {
+      await pool.query('UPDATE bt_sessions SET trades_logged = (SELECT COUNT(*) FROM trades WHERE bt_session_id = $1) WHERE id = $1', [btSessionId]);
+    }
 
     if (result.rows.length === 0) {
       const existing = await pool.query(

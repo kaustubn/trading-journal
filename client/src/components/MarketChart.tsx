@@ -27,6 +27,8 @@ import {
   Meta, BarsResp, toK, FocusTrade, ChartType, CHART_TYPES, LAYOUTS, LayoutMode, layoutCount, PaneSource, applyTvPreset, applyStdPreset, snapshotOf, applySnapshot,
 } from '../chart/config';
 import '../styles/MarketChart.css';
+import SessionTimerBar from './SessionTimerBar';
+import { activeBtSessionId } from '../utils/sessionTimer';
 
 // Drawing shortcuts (TradingView's), matched on the physical key
 const DRAW_KEYS: Record<string, Tool> = { KeyT: 'trend', KeyH: 'hline', KeyJ: 'hray', KeyV: 'vline', KeyF: 'fib' };
@@ -452,6 +454,7 @@ export default function MarketChart({ token, focus }: { token: string; focus?: {
       rule_breaks: t.ruleBreaks.length ? t.ruleBreaks : undefined,
       pnl: t.pnl,
       screenshot: shots.current.get(t.id) || undefined,
+      bt_session_id: activeBtSessionId() ?? undefined,
     }, auth())
       .then(r => engine.markSaved(t.id, 'saved', undefined, { dbId: r.data?.trade?.id, tags: r.data?.trade?.tags ?? [] }))
       .catch(err => engine.markSaved(t.id, 'failed', err?.response?.data?.error || 'Could not reach the server.'));
@@ -802,6 +805,13 @@ export default function MarketChart({ token, focus }: { token: string; focus?: {
             </div>
           )}
           {replayPick && <div className="mc-pick-hint">Click the candle to start from (on any chart) — everything after it is hidden. Esc to cancel.</div>}
+          {replayOn && (
+            <SessionTimerBar token={token} setups={Array.from(new Set(engine.trades.map(t => t.setup).filter(Boolean))) as string[]}
+              context={() => ({
+                replayDate: engine.cursor ? new Date(engine.cursor).toLocaleDateString('en-CA', { timeZone: 'America/New_York' }) : null,
+                instrument: 'NQ', timeframe: tfLabel(ws.panes.get(activeIdx)?.tf() ?? 1),
+              })} />
+          )}
           {replayOn && (
             <ReplayBar engine={engine} clock={s.clock} accounts={accounts} accountId={replayAcct}
               onAccount={setReplayAcct} onRetry={t => saveTradeRef.current(t)} onExit={exitReplay} coach={coachHooks}

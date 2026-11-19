@@ -33,6 +33,15 @@ export function verifyToken(req: Request, res: Response, next: NextFunction) {
   }
 }
 
+/** User id from a raw token (for navigator.sendBeacon bodies, which cannot carry an Authorization header). */
+export function userIdFromToken(token: unknown): number | null {
+  if (typeof token !== 'string' || !token) return null;
+  try {
+    const d = jwt.verify(token, secret(), { algorithms: ['HS256'] }) as { userId: number };
+    return Number.isInteger(d?.userId) && d.userId > 0 ? d.userId : null;
+  } catch { return null; }
+}
+
 export function generateToken(userId: number): string {
   return jwt.sign({ userId }, secret(), { algorithm: 'HS256', expiresIn: '7d' });
 }

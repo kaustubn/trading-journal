@@ -37,6 +37,7 @@ import mentorRouter from './api/mentor';
 import replayRouter from './api/replay';
 import patternsRouter from './api/patterns';
 import chartTradesRouter from './api/chartTrades';
+import btSessionsRouter from './api/btSessions';
 
 // Fail fast: never run with a missing or weak token-signing secret
 if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 32) {
@@ -102,6 +103,7 @@ app.get('/api/health', (req, res) => { res.json({ status: 'ok' }); });
 // Routes
 app.use('/api/auth', authRouter);
 app.use('/api/admin', adminRouter);
+app.use('/api/bt-sessions', btSessionsRouter); // own auth (beacon carries its token in the body); keep above the '/api' mounts
 app.use('/api/bars', barsRouter); // own auth (admin only); keep above the '/api' mounts
 app.use('/api/coach/replay', coachReplayRouter); // own auth (admin only)
 app.use('/api/chart/settings', chartSettingsRouter);
