@@ -742,12 +742,17 @@ const templates: OverlayTemplate<Drawing>[] = [
       const t1 = Math.max(overlay.points[0]?.timestamp ?? 0, overlay.points[1]?.timestamp ?? 0);
       const bars = barsIn(chart.getDataList(), t0, t1);
       const x0 = Math.min(a.x, b.x), x1 = Math.max(a.x, b.x);
+      // Invisible click area over the whole box: the bars and labels ignore the mouse, so without this the
+      // profile could only be grabbed on its thin dashed line (it looked impossible to move or delete).
+      const hit = (yA: number, yB: number): Fig => ({ type: 'rect', attrs: { x: x0, y: Math.min(yA, yB), width: Math.max(8, x1 - x0), height: Math.max(8, Math.abs(yB - yA)) },
+        styles: { style: 'fill', color: 'rgba(0, 0, 0, 0.001)', borderSize: 0 } });
       const figs: Fig[] = [
         line([{ x: x0, y: a.y }, { x: x1, y: a.y }], d, { styles: { ...lineStyle(d), style: 'dashed', dashedValue: [3, 3], size: 1 } }),
       ];
-      if (!bars.length) return figs;
+      if (!bars.length) return [hit(a.y, b.y), ...figs];
       const vp = volumeProfile(bars, 24);
-      if (!vp) return figs;
+      if (!vp) return [hit(a.y, b.y), ...figs];
+      figs.unshift(hit(yAxis.convertToPixel(vp.lo), yAxis.convertToPixel(vp.lo + vp.rows.length * vp.step)));
       const width = Math.max(60, (x1 - x0) * 0.3);
       const max = Math.max(...vp.rows.map(r => r.up + r.down)) || 1;
       vp.rows.forEach((r, i) => {
@@ -760,7 +765,7 @@ const templates: OverlayTemplate<Drawing>[] = [
         if (wd > 0) figs.push({ type: 'rect', ignoreEvent: true, attrs: { x: x0 + wu, y, width: wd, height: h }, styles: { style: 'fill', color: inVA ? 'rgba(251, 192, 45, 0.7)' : 'rgba(251, 192, 45, 0.3)' } });
       });
       const pocY = yAxis.convertToPixel(vp.lo + (vp.poc + 0.5) * vp.step);
-      figs.push({ type: 'line', ignoreEvent: true, attrs: { coordinates: [{ x: x0, y: pocY }, { x: x1, y: pocY }] }, styles: { style: 'solid', size: 2, color: 'rgba(242, 54, 69, 1)' } });
+      figs.push({ type: 'line', attrs: { coordinates: [{ x: x0, y: pocY }, { x: x1, y: pocY }] }, styles: { style: 'solid', size: 2, color: 'rgba(242, 54, 69, 1)' } });
       const vah = vp.lo + (vp.vaHi + 1) * vp.step, val = vp.lo + vp.vaLo * vp.step, poc = vp.lo + (vp.poc + 0.5) * vp.step;
       figs.push(label(x1, pocY, `POC ${fmtPrice(poc)}`, 'rgba(242, 54, 69, 0.92)', 'right'));
       figs.push(label(x1, yAxis.convertToPixel(vah), `VAH ${fmtPrice(vah)}`, 'rgba(41, 98, 255, 0.85)', 'right'));
