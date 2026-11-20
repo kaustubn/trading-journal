@@ -40,6 +40,7 @@ import PracticeLog from './components/PracticeLog';
 import NewsAnalyzer from './components/NewsAnalyzer';
 import NewsBlackoutBanner from './components/NewsBlackoutBanner';
 import PropBreachBanner from './components/PropBreachBanner';
+import EdgeOddsCard from './components/EdgeOddsCard';
 import { setChartLinkEnabled, OPEN_CHART_EVENT } from './utils/chartLink';
 import FocusPanel from './components/FocusPanel';
 import { PageHeader, SubTabs } from './components/ui';
@@ -617,9 +618,10 @@ export default function App() {
                     attempt={selectedAttempt} rangeLabel={range.label} isAdmin={isAdmin} onNavigate={go} />
                 </ErrorBoundary>
               )}
-              {token && selectedAccount && (
+              {token && selectedAccount && (<>
                 <ErrorBoundary name="Prop Status"><PropStatus token={token} accountId={selectedAccount} attempt={selectedAttempt} /></ErrorBoundary>
-              )}
+                <ErrorBoundary name="Edge check"><EdgeOddsCard token={token} accountId={selectedAccount} attempt={selectedAttempt} onNavigate={go} /></ErrorBoundary>
+              </>)}
               <Calendar
                 month={month}
                 year={year}
