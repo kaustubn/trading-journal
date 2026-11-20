@@ -486,6 +486,32 @@ export default function ChartPane({ index, tf, s, active, ws, onActivate }: Prop
         stop(); ctl.endMeasure(); ws.setMeasureArmed(false);
         return;
       }
+      if (ctl.canDragPlace) {
+        // Two-point tool: press, drag and release draws it in one move (TradingView style). A plain click
+        // still goes to the chart, which places the points one click at a time. The chart doesn't pan meanwhile.
+        const a = pointAt(e);
+        const chart = chartRef.current;
+        if (!a || !chart) return;
+        const sx = e.clientX, sy = e.clientY;
+        const scroll = chart.isScrollEnabled();
+        chart.setScrollEnabled(false);
+        let dragging = false;
+        const mv = (ev: MouseEvent) => {
+          if (!dragging && Math.hypot(ev.clientX - sx, ev.clientY - sy) > 5) dragging = true;
+          if (dragging) { const b = pointAt(ev); if (b) ctl.dragPreview(a, b); }
+        };
+        const up = (ev: MouseEvent) => {
+          window.removeEventListener('mousemove', mv, true);
+          window.removeEventListener('mouseup', up, true);
+          chart.setScrollEnabled(scroll);
+          if (!dragging) return;
+          const b = pointAt(ev);
+          if (b) ctl.dragPlace(a, b); else ctl.dragCancel();
+        };
+        window.addEventListener('mousemove', mv, true);
+        window.addEventListener('mouseup', up, true);
+        return;
+      }
       if (!(e.shiftKey || ws.measureArmed()) || ctl.active) {
         // An ordinary click removes the last measurement, like TradingView
         if (ctl.hasMeasure && !ctl.measuring) ctl.clearMeasure();

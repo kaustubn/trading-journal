@@ -20,6 +20,7 @@ export interface DrawView {
 const PANE = 'candle_pane';
 const GROUP = 'drawings';
 const MEASURE_ID = 'jc_measure_live';
+const DRAG_ID = 'jc_drag_place';
 const HISTORY = 100;
 const MODE = { off: 'normal', weak: 'weak_magnet', strong: 'strong_magnet' } as const;
 
@@ -270,6 +271,7 @@ export class DrawingController {
 
   /** Abandon a drawing that is still being placed. */
   cancel() {
+    this.dragCancel();
     if (this.manual) {
       this.chart.removeOverlay({ id: this.manual.draft.id });
       this.manual = null;
@@ -285,14 +287,73 @@ export class DrawingController {
     this.onChange();
   }
 
+  // ---------- press, drag, release: places a two-point drawing in one move (TradingView style) ----------
+  /** A two-point tool is armed and its first point isn't placed yet (clicking point by point still works). */
+  get canDragPlace(): boolean {
+    if (!this.draftId || !this.active || TOOLS[this.active].steps !== 3) return false;
+    // KLineChart adds a point that follows the mouse before the first click, so check the draw step instead
+    // (1 = nothing clicked yet; the live overlay object carries it, the typings don't)
+    const o = this.chart.getOverlays({ id: this.draftId })[0] as (Overlay & { currentStep?: number }) | undefined;
+    return !!o && o.currentStep === 1;
+  }
+  private dragDraft(): Drawing | null {
+    if (!this.draftId) return null;
+    return (this.chart.getOverlays({ id: this.draftId })[0]?.extendData as Drawing | undefined) ?? null;
+  }
+  /** Magnet: snap the price to the bar's nearest open / high / low / close (weak: only when it is close by). */
+  private magnetize(dp: DPoint, raw: Partial<Point>): DPoint {
+    if (this.view.magnet === 'off' || typeof raw.dataIndex !== 'number') return dp;
+    const bar = this.chart.getDataList()[raw.dataIndex];
+    if (!bar) return dp;
+    const best = [bar.open, bar.high, bar.low, bar.close].reduce((a, b) => (Math.abs(b - dp.p) < Math.abs(a - dp.p) ? b : a));
+    if (this.view.magnet === 'weak') {
+      const px = this.chart.convertToPixel([{ value: dp.p }, { value: best }], { paneId: PANE }) as Partial<{ y: number }>[];
+      if (Math.abs((px[0]?.y ?? 0) - (px[1]?.y ?? 1e9)) > 14) return dp;
+    }
+    return { t: dp.t, p: best };
+  }
+  private dragPts(a: Partial<Point>, b: Partial<Point>): DPoint[] | null {
+    const pa = this.toDP(a, true), pb = this.toDP(b, true);
+    return pa && pb ? [this.magnetize(pa, a), this.magnetize(pb, b)] : null;
+  }
+  /** While dragging: show the drawing between where the mouse went down and where it is now. */
+  dragPreview(a: Partial<Point>, b: Partial<Point>) {
+    const draft = this.dragDraft();
+    const pts = this.dragPts(a, b);
+    if (!draft || !pts) return;
+    const points = pts.map(p => ({ timestamp: p.t, value: p.p }));
+    const extendData = { ...draft, points: pts };
+    if (this.chart.getOverlays({ id: DRAG_ID }).length) this.chart.overrideOverlay({ id: DRAG_ID, points, extendData } as unknown as Partial<OverlayCreate>);
+    else this.create({ id: DRAG_ID, name: TOOLS[draft.tool].overlay, groupId: 'draft', paneId: PANE, lock: true, points, extendData });
+  }
+  dragCancel() { this.chart.removeOverlay({ id: DRAG_ID }); }
+  /** Mouse released after a drag: the drawing is placed from the press point to the release point. */
+  dragPlace(a: Partial<Point>, b: Partial<Point>) {
+    const draft = this.dragDraft();
+    const pts = this.dragPts(a, b);
+    this.dragCancel();
+    if (!draft || !pts || !this.draftId) return;
+    const id = this.draftId;
+    this.draftId = null;
+    this.active = null;
+    this.chart.removeOverlay({ id });
+    this.addNew(draft, id, pts);
+  }
+
   private finishDraft(o: Overlay<Drawing>) {
     const draft = o.extendData;
     this.draftId = null;
     this.active = null;
-    let points: DPoint[] = o.points
+    const points: DPoint[] = o.points
       .filter(p => typeof p.timestamp === 'number' && typeof p.value === 'number')
       .map(p => ({ t: p.timestamp!, p: toTick(p.value!) }));
     if (!draft || !points.length) { this.chart.removeOverlay({ id: o.id }); this.onChange(); return; }
+    this.addNew(draft, o.id, points);
+  }
+
+  /** Save a just-placed drawing and select it (or start the same tool again in stay-in-drawing mode). */
+  private addNew(draft: Drawing, id: string, placed: DPoint[]) {
+    let points = placed;
     if (draft.tool === 'long' || draft.tool === 'short') {
       points = positionPoints(points[0], draft.tool, this.visiblePriceRange(), this.timeAfterBars(points[0].t, 30));
       const tpl = TEMPLATES[draft.tool]?.find(x => x.name === this.view.tpl?.[draft.tool])?.style;
@@ -301,7 +362,7 @@ export class DrawingController {
         points = [e, { t: e.t, p: e.p + dir * tpl.targetPts }, { t: e.t, p: e.p - dir * tpl.stopPts }, points[3]];
       }
     }
-    const d: Drawing = { ...draft, id: o.id, points };
+    const d: Drawing = { ...draft, id, points };
     this.selected = this.stayDrawing ? null : d.id;
     this.justCreated = d.id;
     this.store.commit([...this.store.drawings, d]);
@@ -335,6 +396,8 @@ export class DrawingController {
 
   private events(): Partial<OverlayCreate<Drawing>> {
     return {
+      // grabbing a drawing selects it (like TradingView), so Delete / the edit bar work right after a drag
+      onPressedMoveStart: ({ overlay }) => { if (overlay.id !== this.draftId && this.selected !== overlay.id) { this.selected = overlay.id; this.onChange(); } },
       onPressedMoveEnd: ({ overlay }) => this.moved(overlay as Overlay<Drawing>),
       onSelected: ({ overlay }) => { if (overlay.id !== this.draftId) { this.selected = overlay.id; this.onChange(); } },
       onDeselected: ({ overlay }) => { if (this.selected === overlay.id) { this.selected = null; this.onChange(); } },

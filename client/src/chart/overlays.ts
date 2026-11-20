@@ -370,11 +370,11 @@ const templates: OverlayTemplate<Drawing>[] = [
         const price = p1 + (p0 - p1) * lv.v;
         if (i > 0 && shade) {
           const yPrev = b.y + (a.y - b.y) * lvls[i - 1].v;
-          figs.push({ type: 'rect', ignoreEvent: true, attrs: { x: xl, y: Math.min(y, yPrev), width: xr - xl, height: Math.abs(y - yPrev) }, styles: { style: 'fill', color: rgba(lv.c, i % 2 ? 0.06 : 0.11) } });
+          figs.push({ type: 'rect', attrs: { x: xl, y: Math.min(y, yPrev), width: xr - xl, height: Math.abs(y - yPrev) }, styles: { style: 'fill', color: rgba(lv.c, i % 2 ? 0.06 : 0.11) } });
         }
         figs.push(line([{ x: xl, y }, { x: xr, y }], d, { styles: { ...lineStyle(d), color: lv.c, style: 'solid' } }));
         figs.push({
-          type: 'text', ignoreEvent: true,
+          type: 'text',
           attrs: { x: xl - 4, y, text: `${lv.v} (${fmtPrice(price)})`, align: 'right', baseline: 'middle' },
           styles: { color: lv.c, size: 11, family: FONT, backgroundColor: 'transparent', borderColor: 'transparent', paddingLeft: 0, paddingRight: 0, paddingTop: 0, paddingBottom: 0 },
         });
@@ -398,7 +398,7 @@ const templates: OverlayTemplate<Drawing>[] = [
         { type: 'polygon', attrs: { coordinates: [a, b, b2, a2] }, styles: { style: 'fill', color: rgba(color, 0.08) } },
         line([a, b], d),
         line([a2, b2], d),
-        line([{ x: a.x, y: a.y + dy / 2 }, { x: b.x, y: b.y + dy / 2 }], d, { ignoreEvent: true, styles: { color, size: 1, style: 'dashed', dashedValue: [4, 4] } }),
+        line([{ x: a.x, y: a.y + dy / 2 }, { x: b.x, y: b.y + dy / 2 }], d, { styles: { color, size: 1, style: 'dashed', dashedValue: [4, 4] } }),
       ];
     },
   },
@@ -460,7 +460,7 @@ const templates: OverlayTemplate<Drawing>[] = [
         { type: 'rect', attrs: { x: x0, y: y0, width: Math.max(1, x1 - x0), height: Math.max(1, y1 - y0) }, styles: { style: 'fill', color: rgba(st.color, 0.15) } },
         line([{ x: x0, y: y0 }, { x: x0, y: y1 }], d), line([{ x: x1, y: y0 }, { x: x1, y: y1 }], d),
         line([tail, tip], d),
-        { type: 'polygon', ignoreEvent: true, attrs: { coordinates: arrowHead(tail, tip, 7) }, styles: { style: 'fill', color: st.color } },
+        { type: 'polygon', attrs: { coordinates: arrowHead(tail, tip, 7) }, styles: { style: 'fill', color: st.color } },
         label((x0 + x1) / 2, y1 + 14, `${s.bars} bars, ${fmtSpan(s.span)}${s.vol ? ` · Vol ${fmtVol(s.vol)}` : ''}`, rgba(st.color, 0.92)),
       ];
     },
@@ -483,8 +483,8 @@ const templates: OverlayTemplate<Drawing>[] = [
       return [
         { type: 'rect', attrs: { x: x0, y: y0, width: Math.max(1, x1 - x0), height: Math.max(1, y1 - y0) }, styles: { style: 'fill', color: rgba(st.color, 0.15) } },
         line([vTail, vTip], d), line([hTail, hTip], d),
-        { type: 'polygon', ignoreEvent: true, attrs: { coordinates: arrowHead(vTail, vTip, 7) }, styles: { style: 'fill', color: st.color } },
-        { type: 'polygon', ignoreEvent: true, attrs: { coordinates: arrowHead(hTail, hTip, 7) }, styles: { style: 'fill', color: st.color } },
+        { type: 'polygon', attrs: { coordinates: arrowHead(vTail, vTip, 7) }, styles: { style: 'fill', color: st.color } },
+        { type: 'polygon', attrs: { coordinates: arrowHead(hTail, hTip, 7) }, styles: { style: 'fill', color: st.color } },
         label(mx, (diff >= 0 ? y0 - 16 : y1 + 16),
           `${signed(diff)} (${signed((diff / p0) * 100)}%) ${signed(diff / TICK, 0)} ticks · ${s.bars} bars, ${fmtSpan(s.span)}${s.vol ? ` · Vol ${fmtVol(s.vol)}` : ''}`,
           rgba(st.color, 0.92)),
@@ -505,16 +505,16 @@ const templates: OverlayTemplate<Drawing>[] = [
       figs.push({ type: 'rect', attrs: { x: Math.min(a.x, b.x), y: Math.min(a.y, b.y), width: Math.abs(b.x - a.x), height: Math.abs(b.y - a.y) },
         styles: { style: 'stroke_fill', color: rgba(st.color, 0.06), borderColor: st.color, borderSize: st.size } });
       LV.forEach((f, i) => {
-        figs.push({ type: 'rect', ignoreEvent: true, attrs: { x: Math.min(a.x, b.x), y: Math.min(Y(f), Y(LV[i + 1] ?? 1)), width: Math.abs(b.x - a.x), height: Math.abs(Y(LV[i + 1] ?? 1) - Y(f)) },
+        figs.push({ type: 'rect', attrs: { x: Math.min(a.x, b.x), y: Math.min(Y(f), Y(LV[i + 1] ?? 1)), width: Math.abs(b.x - a.x), height: Math.abs(Y(LV[i + 1] ?? 1) - Y(f)) },
           styles: { style: 'fill', color: rgba(st.color, i % 2 ? 0.04 : 0.09) } });
-        figs.push(line([{ x: a.x, y: Y(f) }, { x: b.x, y: Y(f) }], d, { ignoreEvent: true, styles: thin }));
-        figs.push(line([{ x: X(f), y: a.y }, { x: X(f), y: b.y }], d, { ignoreEvent: true, styles: thin }));
+        figs.push(line([{ x: a.x, y: Y(f) }, { x: b.x, y: Y(f) }], d, { styles: thin }));
+        figs.push(line([{ x: X(f), y: a.y }, { x: X(f), y: b.y }], d, { styles: thin }));
       });
       // fans from the first corner to the far edges, and both diagonals
       figs.push(line([a, b], d), line([{ x: a.x, y: b.y }, { x: b.x, y: a.y }], d));
       for (const f of LV) {
-        figs.push(line([a, { x: b.x, y: Y(f) }], d, { ignoreEvent: true, styles: thin }));
-        figs.push(line([a, { x: X(f), y: b.y }], d, { ignoreEvent: true, styles: thin }));
+        figs.push(line([a, { x: b.x, y: Y(f) }], d, { styles: thin }));
+        figs.push(line([a, { x: X(f), y: b.y }], d, { styles: thin }));
       }
       return figs;
     },
@@ -578,7 +578,7 @@ const templates: OverlayTemplate<Drawing>[] = [
         const y = c.y + (price - pc) * ppu;
         figs.push(line([{ x: xl, y }, { x: xr, y }], d, { styles: { ...lineStyle(d), style: 'solid', size: 1, color: v === 1 ? color : rgba(color, 0.75) } }));
         figs.push({
-          type: 'text', ignoreEvent: true,
+          type: 'text',
           attrs: { x: xl - 4, y, text: `${v} (${fmtPrice(price)})`, align: 'right', baseline: 'middle' },
           styles: { color, size: 11, family: FONT, backgroundColor: 'transparent', borderColor: 'transparent', paddingLeft: 0, paddingRight: 0, paddingTop: 0, paddingBottom: 0 },
         });
@@ -607,7 +607,7 @@ const templates: OverlayTemplate<Drawing>[] = [
       const box = b ?? { x: a.x + 40, y: a.y - 40 };
       return [
         line([a, box], d, { styles: { ...st, size: 1, style: 'solid' } }),
-        { type: 'circle', ignoreEvent: true, attrs: { x: a.x, y: a.y, r: 2.5 }, styles: { style: 'fill', color: st.color } },
+        { type: 'circle', attrs: { x: a.x, y: a.y, r: 2.5 }, styles: { style: 'fill', color: st.color } },
         {
           type: 'text', attrs: { x: box.x, y: box.y, text: d?.text || 'Note', align: 'center', baseline: 'middle' },
           styles: { color: '#ffffff', size: 12, family: FONT, weight: 'normal', backgroundColor: rgba(st.color, 0.92), borderColor: st.color, borderRadius: 4, paddingLeft: 8, paddingRight: 8, paddingTop: 5, paddingBottom: 5 },
@@ -624,7 +624,7 @@ const templates: OverlayTemplate<Drawing>[] = [
       const d = overlay.extendData, c = lineStyle(d).color;
       const a = coordinates[0];
       return [
-        { type: 'polygon', ignoreEvent: true, attrs: { coordinates: [a, { x: a.x + 8, y: a.y - 6 }, { x: a.x + 8, y: a.y + 6 }] }, styles: { style: 'fill', color: c } },
+        { type: 'polygon', attrs: { coordinates: [a, { x: a.x + 8, y: a.y - 6 }, { x: a.x + 8, y: a.y + 6 }] }, styles: { style: 'fill', color: c } },
         { type: 'text', attrs: { x: a.x + 8, y: a.y, text: d?.text ? `${d.text} ${fmtPrice(p)}` : fmtPrice(p), align: 'left', baseline: 'middle' },
           styles: { color: '#ffffff', size: 11, family: FONT, weight: 'normal', backgroundColor: c, borderColor: c, borderRadius: 2, paddingLeft: 5, paddingRight: 6, paddingTop: 3, paddingBottom: 3 } },
       ];
@@ -643,7 +643,7 @@ const templates: OverlayTemplate<Drawing>[] = [
       return [
         { type: 'polygon', attrs: { coordinates: head }, styles: { style: 'fill', color: c } },
         { type: 'rect', attrs: { x: x - w / 3, y: s > 0 ? tip.y + w : tip.y - w - w * 1.4, width: (w * 2) / 3, height: w * 1.4 }, styles: { style: 'fill', color: c } },
-        ...(d?.text ? [{ type: 'text', ignoreEvent: true, attrs: { x, y: tip.y + s * (w * 2.6 + 2), text: d.text, align: 'center', baseline: s > 0 ? 'top' : 'bottom' },
+        ...(d?.text ? [{ type: 'text', attrs: { x, y: tip.y + s * (w * 2.6 + 2), text: d.text, align: 'center', baseline: s > 0 ? 'top' : 'bottom' },
           styles: { color: c, size: 12, family: FONT, backgroundColor: 'transparent', borderColor: 'transparent', paddingLeft: 0, paddingRight: 0, paddingTop: 0, paddingBottom: 0 } } as Fig] : []),
       ];
     },
@@ -656,8 +656,8 @@ const templates: OverlayTemplate<Drawing>[] = [
       const names = ['X', 'A', 'B', 'C', 'D'];
       const figs: Fig[] = [];
       const c = coordinates;
-      if (c.length >= 3) figs.push({ type: 'polygon', ignoreEvent: true, attrs: { coordinates: [c[0], c[1], c[2]] }, styles: { style: 'fill', color: rgba(st.color, 0.12) } });
-      if (c.length >= 5) figs.push({ type: 'polygon', ignoreEvent: true, attrs: { coordinates: [c[2], c[3], c[4]] }, styles: { style: 'fill', color: rgba(st.color, 0.12) } });
+      if (c.length >= 3) figs.push({ type: 'polygon', attrs: { coordinates: [c[0], c[1], c[2]] }, styles: { style: 'fill', color: rgba(st.color, 0.12) } });
+      if (c.length >= 5) figs.push({ type: 'polygon', attrs: { coordinates: [c[2], c[3], c[4]] }, styles: { style: 'fill', color: rgba(st.color, 0.12) } });
       if (c.length >= 2) figs.push(line(c, d));
       if (c.length >= 3) figs.push(line([c[0], c[2]], d, { styles: { ...st, style: 'dashed', dashedValue: [3, 3], size: 1 } }));
       if (c.length >= 5) figs.push(line([c[2], c[4]], d, { styles: { ...st, style: 'dashed', dashedValue: [3, 3], size: 1 } }), line([c[1], c[3]], d, { styles: { ...st, style: 'dashed', dashedValue: [3, 3], size: 1 } }));
@@ -701,7 +701,7 @@ const templates: OverlayTemplate<Drawing>[] = [
       c.forEach((pt, i) => {
         if (i === 0 || i >= names.length) return;
         const up = i < c.length - 1 ? c[i + 1].y > pt.y : c[i - 1].y > pt.y; // a peak: label above
-        figs.push({ type: 'text', ignoreEvent: true, attrs: { x: pt.x, y: pt.y + (up ? -14 : 14), text: names[i], align: 'center', baseline: 'middle' },
+        figs.push({ type: 'text', attrs: { x: pt.x, y: pt.y + (up ? -14 : 14), text: names[i], align: 'center', baseline: 'middle' },
           styles: { color: '#ffffff', size: 11, family: FONT, weight: 'bold', backgroundColor: st.color, borderColor: st.color, borderRadius: 9, paddingLeft: 5, paddingRight: 5, paddingTop: 2, paddingBottom: 2 } });
       });
       return figs;
@@ -721,10 +721,10 @@ const templates: OverlayTemplate<Drawing>[] = [
       const rows = anchoredVwap(data, anchor).filter(r => r[0] >= range.from - 1 && r[0] <= range.to);
       if (rows.length < 1) return [];
       const pt = (r: [number, number, number, number], k: 1 | 2 | 3) => ({ x: xAxis.convertToPixel(r[0]), y: yAxis.convertToPixel(r[k]) });
-      const figs: Fig[] = [line(rows.map(r => pt(r, 1)), d, { ignoreEvent: true })];
+      const figs: Fig[] = [line(rows.map(r => pt(r, 1)), d, {})];
       // ±1 standard deviation bands, faint
       const band = { ...lineStyle(d), color: rgba(lineStyle(d).color, 0.4), style: 'dashed', dashedValue: [3, 3], size: 1 };
-      figs.push(line(rows.map(r => pt(r, 2)), d, { ignoreEvent: true, styles: band }), line(rows.map(r => pt(r, 3)), d, { ignoreEvent: true, styles: band }));
+      figs.push(line(rows.map(r => pt(r, 2)), d, { styles: band }), line(rows.map(r => pt(r, 3)), d, { styles: band }));
       const last = rows[rows.length - 1];
       figs.push(label(pt(last, 1).x - 4, pt(last, 1).y - 11, `AVWAP ${fmtPrice(last[1])}`, lineStyle(d).color, 'right'));
       return figs;
@@ -761,8 +761,8 @@ const templates: OverlayTemplate<Drawing>[] = [
         const inVA = i >= vp.vaLo && i <= vp.vaHi;
         const wu = (r.up / max) * width, wd = (r.down / max) * width;
         const y = Math.min(yTop, yBot);
-        if (wu > 0) figs.push({ type: 'rect', ignoreEvent: true, attrs: { x: x0, y, width: wu, height: h }, styles: { style: 'fill', color: inVA ? 'rgba(41, 98, 255, 0.7)' : 'rgba(41, 98, 255, 0.3)' } });
-        if (wd > 0) figs.push({ type: 'rect', ignoreEvent: true, attrs: { x: x0 + wu, y, width: wd, height: h }, styles: { style: 'fill', color: inVA ? 'rgba(251, 192, 45, 0.7)' : 'rgba(251, 192, 45, 0.3)' } });
+        if (wu > 0) figs.push({ type: 'rect', attrs: { x: x0, y, width: wu, height: h }, styles: { style: 'fill', color: inVA ? 'rgba(41, 98, 255, 0.7)' : 'rgba(41, 98, 255, 0.3)' } });
+        if (wd > 0) figs.push({ type: 'rect', attrs: { x: x0 + wu, y, width: wd, height: h }, styles: { style: 'fill', color: inVA ? 'rgba(251, 192, 45, 0.7)' : 'rgba(251, 192, 45, 0.3)' } });
       });
       const pocY = yAxis.convertToPixel(vp.lo + (vp.poc + 0.5) * vp.step);
       figs.push({ type: 'line', attrs: { coordinates: [{ x: x0, y: pocY }, { x: x1, y: pocY }] }, styles: { style: 'solid', size: 2, color: 'rgba(242, 54, 69, 1)' } });
