@@ -84,6 +84,17 @@ export const MIGRATIONS: Migration[] = [
       ALTER TABLE accounts ADD COLUMN IF NOT EXISTS news_blackout_after_min INT;
     `,
   },
+  {
+    // Prop rules: drawdown type (eod / intraday / static), lock at the starting balance, chosen firm preset.
+    // Existing accounts keep today's behaviour: trailing = follows every closed trade (intraday), not trailing = static.
+    id: '004_prop_drawdown_types',
+    sql: `
+      ALTER TABLE accounts ADD COLUMN IF NOT EXISTS prop_dd_type VARCHAR(10);
+      ALTER TABLE accounts ADD COLUMN IF NOT EXISTS prop_lock_at_start BOOLEAN NOT NULL DEFAULT false;
+      ALTER TABLE accounts ADD COLUMN IF NOT EXISTS prop_preset VARCHAR(40);
+      UPDATE accounts SET prop_dd_type = CASE WHEN prop_trailing = false THEN 'static' ELSE 'intraday' END WHERE prop_dd_type IS NULL;
+    `,
+  },
 ];
 
 export async function runMigrations(client: PoolClient, list: Migration[] = MIGRATIONS): Promise<string[]> {

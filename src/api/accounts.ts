@@ -3,6 +3,7 @@ import crypto from 'crypto';
 import pool from '../db';
 import { encrypt } from '../utils/crypto';
 import { getPlan, FREE_MAX_ACCOUNTS } from '../middleware/plan';
+import { drawdownFloor, bufferLevel, DdType } from '../shared/propRules';
 
 const router = Router();
 
@@ -266,7 +267,9 @@ router.put('/accounts/:id/prop-rules', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const user_id = req.userId;
-    const { starting_balance, profit_target, max_drawdown, daily_loss_limit, trailing, consistency_pct, min_trading_days } = req.body;
+    const { starting_balance, profit_target, max_drawdown, daily_loss_limit, trailing, consistency_pct, min_trading_days, dd_type, lock_at_start, preset } = req.body;
+    const ddType: DdType = dd_type === 'eod' || dd_type === 'intraday' || dd_type === 'static' ? dd_type : (trailing === false ? 'static' : 'intraday');
+    const presetId = typeof preset === 'string' && /^[a-z0-9-]{1,40}$/.test(preset) ? preset : null;
 
     const own = await pool.query('SELECT id FROM accounts WHERE id = $1 AND user_id = $2', [id, user_id]);
     if (own.rows.length === 0) return res.status(403).json({ error: 'Account not found' });
@@ -274,10 +277,10 @@ router.put('/accounts/:id/prop-rules', async (req: Request, res: Response) => {
     await pool.query(
       `UPDATE accounts SET prop_starting_balance=$1, prop_profit_target=$2,
          prop_max_drawdown=$3, prop_daily_loss_limit=$4, prop_trailing=$5,
-         prop_consistency_pct=$6, prop_min_trading_days=$7 WHERE id=$8`,
+         prop_consistency_pct=$6, prop_min_trading_days=$7, prop_dd_type=$9, prop_lock_at_start=$10, prop_preset=$11 WHERE id=$8`,
       [starting_balance ?? null, profit_target ?? null, max_drawdown ?? null,
-       daily_loss_limit ?? null, trailing !== false,
-       consistency_pct ?? null, min_trading_days ?? null, id]
+       daily_loss_limit ?? null, ddType !== 'static',
+       consistency_pct ?? null, min_trading_days ?? null, id, ddType, lock_at_start === true, presetId]
     );
     res.json({ success: true });
   } catch (error: any) {
@@ -297,7 +300,7 @@ router.get('/accounts/:id/prop-status', async (req: Request, res: Response) => {
     const acc = await pool.query(
       `SELECT prop_starting_balance, prop_profit_target, prop_max_drawdown,
               prop_daily_loss_limit, prop_trailing, prop_consistency_pct, prop_min_trading_days,
-              day_boundary_hour, cost_per_trade, micro_cost_per_trade
+              day_boundary_hour, cost_per_trade, micro_cost_per_trade, prop_dd_type, prop_lock_at_start, prop_preset
        FROM accounts WHERE id = $1 AND user_id = $2`,
       [id, user_id]
     );
@@ -356,9 +359,17 @@ router.get('/accounts/:id/prop-status', async (req: Request, res: Response) => {
     const dailyLimit = rules.prop_daily_loss_limit !== null ? Number(rules.prop_daily_loss_limit) : null;
     const trailing = rules.prop_trailing;
 
-    // Drawdown floor: trailing = peak - maxDd; static = start - maxDd
-    const ddFloor = maxDd !== null ? (trailing ? peak - maxDd : start - maxDd) : null;
+    // Drawdown floor by type (src/shared/propRules.ts): EOD trails end-of-day highs, intraday trails every
+    // closed-trade high, static never moves; lockAtStart stops a trailing floor at the starting balance.
+    const ddType: DdType = rules.prop_dd_type === 'eod' || rules.prop_dd_type === 'static' || rules.prop_dd_type === 'intraday'
+      ? rules.prop_dd_type : (trailing === false ? 'static' : 'intraday');
+    const lockAtStart = rules.prop_lock_at_start === true;
+    const fl = maxDd !== null ? drawdownFloor(tr.rows.map((r: any) => ({ day: r.d, pnl: Number(r.pnl) })), start, maxDd, ddType, lockAtStart) : null;
+    const ddFloor = fl ? fl.floor : null;
     const ddHeadroom = ddFloor !== null ? equity - ddFloor : null; // $ left before breach
+    const losses = tr.rows.map((r: any) => Number(r.pnl)).filter((x: number) => x < 0);
+    const avgLoss = losses.length ? losses.reduce((a: number, x: number) => a + x, 0) / losses.length : null;
+    const level = ddHeadroom !== null && maxDd ? bufferLevel(ddHeadroom, maxDd) : null;
     const ddBreached = ddHeadroom !== null ? ddHeadroom <= 0 : false;
 
     const targetProgress = target !== null && target !== 0 ? (netPnl / target) * 100 : null;
@@ -419,6 +430,12 @@ router.get('/accounts/:id/prop-status', async (req: Request, res: Response) => {
       data: {
         configured: true,
         trailing,
+        ddType,
+        lockAtStart,
+        floorLocked: fl ? fl.locked : false,
+        preset: rules.prop_preset ?? null,
+        avgLoss,
+        bufferLevel: level,
         startingBalance: start,
         equity,
         peak,

@@ -39,6 +39,7 @@ import PatternFinder from './components/PatternFinder';
 import PracticeLog from './components/PracticeLog';
 import NewsAnalyzer from './components/NewsAnalyzer';
 import NewsBlackoutBanner from './components/NewsBlackoutBanner';
+import PropBreachBanner from './components/PropBreachBanner';
 import { setChartLinkEnabled, OPEN_CHART_EVENT } from './utils/chartLink';
 import FocusPanel from './components/FocusPanel';
 import { PageHeader, SubTabs } from './components/ui';
@@ -574,6 +575,7 @@ export default function App() {
           {!showWall && <>
           {/* ---- DASHBOARD ---- */}
           {token && <NewsBlackoutBanner token={token} accountId={selectedAccount || null} />}
+          {token && <PropBreachBanner token={token} accountId={selectedAccount || null} attempt={selectedAttempt} />}
           {/* Date-range bar (filters Overview + Setup Performance + Breakdown + Report) */}
           {token && selectedAccount && ['dashboard', 'setups', 'breakdown', 'report'].includes(view) && (
             <DateRangeBar range={range} onChange={setRange} />

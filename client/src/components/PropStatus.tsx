@@ -3,6 +3,9 @@ import axios from 'axios';
 import { ShieldCheck, OctagonX, Trophy, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { num, money } from '../utils/format';
 import '../styles/PropStatus.css';
+import { PROP_PRESETS, DdType } from '../../../src/shared/propRules';
+
+const DD_LABEL: Record<DdType, string> = { eod: 'end-of-day trailing', intraday: 'intraday trailing', static: 'static' };
 
 interface PropStatusProps {
   token: string;
@@ -16,8 +19,17 @@ export default function PropStatus({ token, accountId, attempt }: PropStatusProp
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState({
     starting_balance: '', profit_target: '', max_drawdown: '', daily_loss_limit: '', trailing: true,
-    consistency_pct: '', min_trading_days: '',
+    consistency_pct: '', min_trading_days: '', dd_type: 'eod' as DdType, lock_at_start: false, preset: '',
   });
+  const applyPreset = (id: string) => {
+    const p = PROP_PRESETS.find(x => x.id === id);
+    if (!p) { setForm(f => ({ ...f, preset: '' })); return; }
+    const v = (x: number | null) => (x == null ? '' : String(x));
+    setForm(f => ({ ...f, preset: p.id, starting_balance: String(p.size), profit_target: v(p.target), max_drawdown: v(p.maxDrawdown),
+      daily_loss_limit: v(p.dailyLoss), consistency_pct: v(p.consistencyPct), min_trading_days: v(p.minDays), dd_type: p.ddType,
+      lock_at_start: p.lockAtStart, trailing: p.ddType !== 'static' }));
+  };
+  const preset = PROP_PRESETS.find(x => x.id === form.preset);
 
   const load = async () => {
     setLoading(true);
@@ -40,7 +52,10 @@ export default function PropStatus({ token, accountId, attempt }: PropStatusProp
         profit_target: parseFloat(form.profit_target) || null,
         max_drawdown: parseFloat(form.max_drawdown) || null,
         daily_loss_limit: parseFloat(form.daily_loss_limit) || null,
-        trailing: form.trailing,
+        trailing: form.dd_type !== 'static',
+        dd_type: form.dd_type,
+        lock_at_start: form.lock_at_start,
+        preset: form.preset || null,
         consistency_pct: parseFloat(form.consistency_pct) || null,
         min_trading_days: parseInt(form.min_trading_days) || null,
       }, { headers: { Authorization: `Bearer ${token}` } });
@@ -69,6 +84,13 @@ export default function PropStatus({ token, accountId, attempt }: PropStatusProp
       <div className="prop-status">
         <div className="prop-header"><h3><ShieldCheck className="ic-sm" /> Prop-firm rules</h3></div>
         <div className="prop-form">
+          <div className="pf-field pf-wide"><label>Firm preset <span className="pf-hint">fills the fields; check them against your firm's current rules</span></label>
+            <select value={form.preset} onChange={e => applyPreset(e.target.value)}>
+              <option value="">Custom rules</option>
+              {PROP_PRESETS.map(p => <option key={p.id} value={p.id}>{p.firm} — {p.plan}</option>)}
+            </select>
+            {preset && <span className="pf-hint">{preset.note} Rules checked {preset.checked} ({preset.source}).</span>}
+          </div>
           <div className="pf-field"><label>Starting Balance</label>
             <input type="number" value={form.starting_balance} placeholder="24000"
               onChange={e => setForm({ ...form, starting_balance: e.target.value })} /></div>
@@ -87,11 +109,18 @@ export default function PropStatus({ token, accountId, attempt }: PropStatusProp
           <div className="pf-field"><label>Min Trading Days</label>
             <input type="number" value={form.min_trading_days} placeholder="5"
               onChange={e => setForm({ ...form, min_trading_days: e.target.value })} /></div>
+          <div className="pf-field"><label>Drawdown type</label>
+            <select value={form.dd_type} onChange={e => setForm({ ...form, dd_type: e.target.value as DdType })}>
+              <option value="eod">End-of-day trailing</option>
+              <option value="intraday">Intraday trailing</option>
+              <option value="static">Static (never moves)</option>
+            </select>
+          </div>
           <div className="pf-field pf-toggle">
             <label>
-              <input type="checkbox" checked={form.trailing}
-                onChange={e => setForm({ ...form, trailing: e.target.checked })} />
-              Trailing drawdown (follows peak)
+              <input type="checkbox" checked={form.lock_at_start} disabled={form.dd_type === 'static'}
+                onChange={e => setForm({ ...form, lock_at_start: e.target.checked })} />
+              Floor stops at the starting balance
             </label>
           </div>
         </div>
@@ -111,7 +140,7 @@ export default function PropStatus({ token, accountId, attempt }: PropStatusProp
   return (
     <div className={`prop-status ${s.drawdownBreached || s.dailyBreached ? 'breached' : ''}`}>
       <div className="prop-header">
-        <h3><ShieldCheck className="ic-sm" /> Prop-firm standing <span className="pf-kind">{s.trailing ? 'trailing drawdown' : 'static drawdown'}</span></h3>
+        <h3><ShieldCheck className="ic-sm" /> Prop-firm standing <span className="pf-kind">{DD_LABEL[(s.ddType as DdType) || 'intraday']}{s.floorLocked ? ' · floor locked at start' : ''}</span></h3>
         <button className="btn-edit" onClick={() => {
           setForm({
             starting_balance: String(s.startingBalance ?? ''),
@@ -121,6 +150,9 @@ export default function PropStatus({ token, accountId, attempt }: PropStatusProp
             trailing: s.trailing,
             consistency_pct: String(s.consistency?.rulePct ?? ''),
             min_trading_days: String(s.minDays?.required ?? ''),
+            dd_type: (s.ddType as DdType) || 'intraday',
+            lock_at_start: !!s.lockAtStart,
+            preset: s.preset || '',
           });
           setEditing(true);
         }}>Edit</button>
@@ -129,6 +161,13 @@ export default function PropStatus({ token, accountId, attempt }: PropStatusProp
       {(s.drawdownBreached || s.dailyBreached) && (
         <div className="breach-banner">
           <OctagonX className="ic-sm" /> {s.drawdownBreached ? 'MAX DRAWDOWN BREACHED' : ''} {s.dailyBreached ? 'DAILY LOSS LIMIT HIT' : ''}
+        </div>
+      )}
+      {!s.drawdownBreached && (s.bufferLevel === 'danger' || s.bufferLevel === 'watch') && (
+        <div className={`buffer-warn ${s.bufferLevel}`}>
+          <AlertTriangle className="ic-sm" /> {money(s.drawdownHeadroom, 0)} left before the drawdown floor ({money(s.drawdownFloor, 0)}).
+          {s.avgLoss != null && s.avgLoss < 0 && <> Your average losing trade is {money(Math.abs(s.avgLoss), 0)} — about {Math.max(0, Math.floor(num(s.drawdownHeadroom) / Math.abs(s.avgLoss)))} more average losses before the account is gone.</>}
+          {s.ddType === 'intraday' && <> Intraday floors also follow open profit, which the journal can't see — your real floor may be higher.</>}
         </div>
       )}
       {s.targetReached && !s.drawdownBreached && (

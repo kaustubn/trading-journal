@@ -85,3 +85,10 @@
 .pf-kind { font-size: var(--fs-xs); font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; margin-left: 4px; }
 .pf-ok-ic { color: var(--success); vertical-align: -2px; }
 .pf-warn-ic { color: var(--warning); vertical-align: -2px; }
+
+/* presets, drawdown type, buffer warning */
+.prop-form .pf-wide { grid-column: 1 / -1; }
+.prop-form select { background: var(--card); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 6px 8px; }
+.buffer-warn { display: flex; flex-wrap: wrap; gap: 4px 6px; align-items: center; padding: 8px 12px; border-radius: 8px; margin: 8px 0; font-size: 13px; }
+.buffer-warn.watch { background: rgba(224, 163, 58, .12); border: 1px solid #e0a33a; }
+.buffer-warn.danger { background: rgba(239, 83, 80, .15); border: 1px solid var(--red, #ef5350); }
