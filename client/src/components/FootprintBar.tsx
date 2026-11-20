@@ -9,12 +9,13 @@ import { addFootprintDay, hasFootprintDay, FpDay } from '../chart/footprint';
 
 interface Status {
   day: string; configured: boolean; cached: boolean; contract?: string | null; cost?: number | null;
-  maxUsd?: number; spent24h?: number; dayUsd?: number; message?: string; fake?: boolean;
+  maxUsd?: number; spent24h?: number; dayUsd?: number; spentTotal?: number; totalUsd?: number; message?: string; fake?: boolean;
 }
 
-export default function FootprintBar({ auth, day, onDay, onLoaded }: {
+export default function FootprintBar({ auth, day, onDay, onLoaded, replay }: {
   auth: () => { headers: { Authorization: string } };
   day: string; onDay: (d: string) => void; onLoaded: () => void;
+  replay: boolean;   // data is only bought from Replay (backtesting); days already bought show anywhere
 }) {
   const [st, setSt] = useState<Status | null>(null);
   const [busy, setBusy] = useState(false);
@@ -44,7 +45,7 @@ export default function FootprintBar({ auth, day, onDay, onLoaded }: {
     if (!st || st.cost == null) return;
     setBusy(true); setMsg('');
     try {
-      const r = await axios.post('/api/bars/footprint', { day, confirmUsd: st.cost }, auth());
+      const r = await axios.post('/api/bars/footprint', { day, confirmUsd: st.cost, replay }, auth());
       addFootprintDay(r.data.data as FpDay); onLoaded();
       setSt({ ...st, cached: true });
     } catch (e: any) {
@@ -59,12 +60,13 @@ export default function FootprintBar({ auth, day, onDay, onLoaded }: {
   else if (st.cached) body = <span className="mc-up">✓ Loaded{st.fake ? ' (TEST DATA)' : ''}</span>;
   else if (!st.configured) body = <span className="mc-dim">Needs a Databento key on the server (DATABENTO_API_KEY).</span>;
   else if (st.message) body = <span className="mc-bad">{st.message}</span>;
+  else if (!replay) body = <span className="mc-dim">Not loaded. Footprint data is bought only in Replay (backtesting): start a replay on this day.</span>;
   else if (st.cost == null) body = <span className="mc-dim">No price from Databento.</span>;
   else {
-    const over = st.maxUsd != null && st.cost > st.maxUsd;
+    const over = (st.maxUsd != null && st.cost > st.maxUsd) || (st.totalUsd != null && (st.spentTotal ?? 0) + st.cost > st.totalUsd);
     body = (
       <>
-        <span className="mc-dim">{st.contract} 9:30–16:00 ET · ${st.cost.toFixed(2)} of credit{st.spent24h ? ` · $${st.spent24h.toFixed(2)} used today` : ''}</span>
+        <span className="mc-dim">{st.contract} 9:30–16:00 ET · ${st.cost.toFixed(2)} of credit{st.totalUsd ? ` · footprint budget $${(st.spentTotal ?? 0).toFixed(2)} of $${st.totalUsd.toFixed(0)} used` : ''}</span>
         <button className="mc-btn mc-primary mc-small" disabled={busy || over} onClick={load} title={over ? `Above the $${st.maxUsd?.toFixed(2)} per-day limit` : 'Buy this session from Databento and keep it'}>
           {busy ? 'Loading…' : `Load ($${st.cost.toFixed(2)})`}
         </button>

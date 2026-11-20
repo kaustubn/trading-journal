@@ -755,7 +755,7 @@ export default function MarketChart({ token, focus }: { token: string; focus?: {
           : <button className="mc-draw-show" title="Show the drawing toolbar" onClick={() => update({ drawBar: true })}>›</button>}
         {s.favBar && !panel && <FavBar ctl={ctl} tools={s.favTools} onClose={() => update({ favBar: false })} />}{/* hidden while a side panel is open, so it never covers it */}
         {s.indicators.FP?.on && (
-          <FootprintBar auth={auth} day={fpDay} onDay={d => setFpPick(d)} onLoaded={() => panesOf().forEach(p => p.chart.overrideIndicator({ name: 'JC_FP' }))} />
+          <FootprintBar auth={auth} replay={engine.active} day={fpDay} onDay={d => setFpPick(d)} onLoaded={() => panesOf().forEach(p => p.chart.overrideIndicator({ name: 'JC_FP' }))} />
         )}
         <div className="mc-stage">
           <div className={`mc-grid mc-grid-${s.layout}`}>

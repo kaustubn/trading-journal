@@ -4,7 +4,9 @@
 //     so the footprint prices line up with the candles (bars are not back-adjusted).
 //   - Before anything is bought the cost is asked from Databento (metadata.get_cost is free)
 //     and capped: FOOTPRINT_MAX_USD per day of data (default 1.00) and FOOTPRINT_DAY_USD
-//     spent per 24 hours (default 5.00).
+//     spent per 24 hours (default 5.00), and FOOTPRINT_TOTAL_USD for all footprint data ever bought
+//     (default 20.00, Kay 2026-11-20: keep the rest of the Databento credit for other things).
+//   - Buying only happens from Replay (backtesting): the chart sends replay: true (Kay 2026-11-20).
 //   - Results are cached in footprint_days (about 0.2-0.5 MB of JSON per session), so a day
 //     is paid for once. Exchange data: owner-only, like the rest of the chart.
 // FOOTPRINT_FAKE=1 (local testing only, never on the server) builds made-up trades from the
@@ -17,6 +19,7 @@ const TICK = 0.25;
 const MONTH_LETTER = ['', 'F', 'G', 'H', 'J', 'K', 'M', 'N', 'Q', 'U', 'V', 'X', 'Z'];
 const MAX_USD = () => Number(process.env.FOOTPRINT_MAX_USD) || 1.0;
 const DAY_USD = () => Number(process.env.FOOTPRINT_DAY_USD) || 5.0;
+const TOTAL_USD = () => Number(process.env.FOOTPRINT_TOTAL_USD) || 20.0;
 const fake = () => process.env.FOOTPRINT_FAKE === '1';
 export const footprintConfigured = () => fake() || !!process.env.DATABENTO_API_KEY;
 
@@ -73,7 +76,13 @@ function requestParams(symbol: string | null, start: number, end: number): Recor
 
 export interface FpStatus {
   day: string; configured: boolean; cached: boolean; contract: string | null; start: number; end: number;
-  cost?: number | null; maxUsd: number; spent24h: number; dayUsd: number; message?: string; fake?: boolean;
+  cost?: number | null; maxUsd: number; spent24h: number; dayUsd: number; spentTotal: number; totalUsd: number; message?: string; fake?: boolean;
+}
+
+async function spentTotal(): Promise<number> {
+  await ensureTable();
+  const r = await pool.query(`SELECT COALESCE(SUM(cost_usd), 0) AS s FROM footprint_days WHERE fake = false`);
+  return Number(r.rows[0].s) || 0;
 }
 
 async function spent24h(): Promise<number> {
@@ -93,7 +102,8 @@ export async function status(day: string, withCost: boolean): Promise<FpStatus> 
   const { start, end } = await sessionWindow(day);
   const cached = !!(await pool.query('SELECT 1 FROM footprint_days WHERE sym = 1 AND day = $1 AND fake = $2', [day, fake()])).rows.length;
   const contract = await contractFor(start, end);
-  const base: FpStatus = { day, configured: footprintConfigured(), cached, contract, start, end, maxUsd: MAX_USD(), spent24h: await spent24h(), dayUsd: DAY_USD(), fake: fake() };
+  const base: FpStatus = { day, configured: footprintConfigured(), cached, contract, start, end, maxUsd: MAX_USD(), spent24h: await spent24h(), dayUsd: DAY_USD(),
+    spentTotal: await spentTotal(), totalUsd: TOTAL_USD(), fake: fake() };
   if (cached || !withCost || !base.configured) return base;
   if (!contract) return { ...base, message: 'The chart has no bars for that session.' };
   if (fake()) return { ...base, cost: 0 };
@@ -182,14 +192,16 @@ async function fakeTrades(start: number, end: number, acc: Acc) {
 }
 
 /** Buy (with the cost guard) and cache one session. */
-export async function load(day: string, confirmUsd: number): Promise<FpDay> {
+export async function load(day: string, confirmUsd: number, replay = false): Promise<FpDay> {
   const st = await status(day, true);
   if (st.cached) return (await getCached(day))!;
+  if (!replay) throw Object.assign(new Error('Footprint data is only bought from Replay (backtesting). Start a replay on that day.'), { status: 403 });
   if (!st.configured) throw Object.assign(new Error('DATABENTO_API_KEY is not set on the server.'), { status: 409 });
   if (!st.contract) throw Object.assign(new Error(st.message || 'No chart bars for that session.'), { status: 404 });
   if (st.cost == null) throw Object.assign(new Error(st.message || 'Could not get the price from Databento.'), { status: 502 });
   if (st.cost > st.maxUsd) throw Object.assign(new Error(`This session costs $${st.cost.toFixed(2)}, above the $${st.maxUsd.toFixed(2)} limit per day (FOOTPRINT_MAX_USD).`), { status: 402 });
   if (st.spent24h + st.cost > st.dayUsd) throw Object.assign(new Error(`Daily footprint budget reached: $${st.spent24h.toFixed(2)} spent in the last 24 hours (limit $${st.dayUsd.toFixed(2)}, FOOTPRINT_DAY_USD).`), { status: 402 });
+  if (st.spentTotal + st.cost > st.totalUsd) throw Object.assign(new Error(`Footprint budget used: $${st.spentTotal.toFixed(2)} of $${st.totalUsd.toFixed(2)} in total (FOOTPRINT_TOTAL_USD).`), { status: 402 });
   if (st.cost > confirmUsd + 0.005) throw Object.assign(new Error(`The price changed to $${st.cost.toFixed(2)}. Check it again.`), { status: 409 });
 
   const acc = new Acc();

@@ -161,14 +161,14 @@ router.get('/footprint', async (req: Request, res: Response) => {
     res.status(500).json({ error: 'Failed to read the footprint' });
   }
 });
-// POST /api/bars/footprint { day, confirmUsd } — buy one session from Databento (cost-guarded) and cache it
+// POST /api/bars/footprint { day, confirmUsd, replay } — buy one session (only from Replay) from Databento (cost-guarded) and cache it
 router.post('/footprint', async (req: Request, res: Response) => {
   try {
     const day = String(req.body?.day || '');
     const confirmUsd = Number(req.body?.confirmUsd);
     if (!DAY_RE.test(day)) return res.status(400).json({ error: 'day must be YYYY-MM-DD' });
     if (!Number.isFinite(confirmUsd) || confirmUsd < 0) return res.status(400).json({ error: 'confirmUsd (the price you agreed to) is required' });
-    const data = await footprint.load(day, confirmUsd);
+    const data = await footprint.load(day, confirmUsd, req.body?.replay === true);
     res.json({ data });
   } catch (e: any) {
     console.error('[bars/footprint load]', e.message);
