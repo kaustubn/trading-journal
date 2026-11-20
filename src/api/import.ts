@@ -50,6 +50,7 @@ const SYNONYMS: Record<string, string[]> = {
   notes:       ['notes', 'note', 'comment', 'comments', 'remarks', 'segment'],
   // Only our own backtest exports carry this; broker files keep the field-hash dedupe
   trade_id:    ['backtesttradeid'],
+  commission:  ['commission', 'commissions', 'fees', 'fee', 'totalfees', 'brokerage', 'charges', 'comm'],
 };
 
 function buildColumnMap(header: string[]): Record<string, number> {
@@ -162,6 +163,7 @@ function aggregateExecutions(rows: string[][], headerIdx: number, m: {
   }
 
   const trades: any[] = [];
+  const openPositions: { symbol: string; qty: number }[] = [];
   for (const [symbol, fills] of bySymbol) {
     fills.sort((a, b) => a.time.getTime() - b.time.getTime());
     const mult = pointValue(symbol);
@@ -192,10 +194,11 @@ function aggregateExecutions(rows: string[][], headerIdx: number, m: {
         seg = null;
       }
     }
+    if (pos !== 0) openPositions.push({ symbol, qty: pos }); // not flat at the end of the file: not imported
   }
   // Chronological order so the calendar/list read naturally
   trades.sort((a, b) => a.entry_time.getTime() - b.entry_time.getTime());
-  return { trades, executed, skippedNonExec };
+  return { trades, executed, skippedNonExec, openPositions };
 }
 
 function toNum(v: string | undefined): number | null {
@@ -220,22 +223,35 @@ function parseDate(v: string | undefined): Date | null {
   return isNaN(d.getTime()) ? null : d;
 }
 
-// POST /api/import/csv  { account_id, csv }
+// Futures-looking symbol (root letters + optional month code/year) whose point value we don't know.
+const FUTURES_RE = /^(?:[A-Z_]+:)?[A-Z]{1,4}[FGHJKMNQUVXZ]?\d{0,4}!?$/;
+function unknownFuture(symbol: string): boolean {
+  const s = symbol.trim().toUpperCase();
+  return FUTURES_RE.test(s) && /[FGHJKMNQUVXZ]\d{1,4}$|!$/.test(s) && pointValue(s) === 1;
+}
+
+interface Planned {
+  brokerTradeId: string; symbol: string; entry_time: Date; exit_time: Date | null;
+  entry_price: number | null; exit_price: number | null; quantity: number; pnl: number | null;
+  setup: string; notes: string | null; commission: number | null; dateMissing: boolean;
+}
+
+// POST /api/import/csv  { account_id, csv, preview? }
+// preview: true -> nothing is written; returns what WOULD be imported plus checks (duplicates, open positions,
+// unknown contracts, commissions in the file vs the account's estimate, missing dates).
 router.post('/import/csv', async (req: Request, res: Response) => {
   try {
     const user_id = req.userId;
     const { account_id, csv } = req.body;
+    const preview = req.body?.preview === true;
 
     if (!account_id || !csv) {
       return res.status(400).json({ error: 'account_id and csv are required' });
     }
 
     // Verify ownership
-    const own = await pool.query('SELECT id FROM accounts WHERE id = $1 AND user_id = $2', [account_id, user_id]);
+    const own = await pool.query('SELECT id, cost_per_trade, micro_cost_per_trade, timezone FROM accounts WHERE id = $1 AND user_id = $2', [account_id, user_id]);
     if (own.rows.length === 0) return res.status(403).json({ error: 'Account not found' });
-
-    // Imported trades land in the account's current attempt (the live challenge run)
-    const attemptId = await getCurrentAttemptId(pool, Number(account_id));
 
     const rows = parseCSV(String(csv));
     if (rows.length < 2) return res.status(400).json({ error: 'CSV has no data rows' });
@@ -244,102 +260,132 @@ router.post('/import/csv', async (req: Request, res: Response) => {
     const { idx: headerIdx, map: col } = findHeaderRow(rows);
     const header = rows[headerIdx];
 
+    const planned: Planned[] = [];
+    let mode = 'rows';
+    let extra: Record<string, unknown> = {};
+    const errors: string[] = [];
+    let skippedRows = 0;
+
     // Order-book / execution-log format? Pair fills into round-trip trades.
     // (Checked BEFORE the generic column validation — order books have no P&L/entry column.)
     const execCols = detectExecutionLog(header);
     if (execCols) {
-      const { trades, executed, skippedNonExec } = aggregateExecutions(rows, headerIdx, execCols);
-      let ins = 0, skp = 0;
+      mode = 'orderbook-aggregated';
+      const { trades, executed, skippedNonExec, openPositions } = aggregateExecutions(rows, headerIdx, execCols);
+      extra = { executedFills: executed, ignoredRows: skippedNonExec, openPositions };
       for (const t of trades) {
         const hash = crypto.createHash('md5')
           .update(`${account_id}|${t.symbol}|${t.entry_time.toISOString()}|${t.exit_time?.toISOString?.() || ''}|${t.entry_price}|${t.quantity}|${t.pnl}`)
           .digest('hex').slice(0, 20);
-        const r = await pool.query(
-          `INSERT INTO trades (account_id, broker_trade_id, symbol, entry_time, exit_time,
-             entry_price, exit_price, quantity, pnl, setup_tag, attempt_id)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
-           ON CONFLICT (broker_trade_id) DO NOTHING RETURNING id`,
-          [account_id, `ob_${hash}`, t.symbol, t.entry_time, t.exit_time,
-           t.entry_price, t.exit_price, t.quantity, t.pnl, 'Imported', attemptId]
-        );
-        if (r.rows.length > 0) ins++; else skp++;
+        planned.push({ brokerTradeId: `ob_${hash}`, symbol: t.symbol, entry_time: t.entry_time, exit_time: t.exit_time, entry_price: t.entry_price,
+          exit_price: t.exit_price, quantity: t.quantity, pnl: t.pnl, setup: 'Imported', notes: null, commission: null, dateMissing: false });
       }
-      const totalPnl = trades.reduce((s, t) => s + t.pnl, 0);
-      return res.json({
-        success: true, mode: 'orderbook-aggregated',
-        inserted: ins, skipped: skp,
-        tradesBuilt: trades.length, executedFills: executed, ignoredRows: skippedNonExec,
-        totalPnl: Number(totalPnl.toFixed(2)),
-      });
-    }
-
-    // Generic (row-per-trade) formats: require a symbol + entry/buy price or P&L
-    if (col.symbol === undefined || (col.entry_price === undefined && col.pnl === undefined)) {
-      return res.status(400).json({
-        error: 'Could not detect required columns. Need at least a symbol column and either an entry/buy price or a P&L column.',
-        detected: Object.keys(col),
-        headers: header,
-      });
-    }
-
-    // No per-trade date column? Fall back to the report period-end date.
-    const fallbackDate = col.entry_time === undefined ? (extractFallbackDate(rows) || new Date()) : null;
-
-    let inserted = 0, skipped = 0;
-    const errors: string[] = [];
-
-    for (let r = headerIdx + 1; r < rows.length; r++) {
-      const row = rows[r];
-      try {
-        const symbol = (row[col.symbol] || '').trim();
-        if (!symbol) { skipped++; continue; }
-
-        const entryPrice = toNum(row[col.entry_price]);
-        const exitPrice = col.exit_price !== undefined ? toNum(row[col.exit_price]) : null;
-        const qty = col.quantity !== undefined ? (toNum(row[col.quantity]) ?? 1) : 1;
-        const side = col.side !== undefined ? parseSide(row[col.side]) : null;
-        let pnl = col.pnl !== undefined ? toNum(row[col.pnl]) : null;
-        const entryTime = (col.entry_time !== undefined ? parseDate(row[col.entry_time]) : null) || fallbackDate || new Date();
-        const exitTime = col.exit_time !== undefined ? parseDate(row[col.exit_time]) : null;
-        const setup = col.setup !== undefined ? (row[col.setup] || '').trim() : 'CSV Import';
-        const notes = col.notes !== undefined ? (row[col.notes] || '').trim() : null;
-
-        // Derive P&L if not provided
-        if (pnl === null && entryPrice !== null && exitPrice !== null) {
-          const dir = side === 'SHORT' ? -1 : 1;
-          pnl = (exitPrice - entryPrice) * qty * dir;
+    } else {
+      // Generic (row-per-trade) formats: require a symbol + entry/buy price or P&L
+      if (col.symbol === undefined || (col.entry_price === undefined && col.pnl === undefined)) {
+        return res.status(400).json({
+          error: 'Could not detect required columns. Need at least a symbol column and either an entry/buy price or a P&L column.',
+          detected: Object.keys(col),
+          headers: header,
+        });
+      }
+      // No per-trade date column? Fall back to the report period-end date.
+      const fallbackDate = col.entry_time === undefined ? (extractFallbackDate(rows) || new Date()) : null;
+      for (let r = headerIdx + 1; r < rows.length; r++) {
+        const row = rows[r];
+        try {
+          const symbol = (row[col.symbol] || '').trim();
+          if (!symbol) { skippedRows++; continue; }
+          const entryPrice = toNum(row[col.entry_price]);
+          const exitPrice = col.exit_price !== undefined ? toNum(row[col.exit_price]) : null;
+          const qty = col.quantity !== undefined ? (toNum(row[col.quantity]) ?? 1) : 1;
+          const side = col.side !== undefined ? parseSide(row[col.side]) : null;
+          let pnl = col.pnl !== undefined ? toNum(row[col.pnl]) : null;
+          const parsedEntry = col.entry_time !== undefined ? parseDate(row[col.entry_time]) : null;
+          const entryTime = parsedEntry || fallbackDate || new Date();
+          const exitTime = col.exit_time !== undefined ? parseDate(row[col.exit_time]) : null;
+          const setup = col.setup !== undefined ? (row[col.setup] || '').trim() : 'CSV Import';
+          const notes = col.notes !== undefined ? (row[col.notes] || '').trim() : null;
+          const commission = col.commission !== undefined ? toNum(row[col.commission]) : null;
+          // Derive P&L if not provided (futures: points x contracts x $ per point)
+          if (pnl === null && entryPrice !== null && exitPrice !== null) {
+            const dir = side === 'SHORT' ? -1 : 1;
+            pnl = (exitPrice - entryPrice) * qty * dir * pointValue(symbol);
+          }
+          // Stable dedupe id from the row's identifying fields
+          // Rows without a readable date use the raw row text, so re-importing the same file never duplicates them
+          const when = parsedEntry || fallbackDate ? entryTime.toISOString() : `nodate:${row.join('|')}`;
+          const hash = crypto.createHash('md5')
+            .update(`${account_id}|${symbol}|${when}|${entryPrice}|${qty}|${pnl}`)
+            .digest('hex').slice(0, 20);
+          // A backtest file names each trade, so identical trades from different runs both import
+          const tradeId = col.trade_id !== undefined ? (row[col.trade_id] || '').trim() : '';
+          const brokerTradeId = tradeId
+            ? `bt_${crypto.createHash('md5').update(`${account_id}|${tradeId}`).digest('hex').slice(0, 20)}`
+            : `csv_${hash}`;
+          planned.push({ brokerTradeId, symbol, entry_time: entryTime, exit_time: exitTime, entry_price: entryPrice, exit_price: exitPrice,
+            quantity: qty, pnl, setup: setup || 'CSV Import', notes, commission, dateMissing: col.entry_time !== undefined && !parsedEntry });
+        } catch (e: any) {
+          errors.push(`Row ${r + 1}: ${e.message}`);
         }
+      }
+    }
 
-        // Stable dedupe id from the row's identifying fields
-        const hash = crypto.createHash('md5')
-          .update(`${account_id}|${symbol}|${entryTime.toISOString()}|${entryPrice}|${qty}|${pnl}`)
-          .digest('hex').slice(0, 20);
-        // A backtest file names each trade, so identical trades from different runs both import
-        const tradeId = col.trade_id !== undefined ? (row[col.trade_id] || '').trim() : '';
-        const brokerTradeId = tradeId
-          ? `bt_${crypto.createHash('md5').update(`${account_id}|${tradeId}`).digest('hex').slice(0, 20)}`
-          : `csv_${hash}`;
+    if (preview) {
+      const ids = planned.map(p => p.brokerTradeId);
+      const dup = ids.length ? await pool.query('SELECT broker_trade_id FROM trades WHERE account_id = $1 AND broker_trade_id = ANY($2)', [account_id, ids]) : { rows: [] as any[] };
+      const dupSet = new Set(dup.rows.map((r: any) => r.broker_trade_id));
+      const fresh = planned.filter(p => !dupSet.has(p.brokerTradeId));
+      const unknown = [...new Set(planned.filter(p => unknownFuture(p.symbol)).map(p => p.symbol))];
+      const withComm = planned.filter(p => p.commission != null);
+      const commTotal = withComm.reduce((a, p) => a + Math.abs(p.commission as number), 0);
+      const est = Number(own.rows[0].cost_per_trade) || 0;
+      const times = planned.map(p => p.entry_time.getTime()).filter(Number.isFinite).sort((a, b) => a - b);
+      const warnings: string[] = [];
+      if (unknown.length) warnings.push(`No point value for ${unknown.join(', ')}: P&L for these may be in points, not dollars. Check them after import.`);
+      const open = (extra.openPositions as any[] | undefined) ?? [];
+      if (open.length) warnings.push(`${open.length} position${open.length === 1 ? ' is' : 's are'} still open at the end of the file (${open.map(o => `${o.symbol} ${o.qty > 0 ? '+' : ''}${o.qty}`).join(', ')}): not imported until closed.`);
+      const missingDates = planned.filter(p => p.dateMissing).length;
+      if (missingDates) warnings.push(`${missingDates} row${missingDates === 1 ? ' has' : 's have'} an unreadable date and would be dated today.`);
+      if (withComm.length && est > 0) warnings.push(`The file has commissions (avg $${(commTotal / withComm.length).toFixed(2)} per trade). This account also subtracts an estimated $${est.toFixed(2)} per trade — set the account's cost per trade to match so costs are not counted twice or wrong.`);
+      else if (withComm.length) warnings.push(`The file has commissions (avg $${(commTotal / withComm.length).toFixed(2)} per trade, $${commTotal.toFixed(2)} total). P&L is stored as in the file; set the account's cost per trade if the file P&L is before commissions.`);
+      if (planned.some(p => p.pnl == null)) warnings.push(`${planned.filter(p => p.pnl == null).length} trade(s) have no P&L and no exit price.`);
+      return res.json({
+        preview: true, mode, ...extra,
+        trades: planned.length, newTrades: fresh.length, duplicates: planned.length - fresh.length, skippedRows,
+        pnlNew: Number(fresh.reduce((a, p) => a + (p.pnl ?? 0), 0).toFixed(2)),
+        pnlFile: Number(planned.reduce((a, p) => a + (p.pnl ?? 0), 0).toFixed(2)),
+        commissions: withComm.length ? { trades: withComm.length, total: Number(commTotal.toFixed(2)) } : null,
+        firstTrade: times.length ? new Date(times[0]).toISOString() : null, lastTrade: times.length ? new Date(times[times.length - 1]).toISOString() : null,
+        accountTimezone: own.rows[0].timezone ?? null,
+        symbols: [...new Set(planned.map(p => p.symbol))].slice(0, 20),
+        detectedColumns: Object.keys(col), warnings, errors: errors.slice(0, 10),
+      });
+    }
 
-        const result = await pool.query(
+    // Imported trades land in the account's current attempt (the live challenge run)
+    const attemptId = await getCurrentAttemptId(pool, Number(account_id));
+    let inserted = 0, skipped = 0;
+    for (const t of planned) {
+      try {
+        const r = await pool.query(
           `INSERT INTO trades (account_id, broker_trade_id, symbol, entry_time, exit_time,
              entry_price, exit_price, quantity, pnl, setup_tag, notes, attempt_id)
            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
-           ON CONFLICT (broker_trade_id) DO NOTHING
-           RETURNING id`,
-          [account_id, brokerTradeId, symbol, entryTime, exitTime,
-           entryPrice ?? 0, exitPrice, qty, pnl, setup || 'CSV Import', notes, attemptId]
+           ON CONFLICT (broker_trade_id) DO NOTHING RETURNING id`,
+          [account_id, t.brokerTradeId, t.symbol, t.entry_time, t.exit_time,
+           t.entry_price ?? 0, t.exit_price, t.quantity, t.pnl, t.setup, t.notes, attemptId]
         );
-        if (result.rows.length > 0) inserted++; else skipped++;
+        if (r.rows.length > 0) inserted++; else skipped++;
       } catch (e: any) {
-        errors.push(`Row ${r + 1}: ${e.message}`);
+        errors.push(`${t.symbol} ${t.entry_time.toISOString()}: ${e.message}`);
       }
     }
-
     res.json({
-      success: true,
-      inserted,
-      skipped,
-      totalRows: rows.length - 1,
+      success: true, mode, ...extra,
+      inserted, skipped: skipped + skippedRows,
+      tradesBuilt: planned.length, totalRows: rows.length - 1,
+      totalPnl: Number(planned.reduce((a, p) => a + (p.pnl ?? 0), 0).toFixed(2)),
       detectedColumns: Object.keys(col),
       errors: errors.slice(0, 10),
     });

@@ -30,6 +30,7 @@ export default function ImportModal({ isOpen, onClose, onImported, token, accoun
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [result, setResult] = useState<any>(null);
+  const [check, setCheck] = useState<any>(null); // preview report shown before anything is saved
 
   const rowCount = csv.trim() ? csv.trim().split(/\r?\n/).length : 0;
 
@@ -50,7 +51,7 @@ export default function ImportModal({ isOpen, onClose, onImported, token, accoun
     }
   };
 
-  const handleImport = async () => {
+  const handleImport = async (previewOnly = false) => {
     if (!accountId) { setError('Select an account first'); return; }
     // Read on demand if the file is picked but its text hasn't landed yet
     let text = csv;
@@ -66,8 +67,10 @@ export default function ImportModal({ isOpen, onClose, onImported, token, accoun
     setError(''); setLoading(true); setResult(null);
     try {
       const res = await axios.post('/api/import/csv',
-        { account_id: accountId, csv: text },
+        { account_id: accountId, csv: text, preview: previewOnly },
         { headers: { Authorization: `Bearer ${token}` } });
+      if (previewOnly) { setCheck(res.data); return; }
+      setCheck(null);
       setResult(res.data);
       if (res.data.inserted > 0) onImported();
     } catch (err: any) {
@@ -81,7 +84,7 @@ export default function ImportModal({ isOpen, onClose, onImported, token, accoun
     }
   };
 
-  const reset = () => { setCsv(''); setFileName(''); setFile(null); setResult(null); setError(''); };
+  const reset = () => { setCsv(''); setFileName(''); setFile(null); setResult(null); setCheck(null); setError(''); };
 
   const handleClear = async () => {
     if (!accountId) return;
@@ -112,7 +115,7 @@ export default function ImportModal({ isOpen, onClose, onImported, token, accoun
 
         {error && <div className="error-message">{error}</div>}
 
-        {!result && (
+        {!result && !check && (
           <>
             <div className="form-group">
               <label>CSV File</label>
@@ -140,8 +143,8 @@ export default function ImportModal({ isOpen, onClose, onImported, token, accoun
 
             <div className="form-actions">
               <button type="button" onClick={onClose} className="cancel-btn">Cancel</button>
-              <button type="button" onClick={handleImport} disabled={loading || reading || rowCount === 0} className="submit-btn">
-                {loading ? 'Importing…' : reading ? 'Reading file…' : rowCount > 0 ? `Import ${rowCount} lines` : 'Import'}
+              <button type="button" onClick={() => handleImport(true)} disabled={loading || reading || rowCount === 0} className="submit-btn">
+                {loading ? 'Checking…' : reading ? 'Reading file…' : rowCount > 0 ? `Check ${rowCount} lines` : 'Check file'}
               </button>
             </div>
 
@@ -152,6 +155,34 @@ export default function ImportModal({ isOpen, onClose, onImported, token, accoun
               </button>
             </div>
           </>
+        )}
+
+        {check && !result && (
+          <div className="import-check">
+            <div style={{ border: '1px solid var(--border)', borderRadius: 8, padding: 14, color: 'var(--text)' }}>
+              <div style={{ fontSize: 18, fontWeight: 700 }}>{check.newTrades} new trade{check.newTrades === 1 ? '' : 's'} to import</div>
+              <div style={{ color: 'var(--text-dim)', fontSize: 13, marginTop: 6, lineHeight: 1.6 }}>
+                {check.trades} trades found{check.mode === 'orderbook-aggregated' ? ` (built from ${check.executedFills} fills, ${check.ignoredRows} cancelled/rejected rows ignored)` : ''}
+                {' '}· {check.duplicates} already in this account{check.skippedRows ? ` · ${check.skippedRows} blank rows` : ''}<br />
+                P&L of the new trades: <b>{money(check.pnlNew, 2)}</b> (whole file {money(check.pnlFile, 2)}) — compare with your broker's statement.<br />
+                {check.firstTrade && <>Dates: {new Date(check.firstTrade).toLocaleString()} → {new Date(check.lastTrade).toLocaleString()} (times are stored as in the file; account clock: {check.accountTimezone || 'not set'})<br /></>}
+                {check.commissions && <>Commissions in the file: {money(check.commissions.total, 2)} over {check.commissions.trades} trades<br /></>}
+                Symbols: {check.symbols.join(', ')}
+              </div>
+              {check.warnings?.length > 0 && (
+                <ul style={{ margin: '10px 0 0', paddingLeft: 18, color: 'var(--warning, #e0a33a)', fontSize: 13 }}>
+                  {check.warnings.map((w: string, i: number) => <li key={i}>{w}</li>)}
+                </ul>
+              )}
+              {check.errors?.length > 0 && <div style={{ color: 'var(--danger)', fontSize: 12, marginTop: 8 }}>{check.errors.length} row error(s): {check.errors[0]}</div>}
+            </div>
+            <div className="form-actions">
+              <button type="button" onClick={() => setCheck(null)} className="cancel-btn">Back</button>
+              <button type="button" onClick={() => handleImport(false)} disabled={loading || check.newTrades === 0} className="submit-btn">
+                {loading ? 'Importing…' : check.newTrades === 0 ? 'Nothing new to import' : `Import ${check.newTrades} trade${check.newTrades === 1 ? '' : 's'}`}
+              </button>
+            </div>
+          </div>
         )}
 
         {result && (
