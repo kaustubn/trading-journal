@@ -7,7 +7,7 @@ import DayNotes from './DayNotes';
 import DataPanel from './DataPanel';
 import ChartPane, { Workspace } from './ChartPane';
 import TvPane from './TvPane';
-import { DrawingStore } from '../chart/drawingController';
+import { DrawingStore, copyDrawing, copiedDrawing } from '../chart/drawingController';
 import { Drawing, Tool, validDrawing, fmtUsd, fmtPrice, newId } from '../chart/drawings';
 import { DrawToolbar, DrawEditBar, FavBar } from './DrawingTools';
 import { ReplayEngine, ClosedTrade } from '../chart/replay';
@@ -579,6 +579,10 @@ export default function MarketChart({ token, focus }: { token: string; focus?: {
         const k = e.key.toLowerCase();
         if (k === 'z' && !e.shiftKey) { e.preventDefault(); c?.cancel(); store.undo(); return; }
         if (k === 'y' || (k === 'z' && e.shiftKey)) { e.preventDefault(); c?.cancel(); store.redo(); return; }
+        // copy / paste a drawing (works across windows and symbols); only when no text is selected on the page
+        if (k === 'c' && c?.selectedDrawing && !window.getSelection()?.toString()) { e.preventDefault(); copyDrawing(c.selectedDrawing); return; }
+        if (k === 'v' && c && copiedDrawing()) { e.preventDefault(); c.paste(copiedDrawing()!); return; }
+        if (k === 'd' && c?.selected) { e.preventDefault(); c.clone(c.selected); return; }
         return;
       }
       if (panelRef.current) { if (e.key === 'Escape') setPanel(null); return; }

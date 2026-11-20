@@ -241,7 +241,7 @@ export function DrawEditBar({ ctl, tplOf, onTemplate, onAlert, hasAlert }: {
       {onAlert && canAlert(d) && (
         <button className={`mc-btn mc-small${hasAlert?.(d.id) ? ' on' : ''}`} title="Alert when the price reaches this drawing" onClick={() => onAlert(d)}><Bell size={14} /></button>
       )}
-      <button className="mc-btn mc-small" title="Clone (copy on top)" onClick={() => ctl.clone(d.id)}><Copy size={14} /></button>
+      <button className="mc-btn mc-small" title="Clone (Ctrl+D). Ctrl+C then Ctrl+V copies it to another window or symbol" onClick={() => ctl.clone(d.id)}><Copy size={14} /></button>
       <button className="mc-btn mc-small" title="Bring to front" onClick={() => ctl.reorder(d.id, 'front')}><ArrowUpToLine size={14} /></button>
       <button className="mc-btn mc-small" title="Send to back" onClick={() => ctl.reorder(d.id, 'back')}><ArrowDownToLine size={14} /></button>
       <button className={`mc-btn mc-small${d.locked ? ' on' : ''}`} title={d.locked ? 'Unlock' : 'Lock in place'}

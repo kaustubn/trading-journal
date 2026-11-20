@@ -11,6 +11,11 @@ import { TEMPLATES, tplPatch } from './templates';
 const toTick = (v: number) => Math.round(v / TICK) * TICK;
 const snapPoint = (p: Partial<Point>): Partial<Point> => (typeof p.value === 'number' ? { ...p, value: toTick(p.value) } : p);
 
+// Ctrl+C keeps one drawing here (shared by every chart window, kept while the page is open)
+let clipboard: Drawing | null = null;
+export const copyDrawing = (d: Drawing) => { clipboard = { ...d, points: d.points.map(p => ({ ...p })) }; };
+export const copiedDrawing = () => clipboard;
+
 export type Magnet = 'off' | 'weak' | 'strong';
 export interface DrawView {
   tf: number; rth: boolean; magnet: Magnet; hidden: boolean; lockAll: boolean;
@@ -439,6 +444,15 @@ export class DrawingController {
     const d = this.store.drawings.find(x => x.id === id);
     if (!d) return;
     const copy: Drawing = { ...d, id: newId(), points: d.points.map(p => ({ ...p })), locked: false };
+    this.store.commit([...this.store.drawings, copy]);
+    this.select(copy.id);
+  }
+  /** Paste a copied drawing (Ctrl+V): a little lower than the original so it doesn't hide it, then select it. */
+  paste(src: Drawing) {
+    if (!this.store.loaded) return;
+    const dp = toTick(this.visiblePriceRange() * 0.03) || TICK * 8;
+    const copy: Drawing = { ...src, id: newId(), points: src.points.map(p => ({ t: p.t, p: p.p - dp })), locked: false, hidden: false };
+    this.cancel();
     this.store.commit([...this.store.drawings, copy]);
     this.select(copy.id);
   }
