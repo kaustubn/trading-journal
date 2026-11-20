@@ -37,6 +37,9 @@ export interface PAState {
   mm: number | null;              // measured-move target projected from a breakout bar
   open: { gap: number; gapPct: number; fomc: boolean } | null;   // first New York bar: gap vs yesterday's close (gapPct = share of yesterday's NY range)
   openType: 'trend from the open up' | 'trend from the open down' | 'trading range open' | null; // read after the first 30 min
+  mtr: 1 | -1 | 0;                // major trend reversal signal bar: 1 = bull MTR (buy), -1 = bear MTR (sell)
+  bp: 1 | -1 | 0;                 // breakout pullback signal bar (pullback that held the breakout point)
+  mc1: 1 | -1 | 0;                // first pullback out of a micro channel (5+ bars), with-trend signal bar
 }
 
 const cache = new WeakMap<KLineData[], PAState[]>();
@@ -197,10 +200,74 @@ export function paAnalyze(bars: KLineData[]): PAState[] {
     const bullish = count?.startsWith('H') || kind === 'bull reversal' || dbl === 'DB' || wedge === 'bottom';
     const bearish = count?.startsWith('L') || kind === 'bear reversal' || dbl === 'DT' || wedge === 'top';
     const signalQuality = bullish ? (cf >= 0.6 && kind !== 'doji' ? 'good' : 'weak') : bearish ? (cf <= 0.4 && kind !== 'doji' ? 'good' : 'weak') : null;
-    out.push({ kind, atr, ema, ai, aiFlip, ctx, count, pushes, wedge, dbl, micro, bo, ft, signalQuality, trap, climax, maGap, tight, io, mm, open, openType });
+    out.push({ kind, atr, ema, ai, aiFlip, ctx, count, pushes, wedge, dbl, micro, bo, ft, signalQuality, trap, climax, maGap, tight, io, mm, open, openType, mtr: 0, bp: 0, mc1: 0 });
+  }
+  // second pass: setups that look back over many bars (still only bars 0..i for bar i, so no lookahead).
+  // Same rules as trading-system/roboquant/brooks_more_test.cjs (tested on NQ 5m 2021-2026).
+  for (let i = 30; i < bars.length; i++) {
+    for (const dir of [1, -1] as const) {
+      if (!out[i].mtr && mtrAt(bars, out, i, dir)) out[i].mtr = dir;
+      if (!out[i].bp && bpAt(bars, out, i, dir)) out[i].bp = dir;
+      if (!out[i].mc1 && mc1At(bars, out, i, dir)) out[i].mc1 = dir;
+    }
   }
   cache.set(bars, out);
   return out;
+}
+
+/** Major trend reversal: a trend extreme (after 20 of 30 bars on the trend side of the EMA), a strong break of the
+ *  EMA within 20 bars, then a test of the extreme, and a strong reversal bar on the test. */
+function mtrAt(bars: KLineData[], S: PAState[], i: number, dir: 1 | -1): boolean {
+  const a = S[i].atr;
+  for (let x = i - 2; x >= Math.max(30, i - 40); x--) {
+    const ext = dir > 0 ? bars[x].low : bars[x].high;
+    let isExt = true;
+    for (let y = x - 30; y < x; y++) if (dir > 0 ? bars[y].low < ext : bars[y].high > ext) { isExt = false; break; }
+    if (!isExt) continue;
+    let against = 0;
+    for (let y = x - 29; y <= x; y++) if (dir > 0 ? bars[y].close < S[y].ema : bars[y].close > S[y].ema) against++;
+    if (against < 20) continue;
+    let brk = -1;
+    for (let y = x + 1; y <= Math.min(i - 1, x + 20); y++) if (dir > 0 ? bars[y].close >= S[y].ema + 0.5 * S[y].atr : bars[y].close <= S[y].ema - 0.5 * S[y].atr) { brk = y; break; }
+    if (brk < 0) return false;
+    for (let y = x + 1; y <= i; y++) if (dir > 0 ? bars[y].low < ext - 0.25 * a : bars[y].high > ext + 0.25 * a) return false;
+    if (i - brk > 20) return false;
+    let test = -1;
+    for (let y = brk + 1; y <= i; y++) if (Math.abs((dir > 0 ? bars[y].low : bars[y].high) - ext) <= 0.25 * a) test = y;
+    if (test < 0) return false;
+    const b = bars[i], rng = b.high - b.low;
+    if (!(rng > 0)) return false;
+    return dir > 0 ? b.close > b.open && b.close >= b.low + (rng * 2) / 3 : b.close < b.open && b.close <= b.high - (rng * 2) / 3;
+  }
+  return false;
+}
+
+/** Breakout pullback: a strong breakout bar of the last 20 bars' range 1-5 bars ago, then a pullback bar, and the
+ *  pullback never got back to the breakout point. */
+function bpAt(bars: KLineData[], S: PAState[], i: number, dir: 1 | -1): boolean {
+  const b = bars[i];
+  if (!(dir > 0 ? b.close < b.open : b.close > b.open)) return false;
+  for (let x = i - 1; x >= Math.max(20, i - 5); x--) {
+    const bo = bars[x], rng = bo.high - bo.low;
+    if (!(rng >= S[x].atr && Math.abs(bo.close - bo.open) >= 0.6 * rng)) continue;
+    let lvl = dir > 0 ? -Infinity : Infinity;
+    for (let y = x - 20; y < x; y++) lvl = dir > 0 ? Math.max(lvl, bars[y].high) : Math.min(lvl, bars[y].low);
+    if (!(dir > 0 ? bo.close > lvl && bo.close > bo.open : bo.close < lvl && bo.close < bo.open)) continue;
+    for (let y = x + 1; y <= i; y++) if (dir > 0 ? bars[y].low <= lvl : bars[y].high >= lvl) return false;
+    return true;
+  }
+  return false;
+}
+
+/** First pullback out of a micro channel: 5 bars in a row without a lower low (bull) on the trend side of the EMA,
+ *  and this bar is the first to break the channel. */
+function mc1At(bars: KLineData[], S: PAState[], i: number, dir: 1 | -1): boolean {
+  const b = bars[i];
+  if (!(dir > 0 ? b.low < bars[i - 1].low : b.high > bars[i - 1].high)) return false;
+  for (let y = i - 5; y <= i - 1; y++) {
+    if (dir > 0 ? !(bars[y].low >= bars[y - 1].low && bars[y].close > S[y].ema) : !(bars[y].high <= bars[y - 1].high && bars[y].close < S[y].ema)) return false;
+  }
+  return true;
 }
 
 /** One line of live commentary for bar i (what a price-action trader would say about it). */
@@ -249,9 +316,18 @@ export function paNarrate(bars: KLineData[], i: number): { title: string; text: 
   else if (s.io === 'ioi') parts.push('ioi: inside, outside, inside — breakout mode. A stop entry beyond this bar in the trend direction is the usual play.');
   else if (s.io === 'outside') parts.push('Outside bar: it went above and below the prior bar — both sides got stopped out; the close shows who won.');
   if (s.mm != null) parts.push(`Measured-move target from this breakout bar: about ${s.mm.toFixed(0)} (its height projected beyond the close).`);
+  if (s.mtr) parts.push(s.mtr > 0
+    ? 'Major trend reversal (MTR) buy: the bear trend made a low, broke strongly above the EMA, came back to test the low and this bull reversal bar held it. Tested on NQ 5m 2021-2026: not proven, a study mark.'
+    : 'Major trend reversal (MTR) sell: the bull trend made a high, broke strongly below the EMA, came back to test the high and this bear reversal bar held it. Tested on NQ 5m 2021-2026: not proven, a study mark.');
+  if (s.bp) parts.push(s.bp > 0
+    ? 'Breakout pullback (BP) buy: a strong bull breakout 1-5 bars ago, and this pullback held above the breakout point. On NQ 5m 2021-2026 it was slightly positive in all three test periods, but not beyond luck: watch-list only.'
+    : 'Breakout pullback (BP) sell: a strong bear breakout 1-5 bars ago, and this rally held below the breakout point. On NQ 5m 2021-2026 it was slightly positive in all three test periods, but not beyond luck: watch-list only.');
+  if (s.mc1) parts.push(s.mc1 > 0
+    ? 'First pullback out of a bull micro channel (MC1): strong trends usually resume after the first pullback, a with-trend buy setup. Careful: on NQ 5m 2021-2026 this LOST about -0.18R per trade in every test period (the first pullback often failed).'
+    : 'First bounce out of a bear micro channel (MC1): strong trends usually resume after the first bounce, a with-trend sell setup. Careful: on NQ 5m 2021-2026 this LOST about -0.18R per trade in every test period (the first bounce often failed).');
   if (Math.abs(s.micro) >= 6) parts.push(s.micro > 0 ? `Bull micro channel: ${s.micro} bars without a lower low. Strong: the first pullback is usually bought, so do not short it yet.` : `Bear micro channel: ${-s.micro} bars without a higher high. Strong: the first bounce is usually sold, so do not buy it yet.`);
   const title = s.count ? `${s.count} bar` : s.wedge ? 'Wedge (3 pushes)' : s.dbl ? (s.dbl === 'DT' ? 'Double top' : 'Double bottom') : s.aiFlip ? 'Always-in flip' : s.bo ? 'Breakout' : 'Bar read';
-  const t2 = s.open ? 'New York open' : s.openType ? 'Opening type' : s.trap ? (s.trap > 0 ? 'Bear trap' : 'Bull trap') : s.climax ? (s.climax > 0 ? 'Buy climax' : 'Sell climax') : s.maGap ? 'EMA gap bar' : title;
+  const t2 = s.mtr ? 'Major trend reversal' : s.bp ? 'Breakout pullback' : s.mc1 ? 'Micro-channel pullback' : s.open ? 'New York open' : s.openType ? 'Opening type' : s.trap ? (s.trap > 0 ? 'Bear trap' : 'Bull trap') : s.climax ? (s.climax > 0 ? 'Buy climax' : 'Sell climax') : s.maGap ? 'EMA gap bar' : title;
   return { title: t2, text: parts.filter(Boolean).join(' ') };
 }
 
@@ -278,9 +354,21 @@ export function registerPriceAction() {
         ctx.fillStyle = s.ai > 0 ? 'rgba(8,153,129,.55)' : s.ai < 0 ? 'rgba(242,54,69,.55)' : 'rgba(128,128,128,.3)';
         ctx.fillRect(x(i) - bar / 2, bounding.height - 4, bar + 1, 4);
         const b = data[i];
-        const label = s.count || (s.wedge ? 'W3' : '') || s.dbl || (s.trap ? 'TRAP' : '') || (s.climax ? 'CLX' : '') || (s.maGap ? 'MAG' : '') || (s.io === 'ii' || s.io === 'ioi' ? s.io : '');
-        if (!label) continue;
-        const bull = s.count?.startsWith('H') || s.dbl === 'DB' || s.wedge === 'bottom' || s.trap > 0 || s.climax < 0 || s.maGap > 0;
+        // first matching label wins; its direction decides the colour (green = buy setup, red = sell setup)
+        const marks: [string, boolean][] = [];
+        if (s.mtr) marks.push(['MTR', s.mtr > 0]);
+        if (s.bp) marks.push(['BP', s.bp > 0]);
+        if (s.count) marks.push([s.count, s.count.startsWith('H')]);
+        if (s.wedge) marks.push(['W3', s.wedge === 'bottom']);
+        if (s.dbl) marks.push([s.dbl, s.dbl === 'DB']);
+        if (s.trap) marks.push(['TRAP', s.trap > 0]);
+        if (s.climax) marks.push(['CLX', s.climax < 0]);
+        if (s.mc1) marks.push(['MC1', s.mc1 > 0]);
+        if (s.maGap) marks.push(['MAG', s.maGap > 0]);
+        if (s.bo) marks.push(['BO', s.bo > 0]);
+        if (s.io === 'ii' || s.io === 'ioi') marks.push([s.io, false]);
+        if (!marks.length) continue;
+        const [label, bull] = marks[0];
         ctx.fillStyle = bull ? '#089981' : '#f23645';
         if (s.signalQuality === 'weak') ctx.globalAlpha = 0.55;
         if (bull) { ctx.textBaseline = 'top'; ctx.fillText(label, x(i), y(b.low) + 4); }
