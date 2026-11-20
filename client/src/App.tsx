@@ -41,6 +41,14 @@ import NewsAnalyzer from './components/NewsAnalyzer';
 import NewsBlackoutBanner from './components/NewsBlackoutBanner';
 import PropBreachBanner from './components/PropBreachBanner';
 import EdgeOddsCard from './components/EdgeOddsCard';
+import EconCalendar from './components/EconCalendar';
+import TodayCard from './components/TodayCard';
+import PremarketPanel from './components/PremarketPanel';
+import DisciplineCard from './components/DisciplineCard';
+import DebriefQueue from './components/DebriefQueue';
+import DebriefStats from './components/DebriefStats';
+import RulesCard, { RuleBreakBanner } from './components/RulesCard';
+import AlertSettings from './components/AlertSettings';
 import { setChartLinkEnabled, OPEN_CHART_EVENT } from './utils/chartLink';
 import FocusPanel from './components/FocusPanel';
 import { PageHeader, SubTabs } from './components/ui';
@@ -144,6 +152,7 @@ export default function App() {
   const [month, setMonth] = useState(new Date().getMonth() + 1);
   const [year, setYear] = useState(new Date().getFullYear());
   const [accounts, setAccounts] = useState<Account[]>([]);
+  const [habitsKey, setHabitsKey] = useState(0); // bumps the discipline card after a debrief
   const [selectedAccount, setSelectedAccount] = useState<number | null>(null);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [dailySummaries, setDailySummaries] = useState<DailySummary[]>([]);
@@ -577,6 +586,7 @@ export default function App() {
           {/* ---- DASHBOARD ---- */}
           {token && <NewsBlackoutBanner token={token} accountId={selectedAccount || null} />}
           {token && <PropBreachBanner token={token} accountId={selectedAccount || null} attempt={selectedAttempt} />}
+          {token && <RuleBreakBanner token={token} accountId={selectedAccount || null} onNavigate={go} />}
           {/* Date-range bar (filters Overview + Setup Performance + Breakdown + Report) */}
           {token && selectedAccount && ['dashboard', 'setups', 'breakdown', 'report'].includes(view) && (
             <DateRangeBar range={range} onChange={setRange} />
@@ -621,6 +631,9 @@ export default function App() {
               {token && selectedAccount && (<>
                 <ErrorBoundary name="Prop Status"><PropStatus token={token} accountId={selectedAccount} attempt={selectedAttempt} /></ErrorBoundary>
                 <ErrorBoundary name="Edge check"><EdgeOddsCard token={token} accountId={selectedAccount} attempt={selectedAttempt} onNavigate={go} /></ErrorBoundary>
+                <ErrorBoundary name="Today"><TodayCard token={token} onNavigate={go} isAdmin={isAdmin} /></ErrorBoundary>
+                <ErrorBoundary name="Discipline score"><DisciplineCard token={token} accountId={selectedAccount} refreshKey={habitsKey} onNavigate={go} /></ErrorBoundary>
+                <ErrorBoundary name="Debrief"><DebriefQueue token={token} accountId={selectedAccount} attempt={selectedAttempt} onSaved={() => setHabitsKey(k => k + 1)} /></ErrorBoundary>
               </>)}
               <Calendar
                 month={month}
@@ -690,7 +703,10 @@ export default function App() {
             <ErrorBoundary name="Paper vs Real"><Compare token={token} accounts={accounts} /></ErrorBoundary>
           )}
           {token && selectedAccount && view === 'discipline' && (
-            <ErrorBoundary name="Discipline"><Discipline token={token} account_id={selectedAccount} attempt={selectedAttempt} /></ErrorBoundary>
+            <>
+              <ErrorBoundary name="Debrief stats"><DebriefStats token={token} accountId={selectedAccount} attempt={selectedAttempt} /></ErrorBoundary>
+              <ErrorBoundary name="Discipline"><Discipline token={token} account_id={selectedAccount} attempt={selectedAttempt} /></ErrorBoundary>
+            </>
           )}
           {token && selectedAccount && view === 'report' && (
             <ErrorBoundary name="Report"><Report token={token} account_id={selectedAccount} from={range.from} to={range.to} label={range.label} attempt={selectedAttempt} /></ErrorBoundary>
@@ -699,7 +715,10 @@ export default function App() {
             <ErrorBoundary name="Checklist"><Checklist /></ErrorBoundary>
           )}
           {token && isAdmin && view === 'news' && (
-            <ErrorBoundary name="News Analyzer"><NewsAnalyzer token={token} account_id={selectedAccount || null} /></ErrorBoundary>
+            <>
+              <ErrorBoundary name="Economic calendar"><EconCalendar token={token} isAdmin={isAdmin} /></ErrorBoundary>
+              <ErrorBoundary name="News Analyzer"><NewsAnalyzer token={token} account_id={selectedAccount || null} /></ErrorBoundary>
+            </>
           )}
           {view === 'propfirms' && (
             <ErrorBoundary name="Prop Firms"><PropFirms /></ErrorBoundary>
@@ -739,13 +758,20 @@ export default function App() {
             <ErrorBoundary name="Market Chart"><MarketChart token={token} focus={chartFocus} /></ErrorBoundary>
           )}
           {token && view === 'premarket' && (
-            <ErrorBoundary name="Pre-Market"><PreMarket token={token} /></ErrorBoundary>
+            <>
+              <ErrorBoundary name="Market before the open"><PremarketPanel token={token} /></ErrorBoundary>
+              <ErrorBoundary name="Pre-Market"><PreMarket token={token} /></ErrorBoundary>
+            </>
           )}
           {token && selectedAccount && view === 'charts' && (
             <ErrorBoundary name="Charts"><Charts token={token} account_id={selectedAccount} attempt={selectedAttempt} /></ErrorBoundary>
           )}
           {token && selectedAccount && view === 'risk' && (
-            <ErrorBoundary name="Risk Management"><RiskManagement token={token} account_id={selectedAccount} /></ErrorBoundary>
+            <>
+              <ErrorBoundary name="Your rules"><RulesCard token={token} accountId={selectedAccount} /></ErrorBoundary>
+              <ErrorBoundary name="Risk Management"><RiskManagement token={token} account_id={selectedAccount} /></ErrorBoundary>
+              <ErrorBoundary name="Phone alerts"><AlertSettings token={token} accounts={accounts} defaultAccount={selectedAccount} /></ErrorBoundary>
+            </>
           )}
           {token && selectedAccount && view === 'backtestlab' && (
             <ErrorBoundary name="Backtest Lab"><BacktestLab token={token} account_id={selectedAccount} attempt={selectedAttempt} /></ErrorBoundary>

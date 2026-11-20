@@ -39,6 +39,9 @@ import patternsRouter from './api/patterns';
 import chartTradesRouter from './api/chartTrades';
 import btSessionsRouter from './api/btSessions';
 import newsRouter from './api/news';
+import calendarRouter from './api/calendar';
+import habitsRouter from './api/habits';
+import alertsRouter from './api/alerts';
 
 // Fail fast: never run with a missing or weak token-signing secret
 if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 32) {
@@ -84,6 +87,7 @@ app.use(compression({ threshold: 1024 }));
 
 // Request bodies: small by default; large only where files are uploaded.
 app.use('/api/import', express.json({ limit: '25mb' })); // CSV imports can be several MB
+app.use('/api/calendar/import', express.json({ limit: '25mb' })); // ForexFactory history files are ~7 MB
 app.use('/api/bars/upload', express.json({ limit: '25mb' })); // bar CSV uploads (admin)
 app.use('/api/notes', express.json({ limit: '12mb' })); // daily notes carry a screenshot
 app.use(express.json({ limit: '2mb' }));
@@ -106,6 +110,9 @@ app.use('/api/auth', authRouter);
 app.use('/api/admin', adminRouter);
 app.use('/api/bt-sessions', btSessionsRouter); // own auth (beacon carries its token in the body); keep above the '/api' mounts
 app.use('/api/news', newsRouter); // own auth (blackout: any user; research: admin)
+app.use('/api/calendar', calendarRouter); // own auth (import: admin)
+app.use('/api/habits', habitsRouter); // own auth
+app.use('/api/alerts', alertsRouter); // own auth (/tick is public: called by the scheduler)
 app.use('/api/bars', barsRouter); // own auth (admin only); keep above the '/api' mounts
 app.use('/api/coach/replay', coachReplayRouter); // own auth (admin only)
 app.use('/api/chart/settings', chartSettingsRouter);

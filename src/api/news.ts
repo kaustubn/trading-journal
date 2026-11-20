@@ -7,6 +7,7 @@ import { requireAccountParam } from '../security';
 import { eventStudy, calendar, parseForecastCsv, getReleases } from '../news/econData';
 import { EVENT_INFO, EventCode, personalStats, PTrade } from '../news/econStats';
 import { summarize } from '../news/summary';
+import { listEvents } from '../news/econEvents';
 
 const router = Router();
 router.use(verifyToken);
@@ -22,7 +23,16 @@ router.get('/blackout/:account_id', requireAccountParam, async (req: Request, re
     const a = await pool.query('SELECT news_blackout_before_min AS before, news_blackout_after_min AS after FROM accounts WHERE id = $1', [req.params.account_id]);
     const now = Date.now(), week = now + 7 * 86400000;
     const up = (await calendar()).filter(r => { const t = Date.parse(r.utc); return t > now - 3 * 3600000 && t < week; })
-      .map(r => ({ event: r.event, name: EVENT_INFO[r.event].name, utc: r.utc, shared: r.shared }));
+      .map(r => ({ event: r.event as string, name: EVENT_INFO[r.event].name, utc: r.utc, shared: r.shared }));
+    // plus every high-impact USD release from the imported economic calendar (one entry per release time)
+    const have = new Set(up.map(u => new Date(u.utc).toISOString()));
+    for (const e of await listEvents(now - 3 * 3600000, week, ['high'])) {
+      if (e.currency !== 'USD' || have.has(e.release_utc)) continue;
+      const same = (await listEvents(Date.parse(e.release_utc), Date.parse(e.release_utc) + 1, ['high'])).map(x => x.title);
+      up.push({ event: 'CAL', name: same[0] ?? e.title, utc: e.release_utc, shared: same.slice(1) });
+      have.add(e.release_utc);
+    }
+    up.sort((a, b) => a.utc.localeCompare(b.utc));
     res.json({ before: a.rows[0]?.before ?? null, after: a.rows[0]?.after ?? null, upcoming: up });
   } catch (e) { fail(res, 'blackout', e); }
 });

@@ -95,6 +95,71 @@ export const MIGRATIONS: Migration[] = [
       UPDATE accounts SET prop_dd_type = CASE WHEN prop_trailing = false THEN 'static' ELSE 'intraday' END WHERE prop_dd_type IS NULL;
     `,
   },
+  {
+    // Economic calendar (any release, imported from ForexFactory files), big-tech earnings dates, a small cache for
+    // market snapshots, personal risk rules, post-trade debriefs, and Telegram alert settings + sent log (2026-11-20).
+    id: '005_calendar_discipline_alerts',
+    sql: `
+      CREATE TABLE IF NOT EXISTS econ_events (
+        id SERIAL PRIMARY KEY,
+        release_utc TIMESTAMPTZ NOT NULL,
+        title VARCHAR(160) NOT NULL,
+        currency VARCHAR(8) NOT NULL DEFAULT 'USD',
+        impact VARCHAR(10) NOT NULL DEFAULT 'high',
+        actual VARCHAR(40), forecast VARCHAR(40), previous VARCHAR(40),
+        source VARCHAR(40),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        UNIQUE (release_utc, title, currency)
+      );
+      CREATE INDEX IF NOT EXISTS idx_econ_events_time ON econ_events(release_utc);
+      CREATE TABLE IF NOT EXISTS earnings_events (
+        symbol VARCHAR(12) NOT NULL,
+        report_date DATE NOT NULL,
+        timing VARCHAR(20),
+        eps_forecast VARCHAR(20),
+        fetched_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        PRIMARY KEY (symbol, report_date)
+      );
+      CREATE TABLE IF NOT EXISTS market_cache (
+        key VARCHAR(80) PRIMARY KEY,
+        data JSONB NOT NULL,
+        fetched_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+      CREATE TABLE IF NOT EXISTS account_rules (
+        account_id INT PRIMARY KEY REFERENCES accounts(id) ON DELETE CASCADE,
+        max_trades_day INT, max_losses_day INT, max_contracts INT,
+        max_daily_loss NUMERIC(12, 2),
+        start_time VARCHAR(5), end_time VARCHAR(5),
+        respect_news BOOLEAN NOT NULL DEFAULT false,
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+      CREATE TABLE IF NOT EXISTS trade_debriefs (
+        trade_id INT PRIMARY KEY REFERENCES trades(id) ON DELETE CASCADE,
+        user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        followed_plan BOOLEAN, emotion VARCHAR(20), retake BOOLEAN, quality SMALLINT,
+        lesson TEXT,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_trade_debriefs_user ON trade_debriefs(user_id);
+      CREATE TABLE IF NOT EXISTS alert_settings (
+        user_id INT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+        telegram_token TEXT, telegram_chat VARCHAR(40),
+        enabled BOOLEAN NOT NULL DEFAULT false,
+        account_id INT REFERENCES accounts(id) ON DELETE SET NULL,
+        news BOOLEAN NOT NULL DEFAULT true, earnings BOOLEAN NOT NULL DEFAULT true,
+        rules BOOLEAN NOT NULL DEFAULT true, prop BOOLEAN NOT NULL DEFAULT true, brief BOOLEAN NOT NULL DEFAULT true,
+        lead_min INT NOT NULL DEFAULT 15,
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+      CREATE TABLE IF NOT EXISTS alert_log (
+        user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        key VARCHAR(200) NOT NULL,
+        sent_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        PRIMARY KEY (user_id, key)
+      );
+    `,
+  },
 ];
 
 export async function runMigrations(client: PoolClient, list: Migration[] = MIGRATIONS): Promise<string[]> {

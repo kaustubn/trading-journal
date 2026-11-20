@@ -1,0 +1,761 @@
+{
+ "period": "2021-11-16 to 2026-11-06",
+ "built": "2026-11-20",
+ "source": "NQ front-month 1-minute bars (journal data) around ForexFactory USD high-impact releases; move = close of the bar ending k minutes after the release minus the close of the bar ending at the release",
+ "events": {
+  "ADP Non-Farm Employment Change": {
+   "title": "ADP Non-Farm Employment Change",
+   "n": 52,
+   "absMed1": 6.8,
+   "absMed15": 13.9,
+   "absMed60": 32.6,
+   "up15": 38.5,
+   "buckets": {
+    "above": {
+     "n": 23,
+     "up15": 30.4,
+     "med15": -6.8,
+     "held60": 73.9
+    },
+    "below": {
+     "n": 28,
+     "up15": 46.4,
+     "med15": -0.8,
+     "held60": 71.4
+    }
+   }
+  },
+  "Advance GDP q/q": {
+   "title": "Advance GDP q/q",
+   "n": 19,
+   "absMed1": 13.8,
+   "absMed15": 36.8,
+   "absMed60": 50.2,
+   "up15": 52.6,
+   "buckets": {
+    "above": {
+     "n": 9,
+     "up15": 77.8,
+     "med15": 14.8,
+     "held60": 77.8
+    },
+    "below": {
+     "n": 10,
+     "up15": 30.0,
+     "med15": -22.6,
+     "held60": 90.0
+    }
+   }
+  },
+  "Average Hourly Earnings m/m": {
+   "title": "Average Hourly Earnings m/m",
+   "n": 59,
+   "absMed1": 46.2,
+   "absMed15": 58.2,
+   "absMed60": 57.2,
+   "up15": 57.6,
+   "buckets": {
+    "above": {
+     "n": 20,
+     "up15": 50.0,
+     "med15": 2.0,
+     "held60": 60.0
+    },
+    "below": {
+     "n": 21,
+     "up15": 71.4,
+     "med15": 48.0,
+     "held60": 76.2
+    },
+    "inline": {
+     "n": 17,
+     "up15": 52.9,
+     "med15": 5.8,
+     "held60": 64.7
+    }
+   }
+  },
+  "CB Consumer Confidence": {
+   "title": "CB Consumer Confidence",
+   "n": 31,
+   "absMed1": 13.2,
+   "absMed15": 18.2,
+   "absMed60": 35.5,
+   "up15": 48.4,
+   "buckets": {
+    "above": {
+     "n": 17,
+     "up15": 52.9,
+     "med15": 13.2,
+     "held60": 76.5
+    },
+    "below": {
+     "n": 14,
+     "up15": 42.9,
+     "med15": -4.0,
+     "held60": 57.1
+    }
+   }
+  },
+  "CPI m/m": {
+   "title": "CPI m/m",
+   "n": 57,
+   "absMed1": 92.5,
+   "absMed15": 85.2,
+   "absMed60": 85.8,
+   "up15": 59.6,
+   "buckets": {
+    "above": {
+     "n": 16,
+     "up15": 12.5,
+     "med15": -173.2,
+     "held60": 93.8
+    },
+    "below": {
+     "n": 18,
+     "up15": 88.9,
+     "med15": 89.5,
+     "held60": 94.4
+    },
+    "inline": {
+     "n": 23,
+     "up15": 69.6,
+     "med15": 22.5,
+     "held60": 65.2
+    }
+   }
+  },
+  "CPI y/y": {
+   "title": "CPI y/y",
+   "n": 58,
+   "absMed1": 91.0,
+   "absMed15": 86.2,
+   "absMed60": 91.6,
+   "up15": 58.6,
+   "buckets": {
+    "above": {
+     "n": 19,
+     "up15": 21.1,
+     "med15": -162.0,
+     "held60": 89.5
+    },
+    "below": {
+     "n": 22,
+     "up15": 86.4,
+     "med15": 97.4,
+     "held60": 90.9
+    },
+    "inline": {
+     "n": 17,
+     "up15": 64.7,
+     "med15": 22.5,
+     "held60": 64.7
+    }
+   }
+  },
+  "Core CPI m/m": {
+   "title": "Core CPI m/m",
+   "n": 57,
+   "absMed1": 92.5,
+   "absMed15": 85.2,
+   "absMed60": 85.8,
+   "up15": 59.6,
+   "buckets": {
+    "above": {
+     "n": 19,
+     "up15": 26.3,
+     "med15": -162.0,
+     "held60": 78.9
+    },
+    "below": {
+     "n": 19,
+     "up15": 89.5,
+     "med15": 103.0,
+     "held60": 94.7
+    },
+    "inline": {
+     "n": 19,
+     "up15": 63.2,
+     "med15": 22.5,
+     "held60": 73.7
+    }
+   }
+  },
+  "Core CPI y/y": {
+   "title": "Core CPI y/y",
+   "n": 58,
+   "absMed1": 91.0,
+   "absMed15": 86.2,
+   "absMed60": 91.6,
+   "up15": 60.3,
+   "buckets": {
+    "above": {
+     "n": 19,
+     "up15": 36.8,
+     "med15": -162.0,
+     "held60": 94.7
+    },
+    "below": {
+     "n": 16,
+     "up15": 87.5,
+     "med15": 111.8,
+     "held60": 93.8
+    },
+    "inline": {
+     "n": 23,
+     "up15": 60.9,
+     "med15": 11.8,
+     "held60": 65.2
+    }
+   }
+  },
+  "Core PCE Price Index m/m": {
+   "title": "Core PCE Price Index m/m",
+   "n": 58,
+   "absMed1": 22.5,
+   "absMed15": 34.2,
+   "absMed60": 43.8,
+   "up15": 56.9,
+   "buckets": {
+    "above": {
+     "n": 8,
+     "up15": 0.0,
+     "med15": -34.2,
+     "held60": 100.0
+    },
+    "below": {
+     "n": 13,
+     "up15": 100.0,
+     "med15": 47.2,
+     "held60": 84.6
+    },
+    "inline": {
+     "n": 37,
+     "up15": 54.1,
+     "med15": 2.8,
+     "held60": 81.1
+    }
+   }
+  },
+  "Core PPI m/m": {
+   "title": "Core PPI m/m",
+   "n": 46,
+   "absMed1": 32.8,
+   "absMed15": 38.0,
+   "absMed60": 51.4,
+   "up15": 37.0,
+   "buckets": {
+    "above": {
+     "n": 15,
+     "up15": 6.7,
+     "med15": -40.5,
+     "held60": 100.0
+    },
+    "below": {
+     "n": 22,
+     "up15": 63.6,
+     "med15": 13.6,
+     "held60": 86.4
+    },
+    "inline": {
+     "n": 9,
+     "up15": 22.2,
+     "med15": -1.0,
+     "held60": 66.7
+    }
+   }
+  },
+  "Core Retail Sales m/m": {
+   "title": "Core Retail Sales m/m",
+   "n": 56,
+   "absMed1": 12.5,
+   "absMed15": 22.0,
+   "absMed60": 36.8,
+   "up15": 41.1,
+   "buckets": {
+    "above": {
+     "n": 27,
+     "up15": 48.1,
+     "med15": -10.0,
+     "held60": 66.7
+    },
+    "below": {
+     "n": 22,
+     "up15": 36.4,
+     "med15": -15.6,
+     "held60": 59.1
+    },
+    "inline": {
+     "n": 7,
+     "up15": 28.6,
+     "med15": -7.8,
+     "held60": 100.0
+    }
+   }
+  },
+  "Empire State Manufacturing Index": {
+   "title": "Empire State Manufacturing Index",
+   "n": 23,
+   "absMed1": 8.0,
+   "absMed15": 21.2,
+   "absMed60": 33.0,
+   "up15": 47.8,
+   "buckets": {
+    "above": {
+     "n": 11,
+     "up15": 54.5,
+     "med15": 1.0,
+     "held60": 81.8
+    },
+    "below": {
+     "n": 12,
+     "up15": 41.7,
+     "med15": -6.1,
+     "held60": 66.7
+    }
+   }
+  },
+  "Employment Cost Index q/q": {
+   "title": "Employment Cost Index q/q",
+   "n": 12,
+   "absMed1": 9.0,
+   "absMed15": 21.1,
+   "absMed60": 43.4,
+   "up15": 16.7,
+   "buckets": {
+    "above": {
+     "n": 5,
+     "up15": 20.0,
+     "med15": -36.5,
+     "held60": 100.0
+    },
+    "below": {
+     "n": 5,
+     "up15": 20.0,
+     "med15": -6.5,
+     "held60": 80.0
+    }
+   }
+  },
+  "FOMC Economic Projections": {
+   "title": "FOMC Economic Projections",
+   "n": 20,
+   "absMed1": 55.8,
+   "absMed15": 84.8,
+   "absMed60": 121.9,
+   "up15": 35.0,
+   "buckets": {}
+  },
+  "FOMC Meeting Minutes": {
+   "title": "FOMC Meeting Minutes",
+   "n": 39,
+   "absMed1": 9.0,
+   "absMed15": 20.8,
+   "absMed60": 36.5,
+   "up15": 56.4,
+   "buckets": {}
+  },
+  "FOMC Member Powell Speaks": {
+   "title": "FOMC Member Powell Speaks",
+   "n": 48,
+   "absMed1": 6.0,
+   "absMed15": 20.2,
+   "absMed60": 45.8,
+   "up15": 64.6,
+   "buckets": {}
+  },
+  "FOMC Press Conference": {
+   "title": "FOMC Press Conference",
+   "n": 40,
+   "absMed1": 12.2,
+   "absMed15": 64.8,
+   "absMed60": 102.4,
+   "up15": 62.5,
+   "buckets": {}
+  },
+  "FOMC Statement": {
+   "title": "FOMC Statement",
+   "n": 40,
+   "absMed1": 34.8,
+   "absMed15": 45.5,
+   "absMed60": 82.5,
+   "up15": 37.5,
+   "buckets": {}
+  },
+  "Fed Chairman Powell Testifies": {
+   "title": "Fed Chairman Powell Testifies",
+   "n": 19,
+   "absMed1": 11.5,
+   "absMed15": 28.0,
+   "absMed60": 41.0,
+   "up15": 52.6,
+   "buckets": {}
+  },
+  "Federal Funds Rate": {
+   "title": "Federal Funds Rate",
+   "n": 40,
+   "absMed1": 34.8,
+   "absMed15": 45.5,
+   "absMed60": 82.5,
+   "up15": 37.5,
+   "buckets": {
+    "inline": {
+     "n": 38,
+     "up15": 36.8,
+     "med15": -16.0,
+     "held60": 65.8
+    }
+   }
+  },
+  "Final GDP q/q": {
+   "title": "Final GDP q/q",
+   "n": 15,
+   "absMed1": 6.2,
+   "absMed15": 21.5,
+   "absMed60": 29.2,
+   "up15": 53.3,
+   "buckets": {
+    "above": {
+     "n": 8,
+     "up15": 37.5,
+     "med15": -15.1,
+     "held60": 62.5
+    },
+    "below": {
+     "n": 5,
+     "up15": 60.0,
+     "med15": 2.0,
+     "held60": 60.0
+    }
+   }
+  },
+  "Flash Manufacturing PMI": {
+   "title": "Flash Manufacturing PMI",
+   "n": 37,
+   "absMed1": 7.5,
+   "absMed15": 28.2,
+   "absMed60": 45.8,
+   "up15": 56.8,
+   "buckets": {
+    "above": {
+     "n": 19,
+     "up15": 52.6,
+     "med15": 6.8,
+     "held60": 63.2
+    },
+    "below": {
+     "n": 16,
+     "up15": 56.2,
+     "med15": 4.5,
+     "held60": 56.2
+    }
+   }
+  },
+  "Flash Services PMI": {
+   "title": "Flash Services PMI",
+   "n": 45,
+   "absMed1": 8.0,
+   "absMed15": 28.8,
+   "absMed60": 45.8,
+   "up15": 55.6,
+   "buckets": {
+    "above": {
+     "n": 26,
+     "up15": 46.2,
+     "med15": -6.6,
+     "held60": 57.7
+    },
+    "below": {
+     "n": 19,
+     "up15": 68.4,
+     "med15": 28.8,
+     "held60": 57.9
+    }
+   }
+  },
+  "ISM Manufacturing PMI": {
+   "title": "ISM Manufacturing PMI",
+   "n": 57,
+   "absMed1": 14.8,
+   "absMed15": 39.2,
+   "absMed60": 64.5,
+   "up15": 45.6,
+   "buckets": {
+    "above": {
+     "n": 23,
+     "up15": 52.2,
+     "med15": 6.8,
+     "held60": 60.9
+    },
+    "below": {
+     "n": 34,
+     "up15": 41.2,
+     "med15": -8.9,
+     "held60": 64.7
+    }
+   }
+  },
+  "ISM Services PMI": {
+   "title": "ISM Services PMI",
+   "n": 53,
+   "absMed1": 22.8,
+   "absMed15": 42.0,
+   "absMed60": 68.5,
+   "up15": 43.4,
+   "buckets": {
+    "above": {
+     "n": 29,
+     "up15": 48.3,
+     "med15": -13.5,
+     "held60": 69.0
+    },
+    "below": {
+     "n": 23,
+     "up15": 34.8,
+     "med15": -29.8,
+     "held60": 60.9
+    }
+   }
+  },
+  "JOLTS Job Openings": {
+   "title": "JOLTS Job Openings",
+   "n": 53,
+   "absMed1": 16.5,
+   "absMed15": 36.0,
+   "absMed60": 65.5,
+   "up15": 30.2,
+   "buckets": {
+    "above": {
+     "n": 30,
+     "up15": 23.3,
+     "med15": -31.2,
+     "held60": 76.7
+    },
+    "below": {
+     "n": 22,
+     "up15": 40.9,
+     "med15": -19.5,
+     "held60": 63.6
+    }
+   }
+  },
+  "Non-Farm Employment Change": {
+   "title": "Non-Farm Employment Change",
+   "n": 59,
+   "absMed1": 46.2,
+   "absMed15": 58.2,
+   "absMed60": 57.2,
+   "up15": 57.6,
+   "buckets": {
+    "above": {
+     "n": 39,
+     "up15": 48.7,
+     "med15": -0.2,
+     "held60": 71.8
+    },
+    "below": {
+     "n": 19,
+     "up15": 78.9,
+     "med15": 38.8,
+     "held60": 57.9
+    }
+   }
+  },
+  "PPI m/m": {
+   "title": "PPI m/m",
+   "n": 58,
+   "absMed1": 31.8,
+   "absMed15": 34.5,
+   "absMed60": 48.9,
+   "up15": 43.1,
+   "buckets": {
+    "above": {
+     "n": 24,
+     "up15": 16.7,
+     "med15": -30.5,
+     "held60": 100.0
+    },
+    "below": {
+     "n": 26,
+     "up15": 69.2,
+     "med15": 24.1,
+     "held60": 73.1
+    },
+    "inline": {
+     "n": 8,
+     "up15": 37.5,
+     "med15": -12.6,
+     "held60": 87.5
+    }
+   }
+  },
+  "Prelim GDP q/q": {
+   "title": "Prelim GDP q/q",
+   "n": 20,
+   "absMed1": 14.2,
+   "absMed15": 19.8,
+   "absMed60": 20.2,
+   "up15": 45.0,
+   "buckets": {
+    "above": {
+     "n": 9,
+     "up15": 33.3,
+     "med15": -18.8,
+     "held60": 88.9
+    },
+    "below": {
+     "n": 7,
+     "up15": 42.9,
+     "med15": -1.2,
+     "held60": 28.6
+    },
+    "inline": {
+     "n": 4,
+     "up15": 75.0,
+     "med15": 8.5,
+     "held60": 100.0
+    }
+   }
+  },
+  "Prelim UoM Consumer Sentiment": {
+   "title": "Prelim UoM Consumer Sentiment",
+   "n": 36,
+   "absMed1": 19.8,
+   "absMed15": 33.1,
+   "absMed60": 47.2,
+   "up15": 47.2,
+   "buckets": {
+    "above": {
+     "n": 16,
+     "up15": 62.5,
+     "med15": 10.9,
+     "held60": 68.8
+    },
+    "below": {
+     "n": 20,
+     "up15": 35.0,
+     "med15": -18.5,
+     "held60": 75.0
+    }
+   }
+  },
+  "Prelim UoM Inflation Expectations": {
+   "title": "Prelim UoM Inflation Expectations",
+   "n": 10,
+   "absMed1": 13.5,
+   "absMed15": 33.1,
+   "absMed60": 55.0,
+   "up15": 30.0,
+   "buckets": {}
+  },
+  "President Trump Speaks": {
+   "title": "President Trump Speaks",
+   "n": 24,
+   "absMed1": 2.9,
+   "absMed15": 8.4,
+   "absMed60": 33.4,
+   "up15": 41.7,
+   "buckets": {}
+  },
+  "Retail Sales m/m": {
+   "title": "Retail Sales m/m",
+   "n": 56,
+   "absMed1": 12.5,
+   "absMed15": 22.0,
+   "absMed60": 36.8,
+   "up15": 41.1,
+   "buckets": {
+    "above": {
+     "n": 29,
+     "up15": 48.3,
+     "med15": -7.8,
+     "held60": 69.0
+    },
+    "below": {
+     "n": 26,
+     "up15": 34.6,
+     "med15": -13.6,
+     "held60": 65.4
+    }
+   }
+  },
+  "Revised UoM Consumer Sentiment": {
+   "title": "Revised UoM Consumer Sentiment",
+   "n": 11,
+   "absMed1": 14.2,
+   "absMed15": 22.0,
+   "absMed60": 40.8,
+   "up15": 63.6,
+   "buckets": {
+    "above": {
+     "n": 7,
+     "up15": 42.9,
+     "med15": -2.2,
+     "held60": 42.9
+    },
+    "below": {
+     "n": 4,
+     "up15": 100.0,
+     "med15": 48.1,
+     "held60": 50.0
+    }
+   }
+  },
+  "Unemployment Claims": {
+   "title": "Unemployment Claims",
+   "n": 152,
+   "absMed1": 8.6,
+   "absMed15": 21.1,
+   "absMed60": 29.6,
+   "up15": 48.7,
+   "buckets": {
+    "above": {
+     "n": 50,
+     "up15": 48.0,
+     "med15": -0.8,
+     "held60": 72.0
+    },
+    "below": {
+     "n": 94,
+     "up15": 46.8,
+     "med15": -1.5,
+     "held60": 66.0
+    },
+    "inline": {
+     "n": 7,
+     "up15": 85.7,
+     "med15": 19.8,
+     "held60": 71.4
+    }
+   }
+  },
+  "Unemployment Rate": {
+   "title": "Unemployment Rate",
+   "n": 59,
+   "absMed1": 46.2,
+   "absMed15": 58.2,
+   "absMed60": 57.2,
+   "up15": 57.6,
+   "buckets": {
+    "above": {
+     "n": 22,
+     "up15": 59.1,
+     "med15": 31.8,
+     "held60": 63.6
+    },
+    "below": {
+     "n": 24,
+     "up15": 50.0,
+     "med15": 2.4,
+     "held60": 66.7
+    },
+    "inline": {
+     "n": 12,
+     "up15": 75.0,
+     "med15": 30.2,
+     "held60": 75.0
+    }
+   }
+  }
+ }
+}
