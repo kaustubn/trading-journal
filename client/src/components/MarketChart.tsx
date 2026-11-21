@@ -137,6 +137,7 @@ export default function MarketChart({ token, focus }: { token: string; focus?: {
   const widenRef = useRef<(prev: number) => void>(() => {});
   const wsRef = useRef<Workspace | null>(null);
   const panesOf = () => [...(wsRef.current?.panes.values() ?? [])];
+  const fpZoom = useRef(false);
   const engine = useMemo(() => new ReplayEngine({
     fetch1m: (after, limit) => axios.get<BarsResp>('/api/bars', { ...auth(), params: { symbol: 'NQ', tf: 1, after, limit } })
       .then(r => r.data.bars.map(toK)),
@@ -653,6 +654,15 @@ export default function MarketChart({ token, focus }: { token: string; focus?: {
   const setLevel = (k: keyof Settings['levels']) => update(cur => ({ ...cur, levels: { ...cur.levels, [k]: !cur.levels[k] } }));
   const setLayout = (mode: LayoutMode) => update(cur => ({ ...cur, layout: mode, active: Math.min(cur.active, layoutCount(mode) - 1) }));
 
+  // after "Footprint" is picked as the chart type, the charts are rebuilt: widen the candles then
+  useEffect(() => {
+    if (!fpZoom.current || !s.indicators.FP?.on) return;
+    const t = setTimeout(() => {
+      fpZoom.current = false;
+      panesOf().forEach(p => { if (p.chart.getBarSpace().bar < 46) p.chart.setBarSpace(50); });   // 50 = KLineChart's widest; above that the call is ignored
+    }, 800);
+    return () => clearTimeout(t);
+  });
   if (fatal) return <div className="mc-fatal">{fatal}</div>;
 
   const typed = tfKeys ? parseTfInput(tfKeys) : null;
@@ -683,9 +693,18 @@ export default function MarketChart({ token, focus }: { token: string; focus?: {
         <button className={`mc-btn mc-tf${panel === 'tf' ? ' open' : ''}`} onClick={() => (panel === 'tf' ? setPanel(null) : openTfBox(activeIdx))}
           title="Any interval: 2m, 7m, 45m, 90m, 2h, 6h… (or type the number on the chart and press Enter)">+</button>
         <span className="mc-sep" />
-        <select className="mc-input mc-ctype" value={s.chart.ctype} title="Chart type (all charts)"
-          onChange={e => update(cur => ({ ...cur, chart: { ...cur.chart, ctype: e.target.value as ChartType } }))}>
+        <select className="mc-input mc-ctype" value={s.indicators.FP?.on ? 'footprint' : s.chart.ctype}
+          title="Chart type (all charts). Footprint: buy / sell volume at each price inside the candles; the data is bought only in Replay."
+          onChange={e => {
+            const v = e.target.value;
+            if (v === 'footprint') {
+              fpZoom.current = true;   // footprint numbers only fit in wide candles: zoom in once the chart is rebuilt
+              update(cur => ({ ...cur, chart: { ...cur.chart, ctype: 'candles' }, indicators: { ...cur.indicators, FP: { ...cur.indicators.FP, on: true } } }));
+            }
+            else update(cur => ({ ...cur, chart: { ...cur.chart, ctype: v as ChartType }, indicators: { ...cur.indicators, FP: { ...cur.indicators.FP, on: false } } }));
+          }}>
           {CHART_TYPES.map(([t, l]) => <option key={t} value={t}>{l}</option>)}
+          <option value="footprint">Footprint (order flow)</option>
         </select>
         <button className={`mc-btn${panel === 'layout' ? ' open' : ''}`} onClick={() => setPanel(panel === 'layout' ? null : 'layout')}
           title="Chart layout: 1 to 4 charts">
@@ -819,7 +838,7 @@ export default function MarketChart({ token, focus }: { token: string; focus?: {
           {replayOn && (
             <ReplayBar engine={engine} clock={s.clock} accounts={accounts} accountId={replayAcct}
               onAccount={setReplayAcct} onRetry={t => saveTradeRef.current(t)} onExit={exitReplay} coach={coachHooks}
-              onJump={startReplay}
+              onJump={startReplay} onPick={() => { setPanel(null); setReplayPick(true); }}
               atr={(() => {
                 const p = ws.panes.get(activeIdx); const d = p?.chart.getDataList();
                 if (!p || !d || d.length < 16) return null;

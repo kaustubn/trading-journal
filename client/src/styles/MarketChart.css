@@ -670,3 +670,20 @@
   .mc-panel-ind, .mc-panel-levels, .mc-panel-goto { left: 8px; right: 8px; width: auto; max-width: calc(100% - 16px); }
   .mc-ind-actions .mc-btn.mc-small { min-width: 34px; min-height: 34px; }
 }
+
+/* ---------- compact, draggable replay bar ---------- */
+.mc-replay-row { gap: 3px; padding: 3px 5px; }
+.mc-replay-row .mc-btn { height: 26px; }
+.mc-grip { display: inline-flex; align-items: center; color: var(--mc-dim); cursor: grab; padding: 0 1px; touch-action: none; }
+.mc-grip:active { cursor: grabbing; }
+.mc-selbar { display: inline-flex; align-items: center; gap: 4px; }
+.mc-selbar.open { background: var(--mc-accent-soft); color: var(--mc-accent); }
+.mc-icon { min-width: 26px; padding: 0 4px; }
+.mc-replay-row .mc-speed { width: 54px; }
+.mc-mode { width: 62px; height: 26px; }
+.mc-mode.mc-live-on { color: #f23645; font-weight: 600; }
+.mc-replay-menu { width: 280px; }
+.mc-replay-menu .mc-row { display: flex; gap: 6px; align-items: center; }
+.mc-replay-menu .mc-row .mc-input { flex: 1; min-width: 0; }
+.mc-replay-menu > .mc-btn { display: inline-flex; align-items: center; gap: 6px; justify-content: center; }
+.mc-replay-msg .mc-btn { height: 18px; padding: 0 4px; margin-left: 6px; }
