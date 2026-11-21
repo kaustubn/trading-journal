@@ -195,6 +195,7 @@ export interface ReactionBucket { n: number; up15: number; med15: number; held60
 export interface Reaction {
   title: string; n: number;
   absMed1: number; absMed15: number; absMed60: number;   // median size of the move (points, either direction)
+  absPct1?: number; absPct15?: number; absPct60?: number; // the same as % of price (comparable across years)
   up15: number;                                          // % of releases where NQ was higher 15 minutes later
   buckets: Partial<Record<'above' | 'below' | 'inline', ReactionBucket>>;
 }
@@ -210,10 +211,17 @@ export function reactionFor(table: ReactionTable | null | undefined, title: stri
   for (const [k, v] of Object.entries(table.events)) if (norm(k) === n) return v;
   return null;
 }
+/** Typical move size in points: % of price x today's NQ price when both are known, else the stored points. */
+export function movePts(r: Reaction, k: 1 | 15 | 60, refPrice: number | null = null): number {
+  const pct = k === 1 ? r.absPct1 : k === 15 ? r.absPct15 : r.absPct60;
+  if (pct != null && refPrice) return (pct / 100) * refPrice;
+  return k === 1 ? r.absMed1 : k === 15 ? r.absMed15 : r.absMed60;
+}
 /** One plain-English line about the study for an event (and, after the release, its surprise). */
-export function reactionLine(r: Reaction | null, surprise: 'above' | 'below' | 'inline' | null = null): string {
+export function reactionLine(r: Reaction | null, surprise: 'above' | 'below' | 'inline' | null = null, refPrice: number | null = null): string {
   if (!r) return 'No NQ history for this event yet.';
-  const base = `NQ, last ${r.n} releases: median move ${r.absMed1.toFixed(0)} pts in 1 min, ${r.absMed15.toFixed(0)} pts by 15 min`;
+  const at = r.absPct1 != null && refPrice ? " at today's price" : '';
+  const base = `NQ, last ${r.n} releases: median move ${movePts(r, 1, refPrice).toFixed(0)} pts in 1 min, ${movePts(r, 15, refPrice).toFixed(0)} pts by 15 min${at}`;
   const dir = Math.abs(r.up15 - 50) >= 15 ? `; up after 15 min ${r.up15.toFixed(0)}% of the time` : '; direction about a coin flip';
   const b = surprise ? r.buckets[surprise] : null;
   const s = b && b.n >= 5

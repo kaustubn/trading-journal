@@ -3,7 +3,7 @@
 import fs from 'fs';
 import path from 'path';
 import pool from '../db';
-import { EconEvent, ReactionTable, reactionFor, reactionLine, surpriseSign, utcToNy, Impact } from '../shared/econCalendar';
+import { EconEvent, ReactionTable, reactionFor, reactionLine, movePts, surpriseSign, utcToNy, Impact } from '../shared/econCalendar';
 
 let table: ReactionTable | null = null;
 export function reactions(): ReactionTable | null {
@@ -44,12 +44,25 @@ export interface EventOut extends EconEvent {
   nq: { n: number; absMed1: number; absMed15: number; up15: number; line: string } | null;
 }
 
+// latest NQ close in the journal's bars, to turn "% of price" move sizes into today's points (refreshed hourly)
+let ref: { price: number | null; at: number } = { price: null, at: 0 };
+async function refPrice(): Promise<number | null> {
+  if (Date.now() - ref.at < 3600000) return ref.price;
+  try {
+    const r = await pool.query('SELECT c FROM bars_1m WHERE sym = 1 ORDER BY ts DESC LIMIT 1');
+    const c = r.rows[0] ? Number(r.rows[0].c) / 100 : null;
+    ref = { price: c && c > 1000 ? c : null, at: Date.now() };
+  } catch { ref = { price: null, at: Date.now() }; }
+  return ref.price;
+}
+
 export async function listEvents(fromMs: number, toMs: number, impacts: Impact[] = ['high', 'medium']): Promise<EventOut[]> {
   const r = await pool.query(
     `SELECT id, release_utc, title, currency, impact, actual, forecast, previous FROM econ_events
       WHERE release_utc >= $1 AND release_utc < $2 AND impact = ANY($3) ORDER BY release_utc, title`,
     [new Date(fromMs).toISOString(), new Date(toMs).toISOString(), impacts]);
   const t = reactions();
+  const px = await refPrice();
   return r.rows.map(x => {
     const ms = new Date(x.release_utc).getTime();
     const ny = utcToNy(ms);
@@ -61,7 +74,7 @@ export async function listEvents(fromMs: number, toMs: number, impacts: Impact[]
       id: x.id, release_utc: new Date(ms).toISOString(), title: x.title, currency: x.currency, impact: x.impact,
       actual, actual_source: x.actual != null ? 'file' : fill ? 'FRED' : null,
       forecast: x.forecast, previous: x.previous, ny_date: ny.date, ny_time: ny.time, surprise: s,
-      nq: re ? { n: re.n, absMed1: re.absMed1, absMed15: re.absMed15, up15: re.up15, line: reactionLine(re, s) } : null,
+      nq: re ? { n: re.n, absMed1: movePts(re, 1, px), absMed15: movePts(re, 15, px), up15: re.up15, line: reactionLine(re, s, px) } : null,
     };
   });
 }
