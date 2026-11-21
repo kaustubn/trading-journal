@@ -65,7 +65,7 @@ export function quoteFrom(sym: string, label: string, meta: any, bars: Bars, now
 }
 
 /** NQ levels: yesterday's New York session (9:30-16:00 ET) high / low / close and the overnight range since 18:00 ET. */
-export function nqLevels(bars: Bars, now = Date.now()) {
+export function nqLevels(bars: Bars, now = Date.now(), quoteLast: number | null = null) {
   const today = utcToNy(now).date;
   let rthDay = '', rthH = -Infinity, rthL = Infinity, rthC: number | null = null;
   // the most recent New York session that has finished (or today's if it is running)
@@ -78,7 +78,8 @@ export function nqLevels(bars: Bars, now = Date.now()) {
   const after = rows.filter(r => r.ny.date > rthDay || (r.ny.date === rthDay && r.ny.time >= '16:00'));
   const onH = after.length ? Math.max(...after.map(r => r.h ?? -Infinity)) : null;
   const onL = after.length ? Math.min(...after.map(r => r.l ?? Infinity)) : null;
-  const last = rows.length ? rows[rows.length - 1].c : null;
+  // the quote's last trade (same number as the NQ tile); the last 5-minute bar can lag it
+  const last = quoteLast ?? (rows.length ? rows[rows.length - 1].c : null);
   return {
     rthDay, rthHigh: Number.isFinite(rthH) ? rthH : null, rthLow: Number.isFinite(rthL) ? rthL : null, rthClose: rthC,
     onHigh: onH, onLow: onL, last, gap: last != null && rthC != null ? last - rthC : null,
@@ -86,7 +87,7 @@ export function nqLevels(bars: Bars, now = Date.now()) {
 }
 
 export async function premarket() {
-  return cached('premarket_v1', 60, async () => {
+  return cached('premarket_v2', 60, async () => {
     const syms = [...CONTEXT, ...MEGACAPS.slice(0, 8).map(s => ({ sym: s, label: s }))];
     const got = await Promise.allSettled(syms.map(s => yahoo(s.sym)));
     const quotes: Quote[] = [];
@@ -94,7 +95,7 @@ export async function premarket() {
     got.forEach((g, i) => {
       if (g.status !== 'fulfilled') { quotes.push({ sym: syms[i].sym, label: syms[i].label, last: null, ref: null, chg: null, chgPct: null, session: 'unavailable' }); return; }
       quotes.push(quoteFrom(syms[i].sym, syms[i].label, g.value.meta, g.value.bars));
-      if (syms[i].sym === 'NQ=F') nq = nqLevels(g.value.bars);
+      if (syms[i].sym === 'NQ=F') nq = nqLevels(g.value.bars, Date.now(), g.value.meta?.regularMarketPrice ?? null);
     });
     if (got.every(g => g.status !== 'fulfilled')) throw new Error('Yahoo Finance did not answer');
     return { quotes, nq, note: 'Yahoo Finance, delayed (futures ~10 min). NQ=F is the front-month continuous contract.' };
