@@ -14,6 +14,9 @@ function klineHitAreas(): Plugin {
     ['var x = circle_1.x, y = circle_1.y, r = circle_1.r;', 'var x = circle_1.x, y = circle_1.y, r = circle_1.r + DEVIATION;'],
     ["var events = _this._createFigureEvents(overlay, 'other', figureIndex, figure);",
       "var events = figure.ignoreEvent === true ? null : _this._createFigureEvents(overlay, 'other', figureIndex, figure);"],
+    // key events sent to the document itself (no tagName) crashed the chart's keyboard handler
+    ["var tagName = target === null || target === void 0 ? void 0 : target.tagName.toLowerCase();",
+      "var tagName = target === null || target === void 0 ? void 0 : String(target.tagName || '').toLowerCase();"],
   ];
   return {
     name: 'kline-hit-areas',
