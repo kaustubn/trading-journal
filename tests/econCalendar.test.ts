@@ -1,7 +1,7 @@
 /// <reference types="node" />
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { nyToUtc, londonToUtc, utcToNy, parseEventsFile, parseValue, surpriseSign, reactionFor, reactionLine, parseClock, ReactionTable } from '../src/shared/econCalendar';
+import { nyToUtc, londonToUtc, utcToNy, parseEventsFile, parseValue, surpriseSign, reactionFor, reactionLine, movePts, parseClock, ReactionTable } from '../src/shared/econCalendar';
 
 const iso = (ms: number) => new Date(ms).toISOString().slice(0, 16);
 
@@ -80,4 +80,16 @@ test('reaction lookup and wording', () => {
   assert.match(reactionLine(r), /coin flip/);
   assert.match(reactionLine(r, 'above'), /above forecast \(16 times\): up after 15 min 12%/);
   assert.equal(reactionFor(table, 'Unknown'), null);
+});
+
+test('move size: % of price at the current price, points fallback without a price or %', () => {
+  const r = { title: 'CPI m/m', n: 100, absMed1: 20, absMed15: 30, absMed60: 40, absPct1: 0.2, absPct15: 0.4, absPct60: 0.5, up15: 50, buckets: {} };
+  assert.equal(movePts(r, 1, 25000), 50);          // 0.2% of 25,000
+  assert.equal(movePts(r, 15, 25000), 100);
+  assert.equal(movePts(r, 60, 20000), 100);
+  assert.equal(movePts(r, 15, null), 30);          // no price -> stored points
+  const old = { ...r, absPct1: undefined, absPct15: undefined, absPct60: undefined };
+  assert.equal(movePts(old, 15, 25000), 30);       // old table without % -> points
+  assert.match(reactionLine(r, null, 25000), /50 pts in 1 min, 100 pts by 15 min at today's price/);
+  assert.doesNotMatch(reactionLine(r), /today's price/);
 });
