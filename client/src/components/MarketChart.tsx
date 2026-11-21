@@ -659,7 +659,7 @@ export default function MarketChart({ token, focus }: { token: string; focus?: {
     if (!fpZoom.current || !s.indicators.FP?.on) return;
     const t = setTimeout(() => {
       fpZoom.current = false;
-      panesOf().forEach(p => { if (p.chart.getBarSpace().bar < 46) p.chart.setBarSpace(50); });   // 50 = KLineChart's widest; above that the call is ignored
+      panesOf().forEach(p => { if (p.chart.getBarSpace().bar < 18) p.chart.setBarSpace(22); });   // enough for one delta number per row; the trend stays in view
     }, 800);
     return () => clearTimeout(t);
   });
@@ -698,7 +698,7 @@ export default function MarketChart({ token, focus }: { token: string; focus?: {
           onChange={e => {
             const v = e.target.value;
             if (v === 'footprint') {
-              fpZoom.current = true;   // footprint numbers only fit in wide candles: zoom in once the chart is rebuilt
+              fpZoom.current = true;   // numbers need medium-width candles: zoom in a little once the chart is rebuilt
               update(cur => ({ ...cur, chart: { ...cur.chart, ctype: 'candles' }, indicators: { ...cur.indicators, FP: { ...cur.indicators.FP, on: true } } }));
             }
             else update(cur => ({ ...cur, chart: { ...cur.chart, ctype: v as ChartType }, indicators: { ...cur.indicators, FP: { ...cur.indicators.FP, on: false } } }));

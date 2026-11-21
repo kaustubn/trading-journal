@@ -57,7 +57,7 @@ export default function FootprintBar({ auth, day, onDay, onLoaded, replay }: {
   if (weekend) body = <span className="mc-dim">Weekend: no New York session.</span>;
   else if (msg) body = <span className="mc-bad">{msg}</span>;
   else if (!st) body = <span className="mc-dim">Checking…</span>;
-  else if (st.cached) body = <span className="mc-up">✓ Loaded{st.fake ? ' (TEST DATA)' : ''}<span className="mc-dim"> · zoom in (wide candles) for the numbers; only 9:30–16:00 ET candles have it</span></span>;
+  else if (st.cached) body = <span className="mc-up">✓ Loaded{st.fake ? ' (TEST DATA)' : ''}<span className="mc-dim"> · medium zoom: delta per price · zoom in more: sell × buy · only 9:30–16:00 ET candles</span></span>;
   else if (!st.configured) body = <span className="mc-dim">Needs a Databento key on the server (DATABENTO_API_KEY).</span>;
   else if (st.message) body = <span className="mc-bad">{st.message}</span>;
   else if (!replay) body = <span className="mc-dim">Not loaded. Footprint data is bought only in Replay (backtesting): start a replay on this day.</span>;
