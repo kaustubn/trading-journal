@@ -8,7 +8,7 @@ import '../styles/Habits.css';
 
 export interface CalEvent {
   id: number; release_utc: string; title: string; impact: 'high' | 'medium' | 'low'; actual: string | null; forecast: string | null; previous: string | null;
-  ny_date: string; ny_time: string; surprise: 'above' | 'below' | 'inline' | null;
+  ny_date: string; ny_time: string; surprise: 'above' | 'below' | 'inline' | null; actual_source?: 'file' | 'FRED' | null;
   nq: { n: number; absMed1: number; absMed15: number; up15: number; line: string } | null;
 }
 export interface Earning { symbol: string; day: string; timing: string | null; eps_forecast: string | null }
@@ -78,7 +78,7 @@ function ImportBox({ token, onDone }: { token: string; onDone: () => void }) {
   const nyTime = (utc: string) => new Date(utc).toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit', hour12: false });
   return (
     <div className="hb-block" style={{ marginTop: 10 }}>
-      <div className="hb-dim">Add this week's releases: download the ForexFactory weekly export (JSON or CSV) or a history CSV, then load it here. Your file stays the source; nothing is fetched from ForexFactory.</div>
+      <div className="hb-dim">Add the coming week: on Sunday evening or Monday morning (the weekly file switches to the new week over the weekend) open ForexFactory's weekly export <b>once</b> (they block repeated loads), save it, and load it here. A history CSV also works. Nothing is fetched from ForexFactory automatically.<br />The weekly file has no actual results: CPI, PPI, retail sales and non-farm payrolls get theirs from FRED (marked ᶠ); other releases stay empty unless your file has them.</div>
       <div className="hb-row" style={{ marginTop: 8 }}>
         <input ref={fileRef} type="file" accept=".json,.csv,.txt" hidden onChange={async e => { const f = e.target.files?.[0]; if (!f) return; setName(f.name); setText(await f.text()); setPreview(null); setMsg(null); }} />
         <button className="hb-btn" onClick={() => fileRef.current?.click()}><Upload size={13} /> Choose file</button>
@@ -112,7 +112,7 @@ export default function EconCalendar({ token, isAdmin }: { token: string; isAdmi
   const { events, coverage, err, reload } = useCalendar(token, days, back, impact);
   const earnings = useEarnings(token);
   const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
-  const list = useMemo(() => (events || []).filter(e => range !== 'today' || e.ny_date === today).filter(e => range !== 'past' || Date.parse(e.release_utc) < now), [events, range, today, now]);
+  const list = useMemo(() => (events || []).filter(e => (range === 'past' ? Date.parse(e.release_utc) < now : range === 'today' ? e.ny_date === today : e.ny_date >= today)), [events, range, today, now]);
   const next = (events || []).find(e => e.impact === 'high' && Date.parse(e.release_utc) > now);
   let lastDay = '';
   return (
@@ -149,7 +149,7 @@ export default function EconCalendar({ token, isAdmin }: { token: string; isAdmi
                     <td><span className={`hb-imp ${e.impact}`} />{e.title}
                       {e.nq && (open === e.id ? <div className="hb-nq">{e.nq.line}</div> : <div className="hb-nq">NQ: median {e.nq.absMed15.toFixed(0)} pts in 15 min · tap for more</div>)}
                     </td>
-                    <td className={surpriseCls(e.surprise)}><b>{e.actual ?? ''}</b></td>
+                    <td className={surpriseCls(e.surprise)} title={e.actual_source === 'FRED' ? 'First-release value from FRED (the weekly file has no actuals)' : ''}><b>{e.actual ?? ''}</b>{e.actual_source === 'FRED' ? <span className="hb-dim"> ᶠ</span> : null}</td>
                     <td>{e.forecast ?? ''}</td>
                     <td className="hb-hide-sm">{e.previous ?? ''}</td>
                   </tr>

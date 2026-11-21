@@ -14,8 +14,33 @@ export function reactions(): ReactionTable | null {
   return null;
 }
 
+// ForexFactory's weekly export has no "actual" column. For the biggest releases the first-release value from FRED
+// (src/news/econReleases.json, rebuilt monthly by scripts/news/build_econ_releases.cjs) fills the gap.
+const FRED_TITLE: Record<string, { event: string; fmt: (v: number) => string }> = {
+  'CPI m/m': { event: 'CPI', fmt: v => `${v.toFixed(1)}%` },
+  'PPI m/m': { event: 'PPI', fmt: v => `${v.toFixed(1)}%` },
+  'Retail Sales m/m': { event: 'RETAIL', fmt: v => `${v.toFixed(1)}%` },
+  'Non-Farm Employment Change': { event: 'NFP', fmt: v => `${Math.round(v)}K` },
+};
+let fred: Map<string, number> | null = null;
+function fredActual(title: string, nyDate: string): string | null {
+  const m = FRED_TITLE[title];
+  if (!m) return null;
+  if (!fred) {
+    fred = new Map();
+    for (const p of [path.join(__dirname, 'econReleases.json'), path.join(__dirname, '../../src/news/econReleases.json')]) {
+      if (!fs.existsSync(p)) continue;
+      for (const r of JSON.parse(fs.readFileSync(p, 'utf8')).releases ?? []) if (r.actual != null) fred.set(`${r.event} ${r.date}`, Number(r.actual));
+      break;
+    }
+  }
+  const v = fred.get(`${m.event} ${nyDate}`);
+  return v == null ? null : m.fmt(v);
+}
+
 export interface EventOut extends EconEvent {
   id: number; ny_date: string; ny_time: string; surprise: 'above' | 'below' | 'inline' | null;
+  actual_source: 'file' | 'FRED' | null;
   nq: { n: number; absMed1: number; absMed15: number; up15: number; line: string } | null;
 }
 
@@ -28,11 +53,14 @@ export async function listEvents(fromMs: number, toMs: number, impacts: Impact[]
   return r.rows.map(x => {
     const ms = new Date(x.release_utc).getTime();
     const ny = utcToNy(ms);
-    const s = surpriseSign(x.actual, x.forecast);
+    const fill = x.actual == null && ms < Date.now() ? fredActual(x.title, ny.date) : null;
+    const actual = x.actual ?? fill;
+    const s = surpriseSign(actual, x.forecast);
     const re = reactionFor(t, x.title);
     return {
       id: x.id, release_utc: new Date(ms).toISOString(), title: x.title, currency: x.currency, impact: x.impact,
-      actual: x.actual, forecast: x.forecast, previous: x.previous, ny_date: ny.date, ny_time: ny.time, surprise: s,
+      actual, actual_source: x.actual != null ? 'file' : fill ? 'FRED' : null,
+      forecast: x.forecast, previous: x.previous, ny_date: ny.date, ny_time: ny.time, surprise: s,
       nq: re ? { n: re.n, absMed1: re.absMed1, absMed15: re.absMed15, up15: re.up15, line: reactionLine(re, s) } : null,
     };
   });
