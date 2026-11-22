@@ -13,7 +13,8 @@ import '../styles/BacktestLab.css';
 import '../styles/PatternFinder.css';
 import '../styles/MemoryKit.css';
 
-interface Setup { name: string; preset: string; a: Account; s: Sizing; c: Costs; f: Filter; range: DateRange }
+interface Fees { attempt: number; monthly: number; reset: number }
+interface Setup { name: string; preset: string; a: Account; s: Sizing; c: Costs; f: Filter; range: DateRange; fee: Fees }
 const DEFAULT: Setup = {
   name: 'My setup', preset: 'lucid-25k',
   a: { start: 25000, target: 1250, maxDd: 1000, ddType: 'eod', lockAtStart: false, dailyLoss: null, dailyLossFails: false, consistencyPct: 50, minDays: null, maxContracts: 20 },
@@ -21,6 +22,7 @@ const DEFAULT: Setup = {
   c: { commission: 1, slipPts: 0.5 },
   f: { from: '', to: '', startMin: 575, endMin: 930, skipNews: false },
   range: { dateFrom: '', dateTo: '', label: 'All data' },
+  fee: { attempt: 0, monthly: 0, reset: 0 },
 };
 const KEY = 'sizelab.current', SAVED = 'sizelab.saved';
 const load = <T,>(k: string, d: T): T => { try { const v = JSON.parse(localStorage.getItem(k) || 'null'); return v ?? d; } catch { return d; } };
@@ -64,7 +66,7 @@ export default function SizeLab({ token }: { token: string }) {
       setDoc(g.data.doc); setUpMsg(`Loaded ${r.data.trades} trades.`);
     } catch (e: any) { setUpMsg(e?.response?.data?.error || 'Could not read that file (JSON from export_bp_sizelab.py, or a CSV).'); }
   };
-  const [st, setSt] = useState<Setup>(() => { const v = load<Setup>(KEY, DEFAULT); return { ...DEFAULT, ...v, a: { ...DEFAULT.a, ...v.a }, s: { ...DEFAULT.s, ...v.s }, c: { ...DEFAULT.c, ...v.c }, f: { ...DEFAULT.f, ...v.f } }; });
+  const [st, setSt] = useState<Setup>(() => { const v = load<Setup>(KEY, DEFAULT); return { ...DEFAULT, ...v, a: { ...DEFAULT.a, ...v.a }, s: { ...DEFAULT.s, ...v.s }, c: { ...DEFAULT.c, ...v.c }, f: { ...DEFAULT.f, ...v.f }, fee: { ...DEFAULT.fee, ...(v.fee || {}) } }; });
   const [saved, setSaved] = useState<Setup[]>(() => load<Setup[]>(SAVED, []));
   const [res, setRes] = useState<any>(null);
   const [busy, setBusy] = useState(false);
@@ -75,6 +77,7 @@ export default function SizeLab({ token }: { token: string }) {
   const S = (p: Partial<Sizing>) => setSt(x => ({ ...x, s: { ...x.s, ...p } }));
   const C = (p: Partial<Costs>) => setSt(x => ({ ...x, c: { ...x.c, ...p } }));
   const F = (p: Partial<Filter>) => setSt(x => ({ ...x, f: { ...x.f, ...p } }));
+  const FE = (p: Partial<Fees>) => setSt(x => ({ ...x, fee: { ...x.fee, ...p } }));
   const pickPreset = (id: string) => {
     const p = PROP_PRESETS.find(x => x.id === id);
     if (!p) { setSt(x => ({ ...x, preset: 'custom' })); return; }
@@ -101,6 +104,15 @@ export default function SizeLab({ token }: { token: string }) {
     return { med: v[Math.floor(v.length / 2)] ?? NaN, p90: v[Math.floor(v.length * 0.9)] ?? NaN };
   }, [st.s.contract, doc]); // eslint-disable-line react-hooks/exhaustive-deps
   const gate3 = res ? res.full.maxDdUsd <= 0.5 * st.a.maxDd : false;
+  // expected cost of one pass: attempts needed = 1 / pass rate; each attempt costs its fee + monthly fee x months it ran
+  const feeCost = (() => {
+    if (!res || !(res.h.passRate > 0) || !(st.fee.attempt || st.fee.monthly || st.fee.reset)) return null;
+    const done = res.h.list.filter((r: any) => r.result !== 'open' && r.endDate);
+    const mo = done.length ? done.reduce((n: number, r: any) => n + Math.max(1, Math.ceil((Date.parse(r.endDate) - Date.parse(r.start)) / (30.44 * 864e5))), 0) / done.length : 1;
+    const attempts = 1 / res.h.passRate;
+    const first = st.fee.attempt + st.fee.monthly * mo, again = (st.fee.reset || st.fee.attempt) + st.fee.monthly * mo;
+    return { attempts, months: mo, usd: first + (attempts - 1) * again };
+  })();
   const saveAs = () => {   // the name comes from the "Setup name" field (no browser dialogs)
     const next = [...saved.filter(x => x.name !== st.name), st]; setSaved(next); save(SAVED, next);
   };
@@ -171,6 +183,9 @@ export default function SizeLab({ token }: { token: string }) {
         <div className="bl-rules" style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'flex-end' }}>
           <Num label="Commission $ / contract" value={st.c.commission} step={0.1} onChange={v => C({ commission: v ?? 0 })} />
           <Num label="Extra slippage (pts)" value={st.c.slipPts} step={0.25} onChange={v => C({ slipPts: v ?? 0 })} hint="0.5 = the research default; 1–2 = a bad fill" />
+          <Num label="Eval fee $ (per attempt)" value={st.fee.attempt} onChange={v => FE({ attempt: v ?? 0 })} hint="one-time price of an evaluation (0 if monthly)" />
+          <Num label="Monthly fee $" value={st.fee.monthly} onChange={v => FE({ monthly: v ?? 0 })} hint="subscription while the evaluation runs (0 if one-time)" />
+          <Num label="Reset fee $" value={st.fee.reset} onChange={v => FE({ reset: v ?? 0 })} hint="price to restart after a fail, if cheaper than a new attempt (0 = buy a new one)" />
           <label className="bl-field">Entries from (ET)<input value={tStart} style={{ width: 70 }} onChange={e => { setTStart(e.target.value); const m = toMin(e.target.value); if (isFinite(m)) F({ startMin: m }); }} /></label>
           <label className="bl-field">to (ET)<input value={tEnd} style={{ width: 70 }} onChange={e => { setTEnd(e.target.value); const m = toMin(e.target.value); if (isFinite(m)) F({ endMin: m }); }} /></label>
           <button className="mk-chip" onClick={() => { setTStart('9:35'); setTEnd('15:30'); F({ startMin: 575, endMin: 930 }); }}>All day</button>
@@ -194,6 +209,7 @@ export default function SizeLab({ token }: { token: string }) {
             <div className="bl-tile"><div className="bl-tile-label">Pass % (real order)</div><div className={`bl-tile-v ${res.h.passRate >= 0.6 ? 'bl-up' : res.h.passRate < 0.4 ? 'bl-down' : ''}`}>{pct(res.h.passRate)}</div><div className="bl-dim" style={{ fontSize: 11 }}>fail {pct(res.h.failRate)}{res.h.open ? ` · still going at the end ${pct(res.h.open / res.h.runs)}` : ''} · {res.h.runs} starts</div></div>
             <div className="bl-tile"><div className="bl-tile-label">Months to pass / fail</div><div className="bl-tile-v">{mo(res.h.monthsToPass)} / {mo(res.h.monthsToFail)}</div><div className="bl-dim" style={{ fontSize: 11 }}>median, real order</div></div>
             <div className="bl-tile"><div className="bl-tile-label">Pass % (shuffled days)</div><div className="bl-tile-v">{pct(res.b.passRate)}</div><div className="bl-dim" style={{ fontSize: 11 }}>{mo(res.b.monthsToPass)} to pass · {mo(res.b.monthsToFail)} to fail</div></div>
+            {feeCost && <div className="bl-tile"><div className="bl-tile-label">Expected cost of one pass</div><div className="bl-tile-v">{usd(feeCost.usd)}</div><div className="bl-dim" style={{ fontSize: 11 }}>~{feeCost.attempts.toFixed(1)} attempts × ~{Math.round(feeCost.months)} month{Math.round(feeCost.months) === 1 ? '' : 's'} each</div></div>}
             <div className="bl-tile"><div className="bl-tile-label">Why evaluations failed</div><div className="bl-tile-v" style={{ fontSize: 14 }}>{Object.entries(res.h.failReasons).map(([k, v]) => `${v} ${k}`).join(' · ') || 'none'}</div></div>
           </div>
           <div className="bl-head" style={{ marginTop: 10 }}><b>Whole history at this size</b> <span className="bl-dim">no account limits; your daily rules still apply</span></div>
