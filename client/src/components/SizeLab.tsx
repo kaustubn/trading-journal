@@ -7,22 +7,24 @@ import { useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
 import { PROP_PRESETS } from '../../../src/shared/propRules';
 import type { DdType } from '../../../src/shared/propRules';
-import { filterTrades, byDay, historical, bootstrap, fullHistory, parseTradesCsv, Account, Sizing, Costs, Filter, LabTrade, POINT_VALUE } from '../../../src/shared/sizeLab';
+import { filterTrades, byDay, historical, bootstrap, fullHistory, parseTradesCsv, byEra, noEdgeTrades, Account, Sizing, Costs, Filter, Funded, LabTrade, POINT_VALUE } from '../../../src/shared/sizeLab';
 import { Explain, RangePicker, DateRange } from './MemoryKit';
 import '../styles/BacktestLab.css';
 import '../styles/PatternFinder.css';
 import '../styles/MemoryKit.css';
 
 interface Fees { attempt: number; monthly: number; reset: number }
-interface Setup { name: string; preset: string; a: Account; s: Sizing; c: Costs; f: Filter; range: DateRange; fee: Fees }
+interface Setup { name: string; preset: string; a: Account; s: Sizing; c: Costs; f: Filter; range: DateRange; fee: Fees; strict: boolean; funded: Funded }
 const DEFAULT: Setup = {
   name: 'My setup', preset: 'lucid-25k',
   a: { start: 25000, target: 1250, maxDd: 1000, ddType: 'eod', lockAtStart: false, dailyLoss: null, dailyLossFails: false, consistencyPct: 50, minDays: null, maxContracts: 20 },
-  s: { contract: 'MNQ', mode: 'risk', contracts: 1, riskUsd: 150, pctRoom: 15, maxStopUsd: null, halveAfterLosses: 0, myDailyStop: null, myDailyTarget: null, maxTradesDay: null },
-  c: { commission: 1, slipPts: 0.5 },
+  s: { contract: 'MNQ', mode: 'risk', contracts: 1, riskUsd: 150, pctRoom: 15, maxStopUsd: null, halveAfterLosses: 0, myDailyStop: null, myDailyTarget: null, maxTradesDay: null, oneAtATime: true },
+  c: { commission: 1, slipEntry: 0.5, slipExit: 0.5 },
   f: { from: '', to: '', startMin: 575, endMin: 930, skipNews: false },
   range: { dateFrom: '', dateTo: '', label: 'All data' },
   fee: { attempt: 0, monthly: 0, reset: 0 },
+  strict: true,
+  funded: { payoutEvery: 1000, buffer: 500, split: 90, months: 12 },
 };
 const KEY = 'sizelab.current', SAVED = 'sizelab.saved';
 const load = <T,>(k: string, d: T): T => { try { const v = JSON.parse(localStorage.getItem(k) || 'null'); return v ?? d; } catch { return d; } };
@@ -47,7 +49,6 @@ export default function SizeLab({ token }: { token: string }) {
   const [doc, setDoc] = useState<{ name: string; source?: string; uploaded?: string; trades: LabTrade[] } | null | undefined>(undefined);
   const [upMsg, setUpMsg] = useState('');
   useEffect(() => { axios.get('/api/sizelab/trades', auth).then(r => setDoc(r.data.doc)).catch(() => setDoc(null)); }, [auth]);
-  const TRADES: LabTrade[] = doc?.trades ?? [];
   const upload = async (file: File) => {
     setUpMsg('Reading…');
     try {
@@ -55,7 +56,7 @@ export default function SizeLab({ token }: { token: string }) {
       let next: { name: string; source?: string; trades: LabTrade[] };
       if (/\.json$/i.test(file.name)) {
         const j = JSON.parse(text);
-        next = { name: j.strategy || file.name, source: j.source || '', trades: j.trades };
+        next = { name: j.strategy || file.name, source: j.source || '', trades: j.trades, ...(j.tradesStrict ? { tradesStrict: j.tradesStrict } : {}) } as any;
       } else {
         const p = parseTradesCsv(text);
         if (!p.trades.length) { setUpMsg(p.errors.join(' ') || 'No trades found.'); return; }
@@ -66,7 +67,9 @@ export default function SizeLab({ token }: { token: string }) {
       setDoc(g.data.doc); setUpMsg(`Loaded ${r.data.trades} trades.`);
     } catch (e: any) { setUpMsg(e?.response?.data?.error || 'Could not read that file (JSON from export_bp_sizelab.py, or a CSV).'); }
   };
-  const [st, setSt] = useState<Setup>(() => { const v = load<Setup>(KEY, DEFAULT); return { ...DEFAULT, ...v, a: { ...DEFAULT.a, ...v.a }, s: { ...DEFAULT.s, ...v.s }, c: { ...DEFAULT.c, ...v.c }, f: { ...DEFAULT.f, ...v.f }, fee: { ...DEFAULT.fee, ...(v.fee || {}) } }; });
+  const [st, setSt] = useState<Setup>(() => { const v = load<Setup>(KEY, DEFAULT); const c: Costs = v.c && (v.c as any).slipEntry === undefined && (v.c as any).slipPts !== undefined ? { commission: v.c.commission, slipEntry: (v.c as any).slipPts, slipExit: 0.5 } : { ...DEFAULT.c, ...v.c };
+    return { ...DEFAULT, ...v, a: { ...DEFAULT.a, ...v.a }, s: { ...DEFAULT.s, ...v.s }, c, f: { ...DEFAULT.f, ...v.f }, fee: { ...DEFAULT.fee, ...(v.fee || {}) }, funded: { ...DEFAULT.funded, ...(v.funded || {}) }, strict: v.strict ?? DEFAULT.strict }; });
+  const TRADES: LabTrade[] = (st.strict && (doc as any)?.tradesStrict ? (doc as any).tradesStrict : doc?.trades) ?? [];
   const [saved, setSaved] = useState<Setup[]>(() => load<Setup[]>(SAVED, []));
   const [res, setRes] = useState<any>(null);
   const [busy, setBusy] = useState(false);
@@ -78,6 +81,7 @@ export default function SizeLab({ token }: { token: string }) {
   const C = (p: Partial<Costs>) => setSt(x => ({ ...x, c: { ...x.c, ...p } }));
   const F = (p: Partial<Filter>) => setSt(x => ({ ...x, f: { ...x.f, ...p } }));
   const FE = (p: Partial<Fees>) => setSt(x => ({ ...x, fee: { ...x.fee, ...p } }));
+  const FU = (p: Partial<Funded>) => setSt(x => ({ ...x, funded: { ...x.funded, ...p } }));
   const pickPreset = (id: string) => {
     const p = PROP_PRESETS.find(x => x.id === id);
     if (!p) { setSt(x => ({ ...x, preset: 'custom' })); return; }
@@ -91,9 +95,10 @@ export default function SizeLab({ token }: { token: string }) {
     setBusy(true);
     const id = setTimeout(() => {
       const f = { ...st.f, from: st.range.dateFrom, to: st.range.dateTo };
-      const days = byDay(filterTrades(TRADES, f));
-      const h = historical(days, st.a, st.s, st.c), b = bootstrap(days, st.a, st.s, st.c, 2000), full = fullHistory(days, st.a, st.s, st.c);
-      setRes({ days: days.length, trades: days.reduce((n, d) => n + d.length, 0), from: days[0]?.[0][0], to: days[days.length - 1]?.[0][0], h, b, full });
+      const picked = filterTrades(TRADES, f), days = byDay(picked);
+      const h = historical(days, st.a, st.s, st.c, st.funded), b = bootstrap(days, st.a, st.s, st.c, 2000), full = fullHistory(days, st.a, st.s, st.c);
+      const eras = byEra(days, st.a, st.s, st.c), luck = historical(byDay(noEdgeTrades(picked, st.s, st.c)), st.a, st.s, st.c);
+      setRes({ days: days.length, trades: picked.length, from: days[0]?.[0][0], to: days[days.length - 1]?.[0][0], h, b, full, eras, luck });
       setBusy(false);
     }, 350);
     return () => clearTimeout(id);
@@ -182,7 +187,10 @@ export default function SizeLab({ token }: { token: string }) {
         <div className="bl-head"><b>3. Costs and which trades</b></div>
         <div className="bl-rules" style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'flex-end' }}>
           <Num label="Commission $ / contract" value={st.c.commission} step={0.1} onChange={v => C({ commission: v ?? 0 })} />
-          <Num label="Extra slippage (pts)" value={st.c.slipPts} step={0.25} onChange={v => C({ slipPts: v ?? 0 })} hint="0.5 = the research default; 1–2 = a bad fill" />
+          <Num label="Slippage on entry (pts)" value={st.c.slipEntry ?? 0} step={0.25} onChange={v => C({ slipEntry: v ?? 0 })} hint="the entry is a stop order: you usually fill a little worse" />
+          <Num label="Slippage on stop / time exits (pts)" value={st.c.slipExit ?? 0} step={0.25} onChange={v => C({ slipExit: v ?? 0 })} hint="stops and time exits are market orders; targets are limit orders (no slippage)" />
+          <label className="mk-check" title="A resting limit order is only sure to fill when price trades through it"><input type="checkbox" checked={st.strict} onChange={e => setSt(x => ({ ...x, strict: e.target.checked }))} /> targets need 1 tick through</label>
+          <label className="mk-check" title="Skip a new signal while the previous trade is still open (one position at a time)"><input type="checkbox" checked={!!st.s.oneAtATime} onChange={e => S({ oneAtATime: e.target.checked })} /> one trade at a time</label>
           <Num label="Eval fee $ (per attempt)" value={st.fee.attempt} onChange={v => FE({ attempt: v ?? 0 })} hint="one-time price of an evaluation (0 if monthly)" />
           <Num label="Monthly fee $" value={st.fee.monthly} onChange={v => FE({ monthly: v ?? 0 })} hint="subscription while the evaluation runs (0 if one-time)" />
           <Num label="Reset fee $" value={st.fee.reset} onChange={v => FE({ reset: v ?? 0 })} hint="price to restart after a fail, if cheaper than a new attempt (0 = buy a new one)" />
@@ -193,6 +201,14 @@ export default function SizeLab({ token }: { token: string }) {
           <label className="mk-check"><input type="checkbox" checked={st.f.skipNews} onChange={e => F({ skipNews: e.target.checked })} /> skip trades open during big news</label>
         </div>
         <RangePicker value={st.range} onChange={r => setSt(x => ({ ...x, range: r }))} />
+        <button className={`mk-chip${st.range.label === 'Since 2022' ? ' on' : ''}`} style={{ marginTop: 6 }} onClick={() => setSt(x => ({ ...x, range: { dateFrom: '2022-01-01', dateTo: '', label: 'Since 2022' } }))}>Since 2022 (today's price level)</button>
+        <div className="bl-rules" style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'flex-end', marginTop: 8 }}>
+          <span className="mk-flabel">After a pass (funded)</span>
+          <Num label="Payout every $" value={st.funded.payoutEvery} onChange={v => FU({ payoutEvery: v ?? 0 })} hint="withdraw this much each time profit allows (0 = no payouts)" />
+          <Num label="Keep a buffer of $" value={st.funded.buffer} onChange={v => FU({ buffer: v ?? 0 })} hint="profit left in the account before the first withdrawal" />
+          <Num label="Your split %" value={st.funded.split} onChange={v => FU({ split: v ?? 0 })} />
+          <Num label="Months to simulate" value={st.funded.months} onChange={v => FU({ months: Math.max(1, v ?? 12) })} />
+        </div>
         <p className="bl-dim">ET = New York time (BC is 2 hours behind until Mar 14, 2027). Morning only was found by looking at the results: treat it as an idea to forward-test, not a proven rule.</p>
         <div className="bl-rules" style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'flex-end', marginTop: 6 }}>
           <label className="bl-field">Setup name<input value={st.name} onChange={e => setSt(x => ({ ...x, name: e.target.value }))} style={{ width: 160 }} /></label>
@@ -210,8 +226,14 @@ export default function SizeLab({ token }: { token: string }) {
             <div className="bl-tile"><div className="bl-tile-label">Months to pass / fail</div><div className="bl-tile-v">{mo(res.h.monthsToPass)} / {mo(res.h.monthsToFail)}</div><div className="bl-dim" style={{ fontSize: 11 }}>median, real order</div></div>
             <div className="bl-tile"><div className="bl-tile-label">Pass % (shuffled days)</div><div className="bl-tile-v">{pct(res.b.passRate)}</div><div className="bl-dim" style={{ fontSize: 11 }}>{mo(res.b.monthsToPass)} to pass · {mo(res.b.monthsToFail)} to fail</div></div>
             {feeCost && <div className="bl-tile"><div className="bl-tile-label">Expected cost of one pass</div><div className="bl-tile-v">{usd(feeCost.usd)}</div><div className="bl-dim" style={{ fontSize: 11 }}>~{feeCost.attempts.toFixed(1)} attempts × ~{Math.round(feeCost.months)} month{Math.round(feeCost.months) === 1 ? '' : 's'} each</div></div>}
+            <div className="bl-tile"><div className="bl-tile-label">Pass within 6 months</div><div className="bl-tile-v">{pct(res.h.passIn6)}</div><div className="bl-dim" style={{ fontSize: 11 }}>of all starts</div></div>
+            <div className="bl-tile"><div className="bl-tile-label">Luck baseline (no edge)</div><div className="bl-tile-v">{pct(res.luck.passRate)}</div><div className="bl-dim" style={{ fontSize: 11 }}>same trades, average after costs set to 0: real edge = the gap to this</div></div>
+            {res.h.funded && <div className="bl-tile"><div className="bl-tile-label">Funded: paid to you in {st.funded.months} mo</div><div className="bl-tile-v">{usd(res.h.funded.avgPaid)}</div><div className="bl-dim" style={{ fontSize: 11 }}>avg per passed account · {pct(res.h.funded.anyPayout)} got a payout · {pct(res.h.funded.lostRate)} lost the account</div></div>}
             <div className="bl-tile"><div className="bl-tile-label">Why evaluations failed</div><div className="bl-tile-v" style={{ fontSize: 14 }}>{Object.entries(res.h.failReasons).map(([k, v]) => `${v} ${k}`).join(' · ') || 'none'}</div></div>
           </div>
+          <div className="bl-head" style={{ marginTop: 10 }}><b>By era</b> <span className="bl-dim">does it still work lately?</span></div>
+          <table className="pf-grid mm-table"><thead><tr><th>Era</th><th>Trading days</th><th>Starts</th><th>Pass</th><th>Fail</th><th>Months to pass</th></tr></thead>
+            <tbody>{res.eras.map((e: any) => <tr key={e.label}><td>{e.label}</td><td>{e.days}</td><td>{e.runs}</td><td className={e.passRate >= 0.5 ? 'bl-up' : e.passRate < 0.3 ? 'bl-down' : ''}>{pct(e.passRate)}</td><td>{pct(e.failRate)}</td><td>{mo(e.monthsToPass)}</td></tr>)}</tbody></table>
           <div className="bl-head" style={{ marginTop: 10 }}><b>Whole history at this size</b> <span className="bl-dim">no account limits; your daily rules still apply</span></div>
           <div className="bl-tiles">
             <div className="bl-tile"><div className="bl-tile-label">Total / per trade</div><div className={`bl-tile-v ${res.full.totalUsd >= 0 ? 'bl-up' : 'bl-down'}`}>{usd(res.full.totalUsd)}</div><div className="bl-dim" style={{ fontSize: 11 }}>{usd(res.full.avgUsd)} a trade · win {pct(res.full.winRate)}</div></div>
