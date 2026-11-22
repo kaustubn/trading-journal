@@ -10,6 +10,8 @@ import { openReplayDay } from '../utils/chartLink';
 import '../styles/BacktestLab.css';
 import '../styles/PatternFinder.css';
 import { Odds, News, Sessions } from './MarketMemoryMore';
+import { RangePicker, DateRange, rangeParams, rangePresets, Explain } from './MemoryKit';
+import '../styles/MemoryKit.css';
 
 const WD = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
 const pct = (x: number) => `${Math.round(x * 100)}%`;
@@ -79,53 +81,69 @@ function Seg<T extends string | number>({ value, options, onChange }: { value: T
 
 // ------------------------------------------------------------------ main
 export default function MarketMemory({ token }: { token: string }) {
-  const [tab, setTab] = useState<'day' | 'analog' | 'candles' | 'odds' | 'news' | 'sessions'>('day');
+  const [tab, setTab] = useState<'day' | 'analog' | 'candles' | 'odds' | 'news' | 'sessions'>(() => {
+    try { return (localStorage.getItem('mm.tab') as any) || 'day'; } catch { return 'day'; }
+  });
+  const pick = (t: typeof tab) => { setTab(t); try { localStorage.setItem('mm.tab', t); } catch { /* ignore */ } };
   const auth = useMemo(() => ({ headers: { Authorization: `Bearer ${token}` } }), [token]);
   const [info, setInfo] = useState<{ from: string; to: string; days: number; dates: string[] } | null>(null);
+  const [range, setRangeState] = useState<DateRange>(() => {
+    try { const r = JSON.parse(localStorage.getItem('mm.range') || 'null'); if (r && typeof r.label === 'string') return r; } catch { /* ignore */ }
+    return rangePresets()[0];
+  });
+  const setRange = (r: DateRange) => { setRangeState(r); try { localStorage.setItem('mm.range', JSON.stringify(r)); } catch { /* ignore */ } };
   useEffect(() => { axios.get('/api/patterns/memory/info', auth).then(r => setInfo(r.data)).catch(() => {}); }, [auth]);
+  const TABS: [typeof tab, string, string][] = [
+    ['day', 'Average day', 'How a normal day moves and how big it is'],
+    ['candles', 'Candles by time', 'Does a candle type at a set time predict the next candles?'],
+    ['odds', 'Candle odds', 'How often each candle type forms in a time window'],
+    ['news', 'News reaction', 'Every news release: charts, ICT / SMC / price action, all merged'],
+    ['sessions', 'Sessions & calendar', 'Which session / weekday / month tends to go up or trend'],
+    ['analog', 'Look-alike days', 'Past days that looked like a chosen moment, and what came next'],
+  ];
   return (
     <>
       <div className="bl-card">
-        <div className="pf-note"><CandlestickChart size={15} style={{ flexShrink: 0 }} /><span>Every NQ 1-minute candle of the New York session (9:30–16:00 ET){info ? `, ${info.days} days, ${info.from} → ${info.to}` : ''}, merged and compared. Everything is split by date so you can see whether something <b>repeats</b> or was a one-time thing.</span></div>
+        <div className="pf-note"><CandlestickChart size={15} style={{ flexShrink: 0 }} /><span><b>Market Memory</b> looks at every NQ 1-minute candle{info ? ` (${info.days} days, ${info.from} → ${info.to})` : ''} and answers one question per tab. Every result is split into <b>older vs newer</b> days: if both agree, it is a habit that repeats; if not, it was luck or a one-time thing.</span></div>
         <div className="pf-tabs" style={{ marginTop: 8 }}>
-          <button className={tab === 'day' ? 'on' : ''} onClick={() => setTab('day')}>Average day</button>
-          <button className={tab === 'analog' ? 'on' : ''} onClick={() => setTab('analog')}>Look-alike days</button>
-          <button className={tab === 'candles' ? 'on' : ''} onClick={() => setTab('candles')}>Candles by time</button>
-          <button className={tab === 'odds' ? 'on' : ''} onClick={() => setTab('odds')}>Candle odds</button>
-          <button className={tab === 'news' ? 'on' : ''} onClick={() => setTab('news')}>News reaction</button>
-          <button className={tab === 'sessions' ? 'on' : ''} onClick={() => setTab('sessions')}>Sessions &amp; calendar</button>
+          {TABS.map(([k, l, h]) => <button key={k} className={tab === k ? 'on' : ''} title={h} onClick={() => pick(k)}>{l}</button>)}
         </div>
+        {tab !== 'analog' && <RangePicker value={range} onChange={setRange} note="applies to this tab" />}
       </div>
-      {tab === 'day' && <DayMap auth={auth} />}
+      {tab === 'day' && <DayMap auth={auth} range={range} />}
       {tab === 'analog' && <Analog auth={auth} info={info} />}
-      {tab === 'candles' && <Candles auth={auth} />}
-      {tab === 'odds' && <Odds auth={auth} />}
-      {tab === 'news' && <News auth={auth} />}
-      {tab === 'sessions' && <Sessions auth={auth} />}
+      {tab === 'candles' && <Candles auth={auth} range={range} />}
+      {tab === 'odds' && <Odds auth={auth} range={range} />}
+      {tab === 'news' && <News auth={auth} range={range} />}
+      {tab === 'sessions' && <Sessions auth={auth} range={range} />}
     </>
   );
 }
 
 // ------------------------------------------------------------------ 1. average day
-function DayMap({ auth }: { auth: any }) {
+function DayMap({ auth, range }: { auth: any; range: DateRange }) {
   const [f, setF] = useState({ wd: -1, gap: 'all', dayType: 'all', unit: 'pts' });
   const [r, setR] = useState<any>(null);
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
   useEffect(() => {
     setBusy(true); setErr('');
-    axios.get('/api/patterns/memory/daymap', { ...auth, params: f })
-      .then(x => setR(x.data)).catch(e => setErr(e.response?.data?.error || 'Failed to load')).finally(() => setBusy(false));
-  }, [auth, f.wd, f.gap, f.dayType, f.unit]);
+    axios.get('/api/patterns/memory/daymap', { ...auth, params: { ...f, ...rangeParams(range) } })
+      .then(x => setR(x.data)).catch(e => { setR(null); setErr(e.response?.data?.error || 'Failed to load'); }).finally(() => setBusy(false));
+  }, [auth, f.wd, f.gap, f.dayType, f.unit, range.dateFrom, range.dateTo]);
   const u = f.unit === 'atr' ? ' ×range' : ' pts';
   const rs = r?.repeatScore;
   return (
     <div className="bl-card">
+      <Explain id="day" title="Average day" what="Stacks every New York session (9:30–16:00 ET) in your date range on top of each other and shows the typical path from the 9:30 open, how big a day / an hour / a candle usually is, and how up-trend, down-trend and range days differ."
+        read={['Blue line = average distance from the 9:30 open, minute by minute. Shaded = where the middle half of days were.', 'Grey dashed (older days) vs orange (newer days): if they look alike, the shape repeats.', '"How big is a day" = average high-to-low of the session, of each time window and of one candle of each timeframe.', 'Up / down / range table = how far those days usually run from the open, how far they go against you first, and when the high / low usually prints.']}
+        filters={[['Weekday', 'only Mondays, Tuesdays, …'], ['Open', 'gap up / down = opened 10%+ of a normal day above / below yesterday’s close'], ['Day type', 'up-trend = closed far above the open (move ≥ half the day’s range), down-trend = far below, range = neither. Known only after the close: for study, not to pick a side in the morning.'], ['Points / × avg day range', 'show moves in points or as a share of a normal day (fair across years)']]}
+        example="Pick Up-trend + 2025: the table shows how far those days usually ran from the open and how far they went against you first — that is the stop room a good trend day needs." />
       <div className="bl-rules" style={{ gap: 8, flexWrap: 'wrap', display: 'flex' }}>
-        <Seg value={f.wd} options={[[-1, 'All days'], ...WD.map((w, i) => [i, w] as [number, string])]} onChange={v => setF({ ...f, wd: v })} />
-        <Seg value={f.gap} options={[['all', 'Any open'], ['up', 'Gap up'], ['down', 'Gap down'], ['flat', 'Flat open']]} onChange={v => setF({ ...f, gap: v })} />
-        <Seg value={f.dayType} options={[['all', 'Any day'], ['trend', 'Trend days*'], ['range', 'Range days*']]} onChange={v => setF({ ...f, dayType: v })} />
-        <Seg value={f.unit} options={[['pts', 'Points'], ['atr', '× avg day range']]} onChange={v => setF({ ...f, unit: v })} />
+        <label className="mk-flabel">Weekday</label><Seg value={f.wd} options={[[-1, 'All'], ...WD.map((w, i) => [i, w] as [number, string])]} onChange={v => setF({ ...f, wd: v })} />
+        <label className="mk-flabel">Open</label><Seg value={f.gap} options={[['all', 'Any'], ['up', 'Gap up'], ['down', 'Gap down'], ['flat', 'Flat']]} onChange={v => setF({ ...f, gap: v })} />
+        <label className="mk-flabel">Day type</label><Seg value={f.dayType} options={[['all', 'Any'], ['up', 'Up-trend'], ['down', 'Down-trend'], ['range', 'Range'], ['trend', 'Any trend']]} onChange={v => setF({ ...f, dayType: v })} />
+        <label className="mk-flabel">Units</label><Seg value={f.unit} options={[['pts', 'Points'], ['atr', '× avg day range']]} onChange={v => setF({ ...f, unit: v })} />
       </div>
       {err && <p className="bl-bad">{err}</p>}
       {busy && !r && <p className="bl-dim">Loading 5 years (first time ~5 s)…</p>}
@@ -155,6 +173,36 @@ function DayMap({ auth }: { auth: any }) {
         </div>
         <div className="bl-head" style={{ marginTop: 10 }}><b>Minutes with the biggest moves</b> <span className="bl-dim">(× a normal minute)</span></div>
         <div className="mm-chips">{r.bigMinutes.map((b: any) => <span key={b.time}>{b.time} <b>{b.vsAvg.toFixed(1)}×</b></span>)}</div>
+        {r.size && <>
+          <div className="bl-head" style={{ marginTop: 14 }}><b>How big is a day?</b> <span className="bl-dim">high to low of the New York session, {r.days} days</span></div>
+          <div className="bl-tiles">
+            <div className="bl-tile"><div className="bl-tile-label">Average day range</div><div className="bl-tile-v">{r.size.avg} pts</div></div>
+            <div className="bl-tile"><div className="bl-tile-label">Median day</div><div className="bl-tile-v">{r.size.median} pts</div></div>
+            <div className="bl-tile"><div className="bl-tile-label">Quiet day (10%) … wild day (90%)</div><div className="bl-tile-v">{r.size.p10} … {r.size.p90}</div></div>
+            <div className="bl-tile"><div className="bl-tile-label">Up legs / down legs (5m)</div><div className="bl-tile-v">{r.legs.up.avgPts} / {r.legs.down.avgPts} pts</div><div className="bl-dim" style={{ fontSize: 11 }}>{r.legs.up.avgMin} / {r.legs.down.avgMin} min each · {r.legs.up.perDay} + {r.legs.down.perDay} a day</div></div>
+          </div>
+          <div className="mm-two">
+            <div>
+              <div className="bl-head"><b>By time of day</b></div>
+              <table className="pf-grid mm-table"><thead><tr><th style={{ textAlign: 'left' }}>Window (ET)</th><th>Avg high–low</th><th>Avg start→end</th><th>Share of the day</th></tr></thead>
+                <tbody>{r.size.windows.map((w: any) => <tr key={w.label}><td style={{ textAlign: 'left' }}>{w.label}</td><td>{w.avgRange} pts</td><td>{w.avgMove} pts</td><td>{pct(w.shareOfDay)}</td></tr>)}</tbody></table>
+            </div>
+            <div>
+              <div className="bl-head"><b>One candle of each timeframe</b></div>
+              <table className="pf-grid mm-table"><thead><tr><th>Candle</th><th>Avg high–low</th><th>Avg body</th><th>First hour</th><th>Lunch</th></tr></thead>
+                <tbody>{r.size.byTf.map((t: any) => <tr key={t.tf}><td>{t.tf < 60 ? `${t.tf}m` : '1h'}</td><td>{t.avgRange} pts</td><td>{t.avgBody} pts</td><td>{t.firstHour} pts</td><td>{t.lunch} pts</td></tr>)}</tbody></table>
+              <p className="bl-dim">Use it for stops: a stop smaller than one normal candle of your timeframe gets hit by noise.</p>
+            </div>
+          </div>
+          <div className="bl-head" style={{ marginTop: 10 }}><b>Up-trend vs down-trend vs range days</b> <span className="bl-dim">same dates / weekday / open filter, all day types</span></div>
+          <div className="pf-scroll"><table className="pf-grid mm-table">
+            <thead><tr><th style={{ textAlign: 'left' }}>Day type</th><th>Days</th><th>Share</th><th>Avg range</th><th>Avg open→close</th><th>Avg run with the trend</th><th>Avg move against first</th><th>High usually at</th><th>Low usually at</th></tr></thead>
+            <tbody>{r.regimes.map((g: any) => (
+              <tr key={g.kind}><td style={{ textAlign: 'left' }}><b className={g.kind === 'up' ? 'bl-up' : g.kind === 'down' ? 'bl-down' : ''}>{g.kind === 'up' ? 'Up-trend' : g.kind === 'down' ? 'Down-trend' : 'Range'}</b></td>
+                <td>{g.days}</td><td>{pct(g.share)}</td><td>{g.avgRange} pts</td><td>{pts(g.avgMove)} pts</td><td>{g.avgWithRun} pts</td><td>{g.avgAgainst} pts</td><td>{g.medianHigh ?? '—'}</td><td>{g.medianLow ?? '—'}</td></tr>))}</tbody>
+          </table></div>
+          <p className="bl-dim">Run with the trend = open to the day's high (up days) or low (down days); for range days, the bigger side. Move against first = the other side. {r.legs.rule}</p>
+        </>}
         <p className="bl-dim">* Trend / range day is only known after the close. Use it to study what those days look like, not to pick trades in the morning.</p>
       </>}
     </div>
@@ -226,15 +274,15 @@ function Analog({ auth, info }: { auth: any; info: { from: string; to: string; d
 }
 
 // ------------------------------------------------------------------ 3. candles by time
-function Candles({ auth }: { auth: any }) {
+function Candles({ auth, range }: { auth: any; range: DateRange }) {
   const [f, setF] = useState({ tf: 5, next: 3 });
   const [r, setR] = useState<any>(null);
   const [err, setErr] = useState('');
   const [sel, setSel] = useState<{ type: string; time: string } | null>(null);
   useEffect(() => {
     setErr('');
-    axios.get('/api/patterns/memory/candles', { ...auth, params: f }).then(x => setR(x.data)).catch(e => setErr(e.response?.data?.error || 'Failed to load'));
-  }, [auth, f.tf, f.next]);
+    axios.get('/api/patterns/memory/candles', { ...auth, params: { ...f, ...rangeParams(range) } }).then(x => setR(x.data)).catch(e => { setR(null); setErr(e.response?.data?.error || 'Failed to load'); });
+  }, [auth, f.tf, f.next, range.dateFrom, range.dateTo]);
   const scale = useMemo(() => {
     if (!r) return 1;
     const v = r.types.flatMap((t: any) => t.slots.filter((s: any) => s.n >= 60).map((s: any) => Math.abs(s.edge)));
@@ -245,8 +293,11 @@ function Candles({ auth }: { auth: any }) {
   const real = r ? r.repeating > Math.max(2, r.luckRepeating * 2) : false;
   return (
     <div className="bl-card">
+      <Explain id="candles" title="Candles by time" what="Finds every candle of a type (doji, hammer, engulfing, big candle…) at each 15-minute slot of the day and checks what the next candles did, compared with a normal candle at that same time."
+        read={['Rows = candle types, columns = time of day (ET). The number = how many points better (green) or worse (red) the next candles went than usual.', 'An outlined cell repeats in older AND newer days. Without an outline it is noise.', 'The top line compares how many cells repeat with what random shuffled data gives: if they are about equal, nothing here is real.']}
+        filters={[['Candle', 'the timeframe of the candles'], ['Look at the next', 'how many candles after it to measure']]} />
       <div className="bl-rules" style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-        <Seg value={f.tf} options={[[1, '1m'], [3, '3m'], [5, '5m'], [15, '15m']]} onChange={v => { setSel(null); setF({ ...f, tf: v }); }} />
+        <label className="mk-flabel">Candle</label><Seg value={f.tf} options={[[1, '1m'], [3, '3m'], [5, '5m'], [15, '15m']]} onChange={v => { setSel(null); setF({ ...f, tf: v }); }} />
         <label className="bl-field">Look at the next<select value={f.next} onChange={e => { setSel(null); setF({ ...f, next: Number(e.target.value) }); }}>{[1, 2, 3, 6, 12].map(x => <option key={x} value={x}>{x} candle{x > 1 ? 's' : ''}</option>)}</select></label>
       </div>
       {err && <p className="bl-bad">{err}</p>}

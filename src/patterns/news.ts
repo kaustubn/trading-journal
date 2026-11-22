@@ -156,9 +156,9 @@ export function summarize(rows: EventRow[], normalAbs: number[]) {
   };
 }
 
-export async function newsStudy() {
+export async function newsStudy(p: { dateFrom?: string; dateTo?: string } = {}) {
   const { days, normal } = await loadNewsData();
-  const evs = allEvents();
+  const evs = allEvents().filter(e => (!p.dateFrom || e.date >= p.dateFrom) && (!p.dateTo || e.date <= p.dateTo));
   const rows: EventRow[] = [];
   for (const e of evs) { const g = days.get(e.date); if (!g) continue; const r = eventRow(e, g); if (r) rows.push(r); }
   const types = (Object.keys(NEWS_TYPES) as NewsType[]).map(t => {

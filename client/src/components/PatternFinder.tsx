@@ -8,6 +8,8 @@ import { openReplayDay } from '../utils/chartLink';
 import EdgeHunter from './EdgeHunter';
 import MarketMemory from './MarketMemory';
 import TradeBook from './TradeBook';
+import { RangePicker } from './MemoryKit';
+import '../styles/MemoryKit.css';
 import '../styles/BacktestLab.css';
 import '../styles/S1Practice.css';
 import '../styles/PatternFinder.css';
@@ -43,6 +45,7 @@ function heat(avg: number, scale: number) {
 export default function PatternFinder({ token }: { token: string }) {
   const auth = { headers: { Authorization: `Bearer ${token}` } };
   const [form, setForm] = useState({ contract: 'NQ', targetUsd: 150, stopUsd: 100, slotMin: 15, maxHoldMin: 60, dir: 'trend30', from: '', to: '' });
+  const [rangeLabel, setRangeLabel] = useState('All data');
   const [res, setRes] = useState<Result | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
@@ -114,9 +117,9 @@ export default function PatternFinder({ token }: { token: string }) {
           <label className="bl-field">Entry every
             <select value={form.slotMin} onChange={e => set('slotMin', Number(e.target.value))}>{[5, 10, 15, 30, 60].map(v => <option key={v} value={v}>{v} min</option>)}</select></label>
           <label className="bl-field">Max hold (min)<input type="number" min={5} max={390} value={form.maxHoldMin} onChange={e => set('maxHoldMin', Number(e.target.value))} /></label>
-          <label className="bl-field">From<input type="date" value={form.from} onChange={e => set('from', e.target.value)} /></label>
-          <label className="bl-field">To<input type="date" value={form.to} onChange={e => set('to', e.target.value)} /></label>
         </div>
+        <RangePicker value={{ dateFrom: form.from, dateTo: form.to, label: rangeLabel }} onChange={r => { setRangeLabel(r.label); setForm(f => ({ ...f, from: r.dateFrom, to: r.dateTo })); }}
+          note="the scan only uses days in this range (it still splits them into TRAIN / TEST)" />
         <button className="pf-run" disabled={busy} onClick={run}><Search size={14} /> {busy ? 'Scanning… (first run loads 5 years, ~20 s)' : 'Find patterns'}</button>
         {err && <p className="bl-bad">{err}</p>}
         <p className="bl-dim">

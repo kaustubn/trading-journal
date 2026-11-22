@@ -10,7 +10,8 @@ import { load } from '../patterns/timeScan';
 import { newsStudy } from '../patterns/news';
 import { loadSessions, sessionStats } from '../patterns/sessions';
 import { maybeAutoUpdate, updateStatus } from '../bars/ingest';
-import { buildGrid, dayMap, analog, candleStats, candleOdds, CANDLE_TYPES, GapFilter, DayTypeFilter } from '../patterns/marketMemory';
+import { buildGrid, dayMap, analog, candleStats, candleOdds, oddsDays, CANDLE_TYPES, GapFilter, DayTypeFilter } from '../patterns/marketMemory';
+import { listNews, combineNews } from '../patterns/newsExplorer';
 
 const router = Router();
 router.use(verifyToken, requireAdmin);
@@ -67,6 +68,11 @@ const memErr = (res: Response, tag: string, e: any) => {
   res.status(500).json({ error: 'Market Memory failed' });
 };
 const num = (v: unknown, d: number) => { const n = Number(v); return Number.isFinite(n) ? n : d; };
+/** Optional date range for Market Memory: ?dateFrom=YYYY-MM-DD&dateTo=YYYY-MM-DD (bad values are ignored). */
+const dates = (req: Request) => {
+  const ok = (v: unknown) => (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : undefined);
+  return { dateFrom: ok(req.query.dateFrom), dateTo: ok(req.query.dateTo) };
+};
 
 // GET /api/patterns/data-status — how current the research bars are; also starts a background
 // Databento update (at most every 30 min) so opening Pattern Finder keeps the data fresh.
@@ -88,9 +94,10 @@ router.get('/memory/info', async (_req: Request, res: Response) => {
 router.get('/memory/daymap', async (req: Request, res: Response) => {
   const gap = String(req.query.gap || 'all'), dayType = String(req.query.dayType || 'all'), unit = String(req.query.unit || 'pts');
   const wd = num(req.query.wd, -1);
-  if (!['all', 'up', 'down', 'flat'].includes(gap) || !['all', 'trend', 'range'].includes(dayType) || !['pts', 'atr'].includes(unit) || !(wd >= -1 && wd <= 4))
+  if (!['all', 'up', 'down', 'flat'].includes(gap) || !['all', 'trend', 'range', 'up', 'down'].includes(dayType) || !['pts', 'atr'].includes(unit) || !(wd >= -1 && wd <= 4))
     return res.status(400).json({ error: 'bad filter' });
-  try { res.json(dayMap(buildGrid(await load()), { wd, gap: gap as GapFilter, dayType: dayType as DayTypeFilter, unit: unit as 'pts' | 'atr' })); }
+  const d = dates(req);
+  try { res.json(dayMap(buildGrid(await load()), { wd, gap: gap as GapFilter, dayType: dayType as DayTypeFilter, unit: unit as 'pts' | 'atr', from: d.dateFrom, to: d.dateTo })); }
   catch (e) { memErr(res, 'daymap', e); }
 });
 router.get('/memory/analog', async (req: Request, res: Response) => {
@@ -101,19 +108,40 @@ router.get('/memory/analog', async (req: Request, res: Response) => {
   } catch (e) { memErr(res, 'analog', e); }
 });
 router.get('/memory/candles', async (req: Request, res: Response) => {
-  try { res.json(candleStats(buildGrid(await load()), { tf: num(req.query.tf, 5), next: num(req.query.next, 3) })); }
+  try { res.json(candleStats(buildGrid(await load()), { tf: num(req.query.tf, 5), next: num(req.query.next, 3), ...dates(req) })); }
   catch (e) { memErr(res, 'candles', e); }
 });
 
 router.get('/memory/odds', async (req: Request, res: Response) => {
-  try { res.json(candleOdds(buildGrid(await load()), { tf: num(req.query.tf, 5), from: String(req.query.from || '9:30'), to: String(req.query.to || '10:30') })); }
+  try { res.json(candleOdds(buildGrid(await load()), { tf: num(req.query.tf, 5), from: String(req.query.from || '9:30'), to: String(req.query.to || '10:30'), ...dates(req) })); }
   catch (e) { memErr(res, 'odds', e); }
 });
-router.get('/memory/news', async (_req: Request, res: Response) => {
-  try { res.json(await newsStudy()); } catch (e) { memErr(res, 'news', e); }
+// GET /api/patterns/memory/odds/days?tf&from&to&type&dateFrom&dateTo — the days behind one Candle odds row
+router.get('/memory/odds/days', async (req: Request, res: Response) => {
+  try { res.json(oddsDays(buildGrid(await load()), { tf: num(req.query.tf, 5), from: String(req.query.from || '9:30'), to: String(req.query.to || '10:30'), type: String(req.query.type || ''), ...dates(req) })); }
+  catch (e) { memErr(res, 'odds-days', e); }
 });
-router.get('/memory/sessions', async (_req: Request, res: Response) => {
-  try { res.json(sessionStats(await loadSessions())); } catch (e) { memErr(res, 'sessions', e); }
+router.get('/memory/news', async (req: Request, res: Response) => {
+  try { res.json(await newsStudy(dates(req))); } catch (e) { memErr(res, 'news', e); }
+});
+// News explorer: every high-impact USD release in the date range (imported calendar), and all of them merged
+router.get('/memory/news/list', async (req: Request, res: Response) => {
+  const d = dates(req), q = typeof req.query.q === 'string' ? req.query.q.slice(0, 60) : undefined;
+  try { res.json(await listNews({ from: d.dateFrom, to: d.dateTo, q: q || undefined, impact: String(req.query.impact || 'high') })); }
+  catch (e) { memErr(res, 'news-list', e); }
+});
+router.get('/memory/news/combine', async (req: Request, res: Response) => {
+  const d = dates(req), q = typeof req.query.q === 'string' ? req.query.q.slice(0, 60) : undefined;
+  try { res.json(await combineNews({ from: d.dateFrom, to: d.dateTo, q: q || undefined, impact: String(req.query.impact || 'high') })); }
+  catch (e) { memErr(res, 'news-combine', e); }
+});
+router.get('/memory/sessions', async (req: Request, res: Response) => {
+  const d = dates(req);
+  try {
+    const rows = (await loadSessions()).filter(r => (!d.dateFrom || r.day >= d.dateFrom) && (!d.dateTo || r.day <= d.dateTo));
+    if (rows.length < 50) return res.status(400).json({ error: 'Too few sessions in that date range: pick a wider range.' });
+    res.json(sessionStats(rows));
+  } catch (e) { memErr(res, 'sessions', e); }
 });
 
 // ---- AI Trade Book (src/patterns/tradeBook.ts) ----

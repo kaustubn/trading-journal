@@ -79,18 +79,27 @@ function corr(a: number[], b: number[]) {
 
 // ------------------------------------------------------------------ 1. average day map
 export type GapFilter = 'all' | 'up' | 'down' | 'flat';
-export type DayTypeFilter = 'all' | 'trend' | 'range';
+export type DayTypeFilter = 'all' | 'trend' | 'range' | 'up' | 'down';
+
+/** Day indexes [lo, hi) inside an optional date range (the first 20 days only warm up the average range). */
+export function dayIdx(g: Grid, from?: string, to?: string): [number, number] {
+  let lo = 20, hi = g.D;
+  if (from) while (lo < hi && g.dates[lo] < from) lo++;
+  if (to) while (hi > lo && g.dates[hi - 1] > to) hi--;
+  if (hi - lo < 10) throw Object.assign(new Error('Fewer than 10 days in that date range: pick a wider range.'), { status: 400 });
+  return [lo, hi];
+}
+/** Hindsight label: up / down trend day when |close - open| >= 50% of the day's range, else range day. */
+export function dayKind(g: Grid, di: number): 'up' | 'down' | 'range' {
+  const r = g.high[di] - g.low[di], m = g.close[di] - g.open[di];
+  return r > 0 && Math.abs(m) >= 0.5 * r ? (m > 0 ? 'up' : 'down') : 'range';
+}
 export interface DayMapParams { wd: number; gap: GapFilter; dayType: DayTypeFilter; unit: 'pts' | 'atr'; from?: string; to?: string; }
 
 function gapClass(g: Grid, di: number): GapFilter {
   const a = g.atr[di], x = g.gap[di];
   if (!isFinite(a) || !isFinite(x)) return 'all';
   return Math.abs(x) < 0.1 * a ? 'flat' : x > 0 ? 'up' : 'down';
-}
-/** Hindsight label (known only after the close): trend = |close - open| >= 50% of the day's range. */
-function dayType(g: Grid, di: number): 'trend' | 'range' {
-  const r = g.high[di] - g.low[di];
-  return r > 0 && Math.abs(g.close[di] - g.open[di]) >= 0.5 * r ? 'trend' : 'range';
 }
 
 export function dayMap(g: Grid, p: DayMapParams) {
@@ -100,9 +109,13 @@ export function dayMap(g: Grid, p: DayMapParams) {
     if (p.from && g.dates[di] < p.from) continue;
     if (p.to && g.dates[di] > p.to) continue;
     if (p.gap !== 'all' && gapClass(g, di) !== p.gap) continue;
-    if (p.dayType !== 'all' && dayType(g, di) !== p.dayType) continue;
+    if (p.dayType !== 'all') {
+      const k = dayKind(g, di);
+      if (p.dayType === 'trend' ? k === 'range' : k !== p.dayType) continue;
+    }
     sel.push(di);
   }
+  if (sel.length < 5) throw Object.assign(new Error('Fewer than 5 days match these filters: widen the dates or the filters.'), { status: 400 });
   const n = sel.length, half = Math.floor(n / 2);
   const mean = new Array(SESSION_MIN).fill(0), older = new Array(SESSION_MIN).fill(0), newer = new Array(SESSION_MIN).fill(0);
   const p25: number[] = [], p50: number[] = [], p75: number[] = [], upFrac: number[] = [], absMove = new Array(SESSION_MIN).fill(0);
@@ -143,7 +156,95 @@ export function dayMap(g: Grid, p: DayMapParams) {
     hodByQuarterHour: hod.map(x => r3(n ? x / n : 0)), lodByQuarterHour: lod.map(x => r3(n ? x / n : 0)),
     quarterHours: Array.from({ length: 26 }, (_, i) => hhmm(i * 15)),
     note: p.dayType !== 'all' ? 'Trend / range day is only known after the close (hindsight filter): use it to study, not to trade.' : null,
+    size: daySize(g, sel), regimes: regimes(g, p), legs: legs(g, sel),
   };
+}
+
+// ---- how big is a day, a time window and a candle of each timeframe (selected days)
+function daySize(g: Grid, sel: number[]) {
+  const rng = sel.map(di => g.high[di] - g.low[di]).sort((a, b) => a - b);
+  const mean = (a: number[]) => (a.length ? a.reduce((x, y) => x + y, 0) / a.length : NaN);
+  const W: [string, number, number][] = [['First 15 min (9:30–9:45)', 0, 15], ['First 30 min (9:30–10:00)', 0, 30], ['First hour (9:30–10:30)', 0, 60],
+    ['Late morning (10:30–12:00)', 60, 150], ['Lunch (12:00–13:30)', 150, 240], ['Afternoon (13:30–16:00)', 240, 390], ['Whole session', 0, 390]];
+  const windows = W.map(([label, a, b]) => {
+    const r: number[] = [], m: number[] = [];
+    for (const di of sel) {
+      const base = di * SESSION_MIN; let hi = -Infinity, lo = Infinity;
+      for (let k = a; k < b; k++) { if (g.H[base + k] > hi) hi = g.H[base + k]; if (g.L[base + k] < lo) lo = g.L[base + k]; }
+      r.push(hi - lo); m.push(Math.abs(g.C[base + b - 1] - g.O[base + a]));
+    }
+    return { label, avgRange: r1(mean(r)), avgMove: r1(mean(m)), shareOfDay: r3(mean(r) / (mean(rng) || 1)) };
+  });
+  const byTf = [1, 3, 5, 15, 30, 60].map(tf => {
+    const all: number[] = [], body: number[] = [], first: number[] = [], lunch: number[] = [];
+    for (const di of sel) {
+      const base = di * SESSION_MIN;
+      for (let s = 0; s + tf <= SESSION_MIN; s += tf) {
+        let hi = -Infinity, lo = Infinity;
+        for (let k = s; k < s + tf; k++) { if (g.H[base + k] > hi) hi = g.H[base + k]; if (g.L[base + k] < lo) lo = g.L[base + k]; }
+        const r = hi - lo; all.push(r); body.push(Math.abs(g.C[base + s + tf - 1] - g.O[base + s]));
+        if (s < 60) first.push(r); else if (s >= 150 && s < 240) lunch.push(r);
+      }
+    }
+    return { tf, avgRange: r1(mean(all)), avgBody: r1(mean(body)), firstHour: r1(mean(first)), lunch: r1(mean(lunch)) };
+  });
+  return { avg: r1(mean(rng)), median: r1(pct(rng, 0.5)), p10: r1(pct(rng, 0.1)), p90: r1(pct(rng, 0.9)), avgAtr: r1(mean(sel.map(di => g.atr[di]).filter(isFinite))), windows, byTf };
+}
+
+// ---- up-trend / down-trend / range days: how often, how far they move (same filters except the day type)
+function regimes(g: Grid, p: DayMapParams) {
+  const days: number[] = [];
+  for (let di = 20; di < g.D; di++) {
+    if (p.wd >= 0 && g.wd[di] !== p.wd) continue;
+    if (p.from && g.dates[di] < p.from) continue;
+    if (p.to && g.dates[di] > p.to) continue;
+    if (p.gap !== 'all' && gapClass(g, di) !== p.gap) continue;
+    days.push(di);
+  }
+  const mean = (a: number[]) => (a.length ? a.reduce((x, y) => x + y, 0) / a.length : NaN);
+  const med = (a: number[]) => pct([...a].sort((x, y) => x - y), 0.5);
+  return (['up', 'down', 'range'] as const).map(kind => {
+    const ds = days.filter(di => dayKind(g, di) === kind);
+    const hodK: number[] = [], lodK: number[] = [];
+    for (const di of ds) {
+      const base = di * SESSION_MIN; let hk = 0, lk = 0;
+      for (let k = 1; k < SESSION_MIN; k++) { if (g.H[base + k] > g.H[base + hk]) hk = k; if (g.L[base + k] < g.L[base + lk]) lk = k; }
+      hodK.push(hk); lodK.push(lk);
+    }
+    const withRun = ds.map(di => kind === 'down' ? g.open[di] - g.low[di] : kind === 'up' ? g.high[di] - g.open[di] : Math.max(g.high[di] - g.open[di], g.open[di] - g.low[di]));
+    const against = ds.map(di => kind === 'down' ? g.high[di] - g.open[di] : kind === 'up' ? g.open[di] - g.low[di] : Math.min(g.high[di] - g.open[di], g.open[di] - g.low[di]));
+    return {
+      kind, days: ds.length, share: r3(ds.length / (days.length || 1)),
+      avgRange: r1(mean(ds.map(di => g.high[di] - g.low[di]))), avgMove: r1(mean(ds.map(di => g.close[di] - g.open[di]))),
+      avgWithRun: r1(mean(withRun)), avgAgainst: r1(mean(against)),
+      medianHigh: ds.length ? hhmm(Math.round(med(hodK))) : null, medianLow: ds.length ? hhmm(Math.round(med(lodK))) : null,
+    };
+  });
+}
+
+// ---- intraday legs on 5-minute closes: a leg ends when price turns back by 20% of the day's average range
+function legs(g: Grid, sel: number[]) {
+  const up: { pts: number; min: number }[] = [], dn: { pts: number; min: number }[] = [];
+  for (const di of sel) {
+    const base = di * SESSION_MIN, th = 0.2 * (g.atr[di] || 0);
+    if (!(th > 0)) continue;
+    let dir = 0, extP = g.O[base], extK = 0, startP = g.O[base], startK = 0;
+    for (let k = 4; k < SESSION_MIN; k += 5) {
+      const c = g.C[base + k];
+      if (dir === 0) {
+        if (c - startP >= th) { dir = 1; extP = c; extK = k; } else if (startP - c >= th) { dir = -1; extP = c; extK = k; }
+        continue;
+      }
+      if (dir === 1) {
+        if (c > extP) { extP = c; extK = k; } else if (extP - c >= th) { up.push({ pts: extP - startP, min: extK - startK }); dir = -1; startP = extP; startK = extK; extP = c; extK = k; }
+      } else {
+        if (c < extP) { extP = c; extK = k; } else if (c - extP >= th) { dn.push({ pts: startP - extP, min: extK - startK }); dir = 1; startP = extP; startK = extK; extP = c; extK = k; }
+      }
+    }
+  }
+  const mean = (a: number[]) => (a.length ? a.reduce((x, y) => x + y, 0) / a.length : NaN);
+  const sum = (a: { pts: number; min: number }[]) => ({ n: a.length, perDay: r1(a.length / (sel.length || 1)), avgPts: r1(mean(a.map(x => x.pts))), medianPts: r1(pct(a.map(x => x.pts).sort((x, y) => x - y), 0.5)), avgMin: Math.round(mean(a.map(x => x.min))) });
+  return { up: sum(up), down: sum(dn), rule: 'A leg = a run of 5-minute closes that ends when price turns back by 20% of the average day range (about 1/5 of a normal day).' };
 }
 
 // ------------------------------------------------------------------ 2. look-alike (analog) finder
@@ -329,14 +430,15 @@ export function classify(o: number[], h: number[], l: number[], c: number[], i: 
 interface Cell { n: number; up: number; sum: number; nO: number; sumO: number; sqO: number; nN: number; sumN: number; sqN: number; }
 const newCell = (): Cell => ({ n: 0, up: 0, sum: 0, nO: 0, sumO: 0, sqO: 0, nN: 0, sumN: 0, sqN: 0 });
 
-export function candleStats(g: Grid, p: { tf: number; next: number }, seed = 7) {
+export function candleStats(g: Grid, p: { tf: number; next: number; dateFrom?: string; dateTo?: string }, seed = 7) {
   const tf = [1, 3, 5, 15].includes(p.tf) ? p.tf : 5, nx = Math.max(1, Math.min(12, Math.round(p.next)));
-  const perDay = Math.floor(SESSION_MIN / tf), half = Math.floor((g.D - 20) / 2) + 20;
+  const [d0, d1] = dayIdx(g, p.dateFrom, p.dateTo);
+  const perDay = Math.floor(SESSION_MIN / tf), half = Math.floor((d1 - d0) / 2) + d0;
   type Ev = { slot: number; ti: number; move: number; older: boolean };
   const evs: Ev[] = [];
   const base: Cell[] = Array.from({ length: 26 }, newCell);
   let bodySum = 0; const bodyWin: number[] = [];
-  for (let di = 20; di < g.D; di++) {
+  for (let di = d0; di < d1; di++) {
     const b = di * SESSION_MIN, o: number[] = [], h: number[] = [], l: number[] = [], c: number[] = [];
     for (let s = 0; s < perDay; s++) {
       const a = b + s * tf;
@@ -399,7 +501,7 @@ export function candleStats(g: Grid, p: { tf: number; next: number }, seed = 7) 
     slots: real[t].slice(0, 26).map((x, s) => ({ time: quarter[s], ...cellOut(x, base[s], repeats(x, s)) })),
   }));
   return {
-    tf, next: nx, days: g.D - 20, from: g.dates[20], to: g.dates[g.D - 1], olderTo: g.dates[half - 1],
+    tf, next: nx, days: d1 - d0, from: g.dates[d0], to: g.dates[d1 - 1], olderTo: g.dates[half - 1],
     types: out, slotsTested: tested, repeating: found, luckRepeating: luck, costPts: r3(COST_PTS),
     baseBySlot: base.map((x, s) => ({ time: quarter[s], n: x.n, up: r3(x.n ? x.up / x.n : 0), avg: r2(x.n ? x.sum / x.n : 0) })),
     rule: `A candle type "repeats" at a time only if, in BOTH the older and the newer half of the days (30+ cases each), the move over the next ${nx} candle(s) beats the normal candle at that time by more than the cost (${r2(COST_PTS)} pt), in the same direction, and is statistically clear in each half on its own (t >= 2).`,
@@ -421,19 +523,20 @@ export function _resetCaches() { gridCache = null; accCache.clear(); }
  * and at least 2 / 3 times IN A ROW; average count; older vs newer half of the days (does the odds repeat?).
  * Window is New York time inside 9:30-16:00 (the data's day session); candles are aligned to 9:30.
  */
-export function candleOdds(g: Grid, p: { tf: number; from: string; to: string }) {
+export function candleOdds(g: Grid, p: { tf: number; from: string; to: string; dateFrom?: string; dateTo?: string }) {
   const tf = [1, 3, 5, 15, 30, 60].includes(p.tf) ? p.tf : 5;
   const toMin = (t: string) => { const m = /^(\d{1,2}):(\d{2})$/.exec(t); return m ? Number(m[1]) * 60 + Number(m[2]) - 570 : NaN; };
   const a = toMin(p.from), b = toMin(p.to);
   if (!(a >= 0 && b <= SESSION_MIN && b - a >= tf)) throw Object.assign(new Error('Window must be inside 9:30-16:00 ET and at least one candle long.'), { status: 400 });
-  const perDay = Math.floor(SESSION_MIN / tf), half = Math.floor((g.D - 20) / 2) + 20;
+  const [d0, d1] = dayIdx(g, p.dateFrom, p.dateTo);
+  const perDay = Math.floor(SESSION_MIN / tf), half = Math.floor((d1 - d0) / 2) + d0;
   type Acc = { days: number; ge1: number; ge2: number; ge3: number; run2: number; run3: number; sum: number; dist: number[] };
   const mk = (): Acc => ({ days: 0, ge1: 0, ge2: 0, ge3: 0, run2: 0, run3: 0, sum: 0, dist: new Array(7).fill(0) });
   const KEYS = [...TYPE_KEYS, 'engulfAny'];
   const NAMES: Record<string, string> = { ...CANDLE_TYPES, engulfAny: 'Engulfing (either colour)' };
   const acc = KEYS.map(() => ({ all: mk(), older: mk(), newer: mk() }));
   let windowCandles = 0;
-  for (let di = 20; di < g.D; di++) {
+  for (let di = d0; di < d1; di++) {
     const base = di * SESSION_MIN, o: number[] = [], h: number[] = [], l: number[] = [], c: number[] = [];
     for (let s = 0; s < perDay; s++) {
       const x = base + s * tf;
@@ -467,8 +570,63 @@ export function candleOdds(g: Grid, p: { tf: number; from: string; to: string })
   const pr = (A: Acc) => ({ days: A.days, avgCount: r2(A.sum / (A.days || 1)), atLeast1: r3(A.ge1 / (A.days || 1)), atLeast2: r3(A.ge2 / (A.days || 1)),
     atLeast3: r3(A.ge3 / (A.days || 1)), twoInARow: r3(A.run2 / (A.days || 1)), threeInARow: r3(A.run3 / (A.days || 1)), dist: A.dist.map(x => r3(x / (A.days || 1))) });
   return {
-    tf, window: `${hhmm(a)}-${hhmm(b)}`, candlesInWindow: windowCandles, days: g.D - 20, from: g.dates[20], to: g.dates[g.D - 1], olderTo: g.dates[half - 1],
+    tf, window: `${hhmm(a)}-${hhmm(b)}`, candlesInWindow: windowCandles, days: d1 - d0, from: g.dates[d0], to: g.dates[d1 - 1], olderTo: g.dates[half - 1],
     types: KEYS.map((k, ti) => ({ key: k, name: NAMES[k], all: pr(acc[ti].all), older: pr(acc[ti].older), newer: pr(acc[ti].newer) })),
     note: 'This says how OFTEN a candle forms in the window, not whether it predicts anything. A % that is about the same in older and newer years is a stable habit of the market.',
+  };
+}
+
+// ------------------------------------------------------------------ 5. candle odds: the days behind one row
+/**
+ * Every day (in the date range) where the candle type formed inside the window: at what times, and what the next
+ * 3 candles did; plus a merge: which 15-minute slots it forms in, how often the next 3 candles went the candle's way,
+ * and how busy (volume vs that day's normal candle) those candles were.
+ */
+export function oddsDays(g: Grid, p: { tf: number; from: string; to: string; type: string; dateFrom?: string; dateTo?: string }) {
+  const tf = [1, 3, 5, 15, 30, 60].includes(p.tf) ? p.tf : 5;
+  const toMin = (t: string) => { const m = /^(\d{1,2}):(\d{2})$/.exec(t); return m ? Number(m[1]) * 60 + Number(m[2]) - 570 : NaN; };
+  const a = toMin(p.from), b = toMin(p.to);
+  if (!(a >= 0 && b <= SESSION_MIN && b - a >= tf)) throw Object.assign(new Error('Window must be inside 9:30-16:00 ET and at least one candle long.'), { status: 400 });
+  if (!(p.type in CANDLE_TYPES) && p.type !== 'engulfAny') throw Object.assign(new Error('Unknown candle type.'), { status: 400 });
+  const [d0, d1] = dayIdx(g, p.dateFrom, p.dateTo);
+  const perDay = Math.floor(SESSION_MIN / tf);
+  const days: { date: string; wd: number; times: string[]; next3: number[] }[] = [];
+  const slots = new Array(26).fill(0); const next: number[] = []; const withDir: boolean[] = []; const volX: number[] = [];
+  let occ = 0;
+  for (let di = d0; di < d1; di++) {
+    const base = di * SESSION_MIN, o: number[] = [], h: number[] = [], l: number[] = [], c: number[] = [], v: number[] = [];
+    for (let s = 0; s < perDay; s++) {
+      const x = base + s * tf;
+      let hi = -Infinity, lo = Infinity, vol = 0; for (let j = x; j < x + tf; j++) { if (g.H[j] > hi) hi = g.H[j]; if (g.L[j] < lo) lo = g.L[j]; vol += g.V[j]; }
+      o.push(g.O[x]); h.push(hi); l.push(lo); c.push(g.C[x + tf - 1]); v.push(vol);
+    }
+    const dayVol = v.reduce((x, y) => x + y, 0) / (v.length || 1);
+    const bodies: number[] = []; const times: string[] = []; const nx: number[] = [];
+    for (let s = 0; s < perDay; s++) {
+      const avgBody = bodies.length ? bodies.slice(-20).reduce((x, y) => x + y, 0) / Math.min(20, bodies.length) : 0;
+      const types = new Set(classify(o, h, l, c, s, avgBody));
+      if (types.has('bullEngulf') || types.has('bearEngulf')) types.add('engulfAny');
+      bodies.push(Math.abs(c[s] - o[s]));
+      const start = s * tf;
+      if (!(start >= a && start + tf <= b) || !types.has(p.type)) continue;
+      occ++; times.push(hhmm(start)); slots[Math.floor(start / 15)]++;
+      if (dayVol > 0) volX.push(v[s] / dayVol);
+      if (s + 3 < perDay) {
+        const mv = c[s + 3] - c[s]; nx.push(r1(mv)); next.push(mv);
+        const d = Math.sign(c[s] - o[s]); if (d) withDir.push(Math.sign(mv) === d);
+      }
+    }
+    if (times.length) days.push({ date: g.dates[di], wd: g.wd[di], times, next3: nx });
+  }
+  const mean = (x: number[]) => (x.length ? x.reduce((s, y) => s + y, 0) / x.length : NaN);
+  return {
+    tf, type: p.type, name: CANDLE_TYPES[p.type] ?? 'Engulfing (either colour)', window: `${hhmm(a)}-${hhmm(b)}`, daysTested: d1 - d0, from: g.dates[d0], to: g.dates[d1 - 1],
+    days: days.reverse(),
+    merge: {
+      occurrences: occ, daysWith: days.length,
+      bySlot: slots.map((n, i) => ({ time: hhmm(i * 15), n })).filter(x => x.n > 0),
+      next3Avg: r2(mean(next)), next3Up: r3(next.length ? next.filter(x => x > 0).length / next.length : NaN),
+      wentCandleWay: r3(withDir.length ? withDir.filter(Boolean).length / withDir.length : NaN), volX: r2(mean(volX)),
+    },
   };
 }
