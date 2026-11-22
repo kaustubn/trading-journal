@@ -279,7 +279,7 @@ export function CombinePanel({ r }: { r: any }) {
       <div className="bl-tiles">
         <div className="bl-tile"><div className="bl-tile-label">Releases merged</div><div className="bl-tile-v">{r.n}</div><div className="bl-dim" style={{ fontSize: 11 }}>{r.from} → {r.to}</div></div>
         <div className="bl-tile"><div className="bl-tile-label">Normal 1-min candle before</div><div className="bl-tile-v">{r.normalRange1m} pts</div></div>
-        <div className="bl-tile"><div className="bl-tile-label">First 5 min direction still right at +60</div><div className="bl-tile-v">{pct(r.firstCandle?.['5m']?.at60)}</div></div>
+        <div className="bl-tile"><div className="bl-tile-label">Kept going after the first 5 min (to +60)</div><div className="bl-tile-v">{pct(r.firstCandle?.['5m']?.at60)}</div></div>
         <div className="bl-tile"><div className="bl-tile-label">Older vs newer releases</div><div className="bl-tile-v">{pct(r.halves.older.cont60)} / {pct(r.halves.newer.cont60)}</div><div className="bl-dim" style={{ fontSize: 11 }}>same question, split by date</div></div>
       </div>
       <div className="pf-verdict ok"><ul className="mk-say">{r.say.map((s: string, i: number) => <li key={i}>{s}</li>)}</ul></div>
@@ -295,10 +295,10 @@ export function CombinePanel({ r }: { r: any }) {
       </div>
       <div className="mm-two" style={{ marginTop: 10 }}>
         <div>
-          <div className="bl-head"><b>Did the first candle's direction last?</b></div>
+          <div className="bl-head"><b>After the first candle closed, did price keep going its way?</b></div>
           <table className="pf-grid mm-table"><thead><tr><th>First candle</th><th>Releases</th><th>+15 min</th><th>+30 min</th><th>+60 min</th></tr></thead>
             <tbody>{Object.entries(r.firstCandle).map(([k, v]: any) => <tr key={k}><td>{k}</td><td>{v.n}</td><td>{pct(v.at15)}</td><td>{pct(v.at30)}</td><td>{pct(v.at60)}</td></tr>)}</tbody></table>
-          <p className="bl-dim">50% = coin flip. 60%+ = moves tend to continue; 40%− = they tend to reverse.</p>
+          <p className="bl-dim">Measured from the first candle's close, so the first candle's own move does not count. 50% = coin flip. 60%+ = moves tend to continue; 40%− = they tend to reverse.</p>
         </div>
         <div>
           <div className="bl-head"><b>When the hour's high / low / biggest volume printed</b></div>

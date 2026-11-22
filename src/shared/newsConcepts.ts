@@ -237,8 +237,11 @@ export function combineEvents(evs: EventBars[]) {
       const end = closeAt(tf - 1), d = Math.sign(end - open0);
       const fc = (firstCont[`${tf}m`] ??= { at15: [], at30: [], at60: [] });
       if (!d) continue;
-      fc.at15.push(Math.sign(closeAt(14) - open0) === d); fc.at30.push(Math.sign(closeAt(29) - open0) === d); fc.at60.push(Math.sign(closeAt(59) - open0) === d);
-      if (tf === 5) (idx < half ? halves.older : halves.newer).cont60.push(Math.sign(closeAt(59) - open0) === d);
+      // measured from the CLOSE of the first candle: did price keep going its way AFTER it? (measuring from the
+      // release open would count the first candle's own move and look like continuation even at random times)
+      const kept = (o: number) => { const c = closeAt(o); return isFinite(c) && c !== end ? Math.sign(c - end) === d : null; };
+      for (const [k, o] of [['at15', 14], ['at30', 29], ['at60', 59]] as const) { const v = kept(o); if (v !== null) fc[k].push(v); }
+      if (tf === 5) { const v = kept(59); if (v !== null) (idx < half ? halves.older : halves.newer).cont60.push(v); }
     }
     // first three 1-minute candles: direction sequence and the next 30 minutes in the direction of the first one
     const f3 = [0, 1, 2].map(o => m.get(o)).filter(Boolean) as Bar[];
@@ -295,14 +298,14 @@ export function combineEvents(evs: EventBars[]) {
   const c5 = cont['5m'];
   if (c5?.n) {
     const p = c5.at60;
-    say.push(p >= 0.6 ? `The first 5 minutes' direction was still right after an hour ${Math.round(p * 100)}% of the time: moves tend to continue.`
-      : p <= 0.4 ? `The first 5 minutes' direction was reversed after an hour ${Math.round((1 - p) * 100)}% of the time: first moves tend to fade.`
-      : `After an hour the first 5 minutes' direction held only ${Math.round(p * 100)}% of the time: close to a coin flip.`);
+    say.push(p >= 0.6 ? `After the first 5 minutes closed, price kept going the same way by +60 min ${Math.round(p * 100)}% of the time: moves tend to continue.`
+      : p <= 0.4 ? `After the first 5 minutes closed, price went the other way by +60 min ${Math.round((1 - p) * 100)}% of the time: first moves tend to fade.`
+      : `After the first 5 minutes closed, price kept going the same way by +60 min only ${Math.round(p * 100)}% of the time: a coin flip, no edge in following the first move.`);
   }
   const hiEarly = hist(hiAt)[0].share, loEarly = hist(loAt)[0].share;
   say.push(`The hour's high printed in the first 5 minutes ${Math.round(hiEarly * 100)}% of the time, the low ${Math.round(loEarly * 100)}%.`);
   if (cc.anySweepRev?.n) say.push(`One side of the 30-minute range before the news was swept and then reversed in ${Math.round(cc.anySweepRev.share * 100)}% of releases (ICT stop run).`);
-  if (hv.older.n >= 10 && hv.newer.n >= 10) say.push(`Repeat check: first-5-min direction held at +60 in ${Math.round(hv.older.cont60 * 100)}% of older vs ${Math.round(hv.newer.cont60 * 100)}% of newer releases${Math.abs(hv.older.cont60 - hv.newer.cont60) <= 0.1 ? ' (similar: a stable habit)' : ' (different: not stable)'}.`);
+  if (hv.older.n >= 10 && hv.newer.n >= 10) say.push(`Repeat check: kept going after the first 5 minutes (to +60) in ${Math.round(hv.older.cont60 * 100)}% of older vs ${Math.round(hv.newer.cont60 * 100)}% of newer releases${Math.abs(hv.older.cont60 - hv.newer.cont60) <= 0.1 ? ' (similar: a stable habit)' : ' (different: not stable)'}.`);
   return {
     n, from: ok[0]?.date ?? null, to: ok[n - 1]?.date ?? null, normalRange1m: r2(calmR), minutes, careful, violent,
     highAt: hist(hiAt), lowAt: hist(loAt), volumePeakAt: hist(volMaxAt), firstCandle: cont, sequences: seqList, concepts: cc, halves: hv,
