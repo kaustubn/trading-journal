@@ -354,9 +354,12 @@ export async function initializeDB() {
       CREATE INDEX IF NOT EXISTS idx_accounts_webhook_token ON accounts(webhook_token);
       ALTER TABLE users ADD COLUMN IF NOT EXISTS plan VARCHAR(20) DEFAULT 'free';
       ALTER TABLE users ADD COLUMN IF NOT EXISTS plan_since TIMESTAMP;
-      UPDATE users SET plan = 'pro' WHERE email IN ('kaustubsubbannavar@gmail.com', 'demo@example.com') AND (plan IS NULL OR plan = 'free');
+      UPDATE users SET plan = 'pro' WHERE email = 'demo@example.com' AND (plan IS NULL OR plan = 'free');
     `;
     await client.query(migrations);
+    // owner accounts on the pro plan come from the environment (PRO_EMAILS=a@x.com,b@y.com), not from the public code
+    const proEmails = (process.env.PRO_EMAILS || '').split(',').map(e => e.trim().toLowerCase()).filter(Boolean);
+    if (proEmails.length) await client.query(`UPDATE users SET plan = 'pro' WHERE lower(email) = ANY($1) AND (plan IS NULL OR plan = 'free')`, [proEmails]);
 
     await client.query(`
       CREATE TABLE IF NOT EXISTS daily_notes (

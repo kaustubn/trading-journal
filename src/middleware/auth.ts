@@ -24,8 +24,9 @@ export function verifyToken(req: Request, res: Response, next: NextFunction) {
   }
 
   try {
-    const decoded = jwt.verify(token, secret(), { algorithms: ['HS256'] }) as { userId: number };
-    if (!Number.isInteger(decoded?.userId) || decoded.userId <= 0) throw new Error('bad payload');
+    const decoded = jwt.verify(token, secret(), { algorithms: ['HS256'] }) as { userId: number; exp?: number };
+    // every token this app issues expires (generateToken: 7 days); one without an expiry is never accepted
+    if (!Number.isInteger(decoded?.userId) || decoded.userId <= 0 || typeof decoded.exp !== 'number') throw new Error('bad payload');
     req.userId = decoded.userId;
     next();
   } catch (error) {
@@ -37,8 +38,8 @@ export function verifyToken(req: Request, res: Response, next: NextFunction) {
 export function userIdFromToken(token: unknown): number | null {
   if (typeof token !== 'string' || !token) return null;
   try {
-    const d = jwt.verify(token, secret(), { algorithms: ['HS256'] }) as { userId: number };
-    return Number.isInteger(d?.userId) && d.userId > 0 ? d.userId : null;
+    const d = jwt.verify(token, secret(), { algorithms: ['HS256'] }) as { userId: number; exp?: number };
+    return Number.isInteger(d?.userId) && d.userId > 0 && typeof d.exp === 'number' ? d.userId : null;
   } catch { return null; }
 }
 

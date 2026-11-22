@@ -3,7 +3,7 @@ import axios from 'axios';
 const API_URL = 'http://localhost:5000';
 const TOKEN = 'test-token'; // Will use the demo user token
 
-const DEMO_TOKEN = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjEsImlhdCI6MTcxOTk1MDAwMH0.demo';
+const DEMO_TOKEN = process.env.DEMO_TOKEN || ''; // never commit a real token
 
 async function testStrategies() {
   try {
