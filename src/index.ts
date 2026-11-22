@@ -41,6 +41,7 @@ import btSessionsRouter from './api/btSessions';
 import newsRouter from './api/news';
 import calendarRouter from './api/calendar';
 import habitsRouter from './api/habits';
+import sizelabRouter from './api/sizelab';
 import alertsRouter from './api/alerts';
 
 // Fail fast: never run with a missing or weak token-signing secret
@@ -112,6 +113,7 @@ app.use('/api/bt-sessions', btSessionsRouter); // own auth (beacon carries its t
 app.use('/api/news', newsRouter); // own auth (blackout: any user; research: admin)
 app.use('/api/calendar', calendarRouter); // own auth (import: admin)
 app.use('/api/habits', habitsRouter); // own auth
+app.use('/api/sizelab', sizelabRouter); // own auth; research trade lists stay out of the public code
 app.use('/api/alerts', alertsRouter); // own auth (/tick is public: called by the scheduler)
 app.use('/api/bars', barsRouter); // own auth (admin only); keep above the '/api' mounts
 app.use('/api/coach/replay', coachReplayRouter); // own auth (admin only)

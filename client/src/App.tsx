@@ -26,6 +26,7 @@ import PreMarket from './components/PreMarket';
 import Discipline from './components/Discipline';
 import Report from './components/Report';
 import PropFirms from './components/PropFirms';
+import SizeLab from './components/SizeLab';
 import Challenges from './components/Challenges';
 import Coach from './components/Coach';
 import Emotions from './components/Emotions';
@@ -57,6 +58,7 @@ import {
   CandlestickChart, FlaskConical, Workflow, ListChecks, ShieldCheck, Building2, Lock, Upload, Plus,
   RefreshCw, LogOut, Menu, X, BookOpen, ChevronLeft, ChevronRight, LineChart, AlertTriangle, Flame, RotateCcw,
   CalendarDays, PlusCircle, Target, ScanSearch, Timer, Newspaper,
+  Calculator,
 } from 'lucide-react';
 import './App.css';
 
@@ -211,6 +213,7 @@ export default function App() {
         { key: 'checklist', label: 'Entry Checklist', icon: ListChecks },
         { key: 'risk', label: 'Risk & Sizing', icon: ShieldCheck },
         { key: 'propfirms', label: 'Prop Firms', icon: Building2 },
+        { key: 'sizelab', label: 'Size & Pass Lab', icon: Calculator },
         ...(isAdmin ? [{ key: 'news', label: 'News Analyzer', icon: Newspaper }] : []),
       ]
     },
@@ -719,6 +722,9 @@ export default function App() {
               <ErrorBoundary name="Economic calendar"><EconCalendar token={token} isAdmin={isAdmin} /></ErrorBoundary>
               <ErrorBoundary name="News Analyzer"><NewsAnalyzer token={token} account_id={selectedAccount || null} /></ErrorBoundary>
             </>
+          )}
+          {token && view === 'sizelab' && (
+            <ErrorBoundary name="Size & Pass Lab"><SizeLab token={token} /></ErrorBoundary>
           )}
           {view === 'propfirms' && (
             <ErrorBoundary name="Prop Firms"><PropFirms /></ErrorBoundary>
