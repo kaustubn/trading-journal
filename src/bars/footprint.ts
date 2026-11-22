@@ -41,6 +41,14 @@ function ensureTable(): Promise<void> {
         fake BOOLEAN NOT NULL DEFAULT FALSE,
         fetched_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
         PRIMARY KEY (sym, day)
+      );
+      -- every paid download, written BEFORE the data is parsed or saved: a purchase that fails later still counts
+      CREATE TABLE IF NOT EXISTS footprint_spend (
+        id SERIAL PRIMARY KEY,
+        day DATE NOT NULL,
+        cost_usd NUMERIC(10, 4) NOT NULL,
+        ok BOOLEAN NOT NULL DEFAULT FALSE,
+        at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       )`).then(() => undefined).catch(e => { tableReady = null; throw e; });
   }
   return tableReady;
@@ -79,15 +87,22 @@ export interface FpStatus {
   cost?: number | null; maxUsd: number; spent24h: number; dayUsd: number; spentTotal: number; totalUsd: number; message?: string; fake?: boolean;
 }
 
+// Spend = every recorded download (footprint_spend) + days bought before that table existed (no spend row).
+const SPENT_SQL = (since: string) => `
+  SELECT COALESCE((SELECT SUM(cost_usd) FROM footprint_spend WHERE ${since.replace(/AT/g, 'at')}), 0)
+       + COALESCE((SELECT SUM(d.cost_usd) FROM footprint_days d WHERE d.fake = false AND ${since.replace(/AT/g, 'd.fetched_at')}
+                   AND NOT EXISTS (SELECT 1 FROM footprint_spend s WHERE s.day = d.day)), 0) AS s`;
+
 async function spentTotal(): Promise<number> {
   await ensureTable();
-  const r = await pool.query(`SELECT COALESCE(SUM(cost_usd), 0) AS s FROM footprint_days WHERE fake = false`);
+  const r = await pool.query(SPENT_SQL('TRUE'));
   return Number(r.rows[0].s) || 0;
 }
 
 async function spent24h(): Promise<number> {
-  const r = await pool.query(`SELECT COALESCE(SUM(cost_usd), 0) AS s FROM footprint_days WHERE fetched_at > NOW() - interval '24 hours'`);
-  return Number(r.rows[0].s);
+  await ensureTable();
+  const r = await pool.query(SPENT_SQL(`AT > NOW() - interval '24 hours'`));
+  return Number(r.rows[0].s) || 0;
 }
 
 export async function getCached(day: string): Promise<FpDay | null> {
@@ -191,8 +206,17 @@ async function fakeTrades(start: number, end: number, acc: Acc) {
   }
 }
 
+// One purchase at a time (one server instance): two clicks at once can't both pass the budget check.
+let queue: Promise<unknown> = Promise.resolve();
+
 /** Buy (with the cost guard) and cache one session. */
-export async function load(day: string, confirmUsd: number, replay = false): Promise<FpDay> {
+export function load(day: string, confirmUsd: number, replay = false): Promise<FpDay> {
+  const run = queue.then(() => loadOne(day, confirmUsd, replay));
+  queue = run.catch(() => undefined);
+  return run;
+}
+
+async function loadOne(day: string, confirmUsd: number, replay: boolean): Promise<FpDay> {
   const st = await status(day, true);
   if (st.cached) return (await getCached(day))!;
   if (!replay) throw Object.assign(new Error('Footprint data is only bought from Replay (backtesting). Start a replay on that day.'), { status: 403 });
@@ -205,9 +229,12 @@ export async function load(day: string, confirmUsd: number, replay = false): Pro
   if (st.cost > confirmUsd + 0.005) throw Object.assign(new Error(`The price changed to $${st.cost.toFixed(2)}. Check it again.`), { status: 409 });
 
   const acc = new Acc();
+  let spendId: number | null = null;
   if (fake()) await fakeTrades(st.start, st.end, acc);
   else {
     const res = await dbGet('timeseries.get_range', { ...requestParams(st.contract, st.start, st.end), encoding: 'csv', compression: 'none', pretty_px: 'true', pretty_ts: 'false' });
+    // the download is paid now: record it before anything else can fail
+    spendId = (await pool.query(`INSERT INTO footprint_spend (day, cost_usd) VALUES ($1, $2) RETURNING id`, [day, st.cost])).rows[0].id;
     await readTradesCsv(res, acc);
   }
   const data: FpDay = { day, contract: st.contract, tick: TICK, start: st.start, end: st.end, minutes: acc.minutes(), trades: acc.trades, volume: Math.round(acc.volume), cost: st.cost, ...(fake() ? { fake: true } : {}) };
@@ -215,6 +242,7 @@ export async function load(day: string, confirmUsd: number, replay = false): Pro
   await pool.query(
     `INSERT INTO footprint_days (sym, day, contract, cost_usd, trades, data, fake) VALUES (1, $1, $2, $3, $4, $5, $6)
      ON CONFLICT (sym, day) DO NOTHING`, [day, st.contract, st.cost, acc.trades, JSON.stringify(data), fake()]);
+  if (spendId) await pool.query(`UPDATE footprint_spend SET ok = TRUE WHERE id = $1`, [spendId]);
   return data;
 }
 
