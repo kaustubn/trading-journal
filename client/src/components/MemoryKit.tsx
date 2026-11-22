@@ -279,7 +279,8 @@ export function CombinePanel({ r }: { r: any }) {
       <div className="bl-tiles">
         <div className="bl-tile"><div className="bl-tile-label">Releases merged</div><div className="bl-tile-v">{r.n}</div><div className="bl-dim" style={{ fontSize: 11 }}>{r.from} → {r.to}</div></div>
         <div className="bl-tile"><div className="bl-tile-label">Normal 1-min candle before</div><div className="bl-tile-v">{r.normalRange1m} pts</div></div>
-        <div className="bl-tile"><div className="bl-tile-label">Kept going after the first 5 min (to +60)</div><div className="bl-tile-v">{pct(r.firstCandle?.['5m']?.at60)}</div></div>
+        <div className="bl-tile"><div className="bl-tile-label">Kept going after the first 5 min (to +60)</div><div className="bl-tile-v">{pct(r.firstCandle?.['5m']?.at60)}</div>{r.baseline && <div className="bl-dim" style={{ fontSize: 11 }}>normal days at the same time: {pct(r.baseline.firstCandle?.['5m']?.at60)}</div>}</div>
+        {r.baseline && <div className="bl-tile"><div className="bl-tile-label">Biggest 1-min candle in the first 5 min</div><div className="bl-tile-v">{Math.max(...r.minutes.filter((m: any) => m.off >= 0 && m.off < 5).map((m: any) => m.range)).toFixed(0)} pts</div><div className="bl-dim" style={{ fontSize: 11 }}>normal days at the same time: {r.baseline.peakRange0to5.toFixed(0)} pts ({r.baseline.n} moments)</div></div>}
         <div className="bl-tile"><div className="bl-tile-label">Older vs newer releases</div><div className="bl-tile-v">{pct(r.halves.older.cont60)} / {pct(r.halves.newer.cont60)}</div><div className="bl-dim" style={{ fontSize: 11 }}>same question, split by date</div></div>
       </div>
       <div className="pf-verdict ok"><ul className="mk-say">{r.say.map((s: string, i: number) => <li key={i}>{s}</li>)}</ul></div>
@@ -314,7 +315,13 @@ export function CombinePanel({ r }: { r: any }) {
         </div>
         <div>
           <div className="bl-head"><b>Concepts: how often each happened</b> <span className="bl-dim">(5m candles)</span></div>
-          <table className="pf-grid mm-table"><tbody>{Object.entries(r.concepts).filter(([k]) => CONCEPT_NAMES[k]).map(([k, v]: any) => <tr key={k}><td style={{ textAlign: 'left' }}>{CONCEPT_NAMES[k]}</td><td>{pct(v.share)}</td><td className="bl-dim">of {v.n}</td></tr>)}</tbody></table>
+          <table className="pf-grid mm-table"><thead><tr><th style={{ textAlign: 'left' }}>Concept</th><th>News</th><th>Normal days</th></tr></thead>
+            <tbody>{Object.entries(r.concepts).filter(([k]) => CONCEPT_NAMES[k]).map(([k, v]: any) => {
+              const b = r.baseline?.concepts?.[k];
+              const diff = b && isFinite(v.share) && isFinite(b.share) ? v.share - b.share : null;
+              return <tr key={k}><td style={{ textAlign: 'left' }}>{CONCEPT_NAMES[k]}</td><td className={diff != null && Math.abs(diff) >= 0.1 ? 'bl-up' : ''}>{pct(v.share)} <span className="bl-dim">of {v.n}</span></td><td className="bl-dim">{b ? pct(b.share) : '—'}</td></tr>;
+            })}</tbody></table>
+          <p className="bl-dim">Normal days = same clock time on nearby weekdays without big news. Green = news differs by 10+ points: that is the part that is really about the news.</p>
         </div>
       </div>
       <div className="mm-two" style={{ marginTop: 10 }}>

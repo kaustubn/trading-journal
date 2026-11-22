@@ -5,6 +5,7 @@
 // Bars come from the database in one query (about 90 rows per release) and the result is cached.
 import pool from '../db';
 import { combineEvents, EventBars, Bar } from '../shared/newsConcepts';
+import { nyToUtc } from '../shared/econCalendar';
 
 export interface NewsItem { t: number; date: string; timeEt: string; titles: string[]; actual: string | null; forecast: string | null; previous: string | null; }
 
@@ -72,7 +73,8 @@ export async function combineNews(p: { from?: string; to?: string; q?: string; i
   if (hit && Date.now() - hit.at < 3600e3) return hit.data;
   const bars = await windowBars(items.map(i => i.t));
   const evs: EventBars[] = items.map(i => ({ anchor: i.t, date: i.date, label: primaryTitle(i.titles), bars: bars.get(i.t) ?? [] }));
-  const data = { ...combineEvents(evs), listed: items.length, truncated: list.truncated };
+  const data: any = { ...combineEvents(evs), listed: items.length, truncated: list.truncated };
+  data.baseline = await baseline(items);
   combineCache.set(key, { at: Date.now(), data });
   if (combineCache.size > 30) combineCache.delete(combineCache.keys().next().value as string);
   return data;
@@ -86,4 +88,36 @@ export function primaryTitle(titles: string[]) {
     return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
   })[0] ?? '';
   return best;
+}
+
+/**
+ * Normal-day baseline: the same New York clock time on up to 3 nearby weekdays (1 and 2 weeks before, 1 week after)
+ * that had NO high-impact USD release. The same merge runs on those moments, so the page can show which numbers
+ * are really about the news and which happen at that time of day anyway.
+ */
+async function baseline(items: NewsItem[]) {
+  if (!items.length) return null;
+  const dates = items.map(i => i.date).sort();
+  const busy = new Set<string>((await pool.query(
+    `SELECT DISTINCT to_char(release_utc AT TIME ZONE 'America/New_York', 'YYYY-MM-DD') AS d FROM econ_events
+      WHERE currency = 'USD' AND lower(impact) = 'high' AND release_utc >= $1::date - 30 AND release_utc <= $2::date + 30`,
+    [dates[0], dates[dates.length - 1]])).rows.map((r: any) => r.d));
+  const anchors: { t: number; date: string }[] = [];
+  const seen = new Set<number>();
+  for (const it of items) {
+    const [h, mi] = it.timeEt.split(':').map(Number);
+    for (const shift of [-7, -14, 7]) {
+      const d = new Date(Date.parse(it.date + 'T12:00:00Z') + shift * 864e5).toISOString().slice(0, 10);
+      const wd = new Date(d + 'T12:00:00Z').getUTCDay();
+      if (wd === 0 || wd === 6 || busy.has(d)) continue;
+      const t = nyToUtc(+d.slice(0, 4), +d.slice(5, 7), +d.slice(8, 10), h, mi);
+      if (seen.has(t)) continue;
+      seen.add(t); anchors.push({ t, date: d });
+    }
+  }
+  if (!anchors.length) return null;
+  const bars = await windowBars(anchors.map(a => a.t));
+  const c = combineEvents(anchors.map(a => ({ anchor: a.t, date: a.date, label: 'normal day', bars: bars.get(a.t) ?? [] })));
+  const peak = c.minutes.filter(m => m.off >= 0 && m.off < 5).reduce((x, m) => Math.max(x, m.range), 0);
+  return { n: c.n, firstCandle: c.firstCandle, concepts: c.concepts, normalRange1m: c.normalRange1m, peakRange0to5: peak, highAt: c.highAt, lowAt: c.lowAt };
 }
