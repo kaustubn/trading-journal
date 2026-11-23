@@ -65,7 +65,9 @@ export default function GoalsPage({ token, account_id }: { token: string; accoun
   const days = tradingDays(today(), end);
   const acctCur = acct?.currency || 'INR';
   const entered = numOr(amount, 0) ?? 0;
-  const keepPct = Math.min(100, Math.max(1, numOr(keep, 100) ?? 100));
+  // prop accounts pay out a share of the profit; your own accounts (e.g. the INR one) keep all of it
+  const isProp = acct?.type === 'simulation' || acct?.profitTarget != null;
+  const keepPct = isProp ? Math.min(100, Math.max(1, numOr(keep, 100) ?? 100)) : 100;
   const goal = (() => {                             // what the account itself has to make, in its own currency
     const gross = entered / (keepPct / 100);
     if (cur === acctCur) return gross;
@@ -73,7 +75,9 @@ export default function GoalsPage({ token, account_id }: { token: string; accoun
     return Number.isFinite(v) ? v : 0;
   })();
   const inCur = (v: number, c: string) => money(v, 0, curSymbol(c));
-  const toCad = (v: number) => (fx ? convert(v, acctCur, 'CAD', fx.cad) : NaN);
+  /** The same amount in the other currencies (" · C$1,115 · ₹93,400"). */
+  const others = (v: number) => ['CAD', 'USD', 'INR'].filter(c => c !== acctCur)
+    .map(c => (fx ? convert(v, acctCur, c, fx.cad) : NaN)).map((x, i) => (Number.isFinite(x) ? ` · ${inCur(x, ['CAD', 'USD', 'INR'].filter(c => c !== acctCur)[i])}` : '')).join('');
   const greenRate = (() => { const t = numOr(day.green, null); return t != null ? t / 100 : b?.greenDayRate ?? null; })();
   const pfDay = numOr(day.pf, null) ?? b?.dayProfitFactor ?? null;
   const dt = greenRate != null && pfDay != null ? dayTargets(goal, days, greenRate, pfDay) : null;
@@ -150,9 +154,9 @@ export default function GoalsPage({ token, account_id }: { token: string; accoun
           <label>Amount to withdraw<span className="gl-amt">
             <input inputMode="decimal" value={amount} onChange={e => setAmount(e.target.value)} placeholder="e.g. 2000" />
             <select value={cur} onChange={e => setCur(e.target.value)} aria-label="Currency">
-              {[...new Set(['CAD', acctCur])].map(c => <option key={c} value={c}>{c}</option>)}
+              {['CAD', 'USD', 'INR'].map(c => <option key={c} value={c}>{c}</option>)}
             </select></span></label>
-          <label>You keep (% of profit)<input inputMode="decimal" value={keep} onChange={e => setKeep(e.target.value)} title="Prop firms usually pay out 80–90% of the profit. Your own account: 100." /></label>
+          {isProp && <label>You keep (% of profit, prop split)<input inputMode="decimal" value={keep} onChange={e => setKeep(e.target.value)} title="Prop firms usually pay out 80–90% of the profit." /></label>}
           <label>By<input type="date" value={end} min={plusDays(1)} onChange={e => setEnd(e.target.value)} /></label>
           <label>Name (optional)<input value={title} maxLength={100} onChange={e => setTitle(e.target.value)} placeholder="e.g. December payout" /></label>
         </div>
@@ -163,7 +167,7 @@ export default function GoalsPage({ token, account_id }: { token: string; accoun
         </div>
         {entered > 0 && (cur !== acctCur || keepPct < 100) && (
           <p className="gl-dim gl-conv">
-            {inCur(entered, cur)} to withdraw{keepPct < 100 ? ` at a ${keepPct}% split` : ''} = <b>{goal > 0 ? money(goal, 0) : '—'}</b> profit needed in this {acctCur} account
+            {inCur(entered, cur)} to withdraw{keepPct < 100 ? ` at a ${keepPct}% split` : ''} = <b>{goal > 0 ? money(goal, 0) : '—'}</b> profit needed in this {acctCur} account{goal > 0 ? others(goal) : ''}
             {cur !== acctCur && fx ? <> · 1 {cur} = {curSymbol(acctCur)}{(convert(1, cur, acctCur, fx.cad)).toFixed(acctCur === 'INR' ? 2 : 4)}{fx.live ? ' (today)' : ' (approximate: live rate unavailable)'}</> : null}
           </p>
         )}
@@ -218,13 +222,13 @@ export default function GoalsPage({ token, account_id }: { token: string; accoun
                   <div className="gl-day green">
                     <span>On each green day make at least</span>
                     <strong>{money(dt.perGreenDay, 0)}</strong>
-                    <em>about {Math.round(dt.greenDays)} of {days} days{Number.isFinite(toCad(dt.perGreenDay)) && acctCur !== 'CAD' ? ` · ${inCur(toCad(dt.perGreenDay), 'CAD')}` : ''}</em>
+                    <em>about {Math.round(dt.greenDays)} of {days} days{others(dt.perGreenDay)}</em>
                     {b.avgGreenDay != null && <em>your average green day now: {money(b.avgGreenDay, 0)}</em>}
                   </div>
                   <div className="gl-day red">
                     <span>On each red day lose at most</span>
                     <strong>{money(dt.perRedDay, 0)}</strong>
-                    <em>about {Math.round(dt.redDays)} of {days} days{Number.isFinite(toCad(dt.perRedDay)) && acctCur !== 'CAD' ? ` · ${inCur(toCad(dt.perRedDay), 'CAD')}` : ''}</em>
+                    <em>about {Math.round(dt.redDays)} of {days} days{others(dt.perRedDay)}</em>
                     {b.avgRedDay != null && <em>your average red day now: -{money(b.avgRedDay, 0)}</em>}
                   </div>
                 </div>
