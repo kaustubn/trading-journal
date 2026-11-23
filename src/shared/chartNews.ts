@@ -6,8 +6,9 @@ export interface ChartNews {
   utc: string; title: string; impact: 'high' | 'medium' | 'low';
   actual: string | null; forecast: string | null; previous: string | null;
   surprise: 'above' | 'below' | 'inline' | null;
-  kind: 'data' | 'fed' | 'earnings';
+  kind: 'data' | 'fed' | 'earnings' | 'headline';
   nq: Reaction | null;
+  source?: string; region?: string; topic?: string;    // headlines only
 }
 
 const SHORT: [RegExp, string][] = [
@@ -20,6 +21,18 @@ const SHORT: [RegExp, string][] = [
   [/consumer confidence/i, 'Conf.'], [/durable/i, 'Durables'], [/crude/i, 'Crude'], [/empire/i, 'Empire'], [/philly/i, 'Philly Fed'],
   [/building permits/i, 'Permits'], [/employment cost/i, 'ECI'],
 ];
+const TOPIC_SHORT: Record<string, string> = {
+  nvidia: 'NVDA', apple: 'AAPL', microsoft: 'MSFT', amazon: 'AMZN', google: 'GOOGL', meta: 'META', tesla: 'TSLA', broadcom: 'AVGO',
+  openai: 'OpenAI', amd: 'AMD', netflix: 'NFLX', fed: 'Fed', inflation: 'Inflation', jobs: 'Jobs', tariffs: 'Tariffs',
+  rbi: 'RBI', nifty: 'Nifty', rupee: 'Rupee', boc: 'BoC', tsx: 'TSX', cad: 'CAD', oil: 'Oil', adani: 'Adani', reliance: 'Reliance',
+};
+/** Chart label for any item: a release's short name, or a headline's topic ("NVDA", "RBI") / first words. */
+export function labelOf(e: ChartNews): string {
+  if (e.kind !== 'headline') return shortTitle(e.title);
+  const flag = e.region === 'IN' ? 'IN ' : e.region === 'CA' ? 'CA ' : '';
+  const t = e.topic && TOPIC_SHORT[e.topic];
+  return flag + (t ?? e.title.split(/\s+/).slice(0, 2).join(' ').slice(0, 14));
+}
 export function shortTitle(t: string): string {
   const earn = t.match(/^([A-Z]{1,5}) earnings/);
   if (earn) return `${earn[1]} earn.`;
@@ -36,7 +49,7 @@ export function groupNews(evs: ChartNews[]): NewsGroup[] {
   return [...by.entries()].sort((a, b) => a[0] - b[0]).map(([ms, list]) => {
     const score = (e: ChartNews) => RANK[e.impact] * 1000 + (e.nq ? e.nq.n * (e.nq.absPct15 ?? e.nq.absMed15 / 100) : 0);
     const sorted = [...list].sort((a, b) => score(b) - score(a));
-    const names = [...new Set(sorted.map(e => shortTitle(e.title)))];
+    const names = [...new Set(sorted.map(labelOf))];
     return { ms, events: sorted, main: sorted[0], impact: sorted.reduce((m, e) => (RANK[e.impact] > RANK[m] ? e.impact : m), 'low' as ChartNews['impact']),
       label: names.length > 1 ? `${names[0]} +${names.length - 1}` : names[0] };
   });
@@ -56,6 +69,7 @@ const word = (s: 'above' | 'below' | 'inline') => (s === 'above' ? 'above foreca
 /** What NQ did after this release in the past. Before the release: the usual move size, the direction split and
  *  both surprise scenarios. After it (surprise known): what followed that kind of surprise. Never a certainty. */
 export function outlook(e: ChartNews, price: number | null): Outlook {
+  if (e.kind === 'headline') return { bias: 'none', upPct: null, n: 0, movePts: null, lines: [`Breaking news · ${e.source ?? ''}${e.region ? ` · ${e.region === 'IN' ? 'India' : e.region === 'CA' ? 'Canada' : 'USA'}` : ''}`] };
   const r = e.nq;
   if (!r || r.n < 8) return { bias: 'none', upPct: null, n: r?.n ?? 0, movePts: null, lines: [e.kind === 'earnings' ? 'Earnings: no NQ study for single-company reports. Expect a gap or fast move in the stock and often in NQ.' : 'No NQ history for this release yet.'] };
   const size = pts(r, price);
@@ -73,4 +87,22 @@ export function outlook(e: ChartNews, price: number | null): Outlook {
     if (b && b.n >= 5) lines.push(`If ${word(s)}: higher ${Math.round(b.up15)}% of ${b.n} times.`);
   }
   return { bias: lean(r.up15), upPct: r.up15, n: r.n, movePts: size, lines };
+}
+
+export interface StoredHeadline { ts: string; title: string; source: string; region: string; topic: string; score: number; feeds: number }
+/** Keep the NQ chart readable: US stories scoring 5+, India / Canada only very big ones (8+, or carried by 3+ outlets);
+ *  a story (topic) is marked once, when it broke, and not again for 6 hours; at most one marker per country per hour. */
+export function pickChartHeadlines<T extends StoredHeadline>(rows: T[]): T[] {
+  const ok = rows.filter(h => (h.region === 'US' ? h.score >= 5 : h.score >= 8 || h.feeds >= 3)).sort((a, b) => Date.parse(a.ts) - Date.parse(b.ts));
+  const lastTopic = new Map<string, number>(), slot = new Set<string>(), out: T[] = [];
+  for (const h of ok) {
+    const ms = Date.parse(h.ts);
+    const named = !h.topic.startsWith('h');
+    if (named && ms - (lastTopic.get(h.topic) ?? -Infinity) < 6 * 3600000) continue;
+    const k = `${Math.floor(ms / 3600000)}|${h.region}`;
+    if (slot.has(k)) continue;
+    slot.add(k); if (named) lastTopic.set(h.topic, ms);
+    out.push(h);
+  }
+  return out;
 }

@@ -9,6 +9,8 @@ import { EVENT_INFO, EventCode, personalStats, PTrade } from '../news/econStats'
 import { summarize } from '../news/summary';
 import { listEvents } from '../news/econEvents';
 import { upcoming, headlines } from '../news/live';
+import { getBrief, cleanReview, saveReview, latestReview } from '../news/brief';
+import { crowdOdds } from '../news/odds';
 
 const router = Router();
 router.use(verifyToken);
@@ -61,7 +63,33 @@ router.get('/headlines', async (_req: Request, res: Response) => {
   try { res.json(await headlines()); } catch (e) { fail(res, 'headlines', e); }
 });
 
+// GET /api/news/brief[?refresh=1] -> the short what / why / now / next brief (refresh: at most every 5 minutes)
+let lastForced = 0;
+router.get('/brief', async (req: Request, res: Response) => {
+  try {
+    const force = req.query.refresh === '1' && Date.now() - lastForced > 5 * 60000;
+    if (force) lastForced = Date.now();
+    const [brief, reviewed] = await Promise.all([getBrief(force), latestReview().catch(() => null)]);
+    res.json({ brief, reviewed });
+  } catch (e) { fail(res, 'brief', e); }
+});
+// GET /api/news/odds -> open prediction markets on market-moving outcomes (Polymarket)
+router.get('/odds', async (_req: Request, res: Response) => {
+  try { res.json(await crowdOdds()); } catch (e) { fail(res, 'odds', e); }
+});
+
 router.use(requireAdmin);
+
+// POST /api/news/brief/review {headline, happened, why, now, next, regions, impact, watch, sources, odds, corrections}
+// The owner's daily check from Claude Code: a corrected brief shown above the automatic one for 24 hours.
+router.post('/brief/review', async (req: Request, res: Response) => {
+  try {
+    const r = cleanReview(req.body);
+    if (typeof r === 'string') return res.status(400).json({ error: r });
+    await saveReview(r);
+    res.json({ ok: true, at: r.generated_at });
+  } catch (e) { fail(res, 'review', e); }
+});
 
 // GET /api/news/calendar — all releases (past with first-release values, upcoming known dates)
 router.get('/calendar', async (_req: Request, res: Response) => {

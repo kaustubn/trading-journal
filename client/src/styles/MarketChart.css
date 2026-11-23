@@ -712,3 +712,4 @@
   border-radius: 4px; cursor: pointer; font-size: 11.5px; line-height: 1; }
 .mc-legend-btn:hover { color: var(--text, #d1d4dc); border-color: var(--accent, #2962ff); }
 .mc-legend-btn.closed { padding: 0 6px; }
+.mc-news-title.headline { color: #ce93d8; }

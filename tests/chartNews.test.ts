@@ -47,3 +47,16 @@ test('outlook: scenarios before the release, the matching history after it', () 
   assert.equal(outlook(ev({ nq: null, kind: 'earnings', title: 'NVDA earnings' }), 1).lines[0].startsWith('Earnings'), true);
   assert.equal(outlook(ev({ nq: { ...cpi, n: 5 } }), 1).bias, 'none');
 });
+
+test('chart headlines: a story is marked when it broke, not every hour; small India/Canada news stays off the NQ chart', () => {
+  const { pickChartHeadlines } = require('../src/shared/chartNews');
+  const r = (ts: string, topic: string, region = 'US', score = 6, feeds = 1) => ({ ts, title: topic + ts, source: 's', region, topic, score, feeds });
+  const out = pickChartHeadlines([
+    r('2026-11-23T11:18:00Z', 'nvidia'), r('2026-11-23T13:12:00Z', 'nvidia', 'US', 9), r('2026-11-23T18:00:00Z', 'nvidia'),
+    r('2026-11-23T11:30:00Z', 'fed'),                       // same hour as the first Nvidia story, same country -> skipped
+    r('2026-11-23T10:28:00Z', 'nifty', 'IN', 5),            // small Indian story -> off
+    r('2026-11-23T14:11:00Z', 'rbi', 'IN', 9),              // big Indian story -> on
+    r('2026-11-23T21:25:00Z', 'nvidia', 'CA', 5, 3),        // carried by 3 outlets -> on (Canada has its own slot)
+  ]);
+  assert.deepEqual(out.map((x: any) => `${x.ts.slice(11, 16)} ${x.region} ${x.topic}`), ['11:18 US nvidia', '14:11 IN rbi', '18:00 US nvidia']);
+});

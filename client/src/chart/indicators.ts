@@ -279,9 +279,10 @@ export function registerChartIndicators() {
         for (const n of ext.news) {
           const xn = xAt(n.ms);
           if (xn === null || xn < -2 || xn > width + 2) continue;
-          const col = n.impact === 'high' ? (ext.dark ? 'rgba(239, 83, 80, 0.55)' : 'rgba(211, 47, 47, 0.5)') : (ext.dark ? 'rgba(224, 163, 58, 0.5)' : 'rgba(191, 128, 20, 0.5)');
+          const col = n.headline ? (ext.dark ? 'rgba(186, 104, 200, 0.6)' : 'rgba(142, 36, 170, 0.5)')
+            : n.impact === 'high' ? (ext.dark ? 'rgba(239, 83, 80, 0.55)' : 'rgba(211, 47, 47, 0.5)') : (ext.dark ? 'rgba(224, 163, 58, 0.5)' : 'rgba(191, 128, 20, 0.5)');
           const xr = Math.round(xn) + 0.5;
-          ctx.strokeStyle = col; ctx.lineWidth = 1; ctx.setLineDash(n.future ? [4, 4] : []);
+          ctx.strokeStyle = col; ctx.lineWidth = 1; ctx.setLineDash(n.future ? [4, 4] : n.headline ? [2, 3] : []);
           ctx.beginPath(); ctx.moveTo(xr, 0); ctx.lineTo(xr, height); ctx.stroke();
           ctx.setLineDash([]);
           const arrow = n.bias === 'up' ? ' ▲' : n.bias === 'down' ? ' ▼' : '';
@@ -293,7 +294,7 @@ export function registerChartIndicators() {
           const y = 4 + row * 16;
           ctx.fillStyle = ext.dark ? 'rgba(19, 23, 34, 0.85)' : 'rgba(255, 255, 255, 0.9)';
           ctx.fillRect(xr + 2, y - 1, w, 15);
-          ctx.fillStyle = n.impact === 'high' ? (ext.dark ? '#ef5350' : '#c62828') : (ext.dark ? '#e0a33a' : '#a86d00');
+          ctx.fillStyle = n.headline ? (ext.dark ? '#ce93d8' : '#8e24aa') : n.impact === 'high' ? (ext.dark ? '#ef5350' : '#c62828') : (ext.dark ? '#e0a33a' : '#a86d00');
           ctx.fillText(n.label, xr + 6, y + 1);
           if (arrow) { ctx.fillStyle = n.bias === 'up' ? '#26a69a' : '#ef5350'; ctx.fillText(arrow, xr + 6 + ctx.measureText(n.label).width, y + 1); }
         }

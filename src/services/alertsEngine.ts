@@ -12,6 +12,7 @@ import jwt from 'jsonwebtoken';
 import pool from '../db';
 import { decrypt } from '../utils/crypto';
 import { upcoming, headlines, nqFastMove } from '../news/live';
+import { getBrief } from '../news/brief';
 import { IMPORTANT, headlineTopic } from '../shared/newsFeed';
 import { pushUser } from './webPush';
 import { utcToNy } from '../shared/econCalendar';
@@ -106,6 +107,10 @@ export async function briefText(u: AlertUser, now = Date.now()): Promise<string>
       if (next.length) lines.push('', '💼 Big-tech earnings: ' + next.map((e: any) => `${e.symbol} ${e.day === ny.date ? 'TODAY' : e.day.slice(5)} (${e.timing ?? '?'})`).join(', '));
     } catch { /* optional */ }
   }
+  try {
+    const b = await getBrief();
+    if (b) lines.push('', `📰 ${b.headline}`, ...b.next.slice(0, 2).map(x => `→ ${x}`));
+  } catch { /* optional */ }
   if (u.account_id) {
     try {
       const s = await score(u.user_id, u.account_id);
@@ -196,6 +201,9 @@ let usersCache: { at: number; users: AlertUser[] } = { at: 0, users: [] };
 export function alertSettingsChanged() { noUsersUntil = 0; usersCache = { at: 0, users: [] }; }
 export async function tickAll(now = Date.now()): Promise<{ users: number; sent: number; errors: string[]; skipped?: string }> {
   if (now - lastRun < 60000) return { users: 0, sent: 0, errors: [], skipped: 'ran less than a minute ago' };
+  // every tick: collect headlines (kept for the chart's history) and refresh the AI brief when it is 30+ min old
+  void getBrief().catch(e => console.error('[tick] brief', (e as Error).message));
+  void headlines().catch(() => undefined);
   if (now < noUsersUntil) return { users: 0, sent: 0, errors: [], skipped: 'no alert users (checked within the hour)' };
   lastRun = now;
   if (now - usersCache.at > 30 * 60000) usersCache = { at: now, users: await loadUsers() };

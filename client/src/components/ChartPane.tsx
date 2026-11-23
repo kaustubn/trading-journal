@@ -125,7 +125,7 @@ export default function ChartPane({ index, tf, s, active, ws, onActivate }: Prop
     if (st.news) {
       const eng = ws.engine, cursor = eng.active ? eng.cursor : null;
       const data = chart.getDataList();
-      newsRef.current = newsGroups(-Infinity, Infinity, st.newsMedium, cursor);
+      newsRef.current = newsGroups(-Infinity, Infinity, st.newsMedium, cursor, st.newsHeadlines !== false);
       extendData.news = marksOf(newsRef.current, cursor ?? Date.now(), data.length ? data[data.length - 1].close : null);
     } else newsRef.current = [];
     chart.overrideIndicator({ name: 'JC_BG', paneId: PANE, extendData });
@@ -145,7 +145,7 @@ export default function ChartPane({ index, tf, s, active, ws, onActivate }: Prop
       if (eng.active) at = Math.min(at, eng.cursor);      // replay: nothing after the revealed minute
       const dayAt = eng.active ? at : ws.focus?.entry ?? edge;
       if (st.news) {
-        ensureNews(data[Math.max(0, chart.getVisibleRange().from)].timestamp - 86400000, Math.max(at, edge) + 45 * 86400000, st.newsMedium, ws.auth);
+        ensureNews(data[Math.max(0, chart.getVisibleRange().from)].timestamp - 86400000, Math.max(at, edge) + 45 * 86400000, st.newsMedium, ws.auth, st.newsHeadlines !== false);
         pushBg();   // replay: releases the cursor has passed now show their actual numbers
       }
       ws.onChartDate(index, new Date(sessionDay(dayAt) * 86400000).toISOString().slice(0, 10));
@@ -465,7 +465,7 @@ export default function ChartPane({ index, tf, s, active, ws, onActivate }: Prop
     if (a.s.log !== s.log) chart.overrideYAxis({ paneId: PANE, name: s.log ? 'logarithm' : 'normal' });
     if (a.s.indicators !== s.indicators || a.tf !== tf || a.s.look !== s.look || a.s.chart.ctype !== s.chart.ctype || (s.chart.ctype === 'heikin' && a.s.chart !== s.chart)) syncIndicators(chart, s, tf);
     pushBg();
-    if (a.s.levels !== s.levels || a.tf !== tf || a.s.news !== s.news || a.s.newsMedium !== s.newsMedium) { levelsAt.current = null; refreshLevels(); }
+    if (a.s.levels !== s.levels || a.tf !== tf || a.s.news !== s.news || a.s.newsMedium !== s.newsMedium || a.s.newsHeadlines !== s.newsHeadlines) { levelsAt.current = null; refreshLevels(); }
     ctlRef.current?.setView(viewOf(s, tf));
     if (ctlRef.current) ctlRef.current.stayDrawing = s.stayDrawing;
     appliedRef.current = { s, tf };
@@ -652,7 +652,7 @@ export default function ChartPane({ index, tf, s, active, ws, onActivate }: Prop
             const o = outlook(e, newsHover.price);
             return (
               <div key={i} className="mc-news-ev">
-                <div className={`mc-news-title ${e.impact}`}>{e.title}</div>
+                <div className={`mc-news-title ${e.kind === 'headline' ? 'headline' : e.impact}`}>{e.title}</div>
                 {(e.actual || e.forecast || e.previous) && <div className="mc-news-vals">{e.actual ? <>actual <b>{e.actual}</b> · </> : null}forecast {e.forecast ?? '—'} · previous {e.previous ?? '—'}</div>}
                 {(i === 0 ? o.lines : o.lines.slice(0, 1)).map((l, k) => <div key={k} className="mc-news-line">{l}</div>)}
               </div>

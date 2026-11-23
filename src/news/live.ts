@@ -1,11 +1,15 @@
 // Live news for the News page and the alerts: upcoming market-moving events and filtered headlines.
 //   Scheduled releases: FRED's public release calendar (one small page per release, refreshed every 6 hours) and the
 //   Fed's FOMC calendar page; plus big-tech earnings (services/marketData) and anything imported into econ_events.
-//   Headlines: CNBC top news + Yahoo Finance big-tech RSS, refreshed at most every 3 minutes, scored (shared/newsFeed).
+//   Headlines: US (CNBC, MarketWatch, Yahoo big tech, Google News), India (Economic Times, Mint, Business Standard,
+//   Google News India) and Canada (CBC, BNN Bloomberg, Globe and Mail, Google News Canada) RSS, refreshed at most every
+//   3 minutes, scored (shared/newsFeed); market-relevant ones are kept in news_items for the chart's history.
 // Requests identify themselves honestly and stay few; ForexFactory is never fetched.
 import {
   SCHEDULED, parseFredCalendar, parseFomc, parseRss, scoreHeadline, dedupe, IMPORTANT, recentMove, Scored,
+  headlineRegion, splitPublisher, headlineTopic, headlineKey,
 } from '../shared/newsFeed';
+import pool from '../db';
 import { utcToNy, nyToUtc, reactionFor, movePts } from '../shared/econCalendar';
 import { reactions, listEvents } from './econEvents';
 import { earnings, nqMinutes, MEGACAPS } from '../services/marketData';
@@ -107,26 +111,91 @@ export async function upcoming(fromMs: number, toMs: number, withDb = true): Pro
 }
 
 // ------------------------------------------------------------------ headlines
-const FEEDS = [
-  { url: 'https://www.cnbc.com/id/100003114/device/rss/rss.html', source: 'CNBC' },
-  { url: `https://feeds.finance.yahoo.com/rss/2.0/headline?s=${MEGACAPS.slice(0, 8).join(',')}&region=US&lang=en-US`, source: 'Yahoo Finance' },
+type Region = 'US' | 'IN' | 'CA';
+const GN = (hl: string, gl: string) => `https://news.google.com/rss/headlines/section/topic/BUSINESS?hl=${hl}&gl=${gl}&ceid=${gl}:${hl.split('-')[0]}`;
+const FEEDS: { url: string; source: string; region: Region; google?: boolean }[] = [
+  { url: 'https://www.cnbc.com/id/100003114/device/rss/rss.html', source: 'CNBC', region: 'US' },
+  { url: `https://feeds.finance.yahoo.com/rss/2.0/headline?s=${MEGACAPS.slice(0, 8).join(',')}&region=US&lang=en-US`, source: 'Yahoo Finance', region: 'US' },
+  { url: 'https://feeds.content.dowjones.io/public/rss/mw_marketpulse', source: 'MarketWatch', region: 'US' },
+  { url: GN('en-US', 'US'), source: 'Google News US', region: 'US', google: true },
+  { url: 'https://economictimes.indiatimes.com/markets/rssfeeds/1977021501.cms', source: 'Economic Times', region: 'IN' },
+  { url: 'https://www.livemint.com/rss/markets', source: 'Mint', region: 'IN' },
+  { url: 'https://www.business-standard.com/rss/markets-106.rss', source: 'Business Standard', region: 'IN' },
+  { url: GN('en-IN', 'IN'), source: 'Google News India', region: 'IN', google: true },
+  { url: 'https://www.cbc.ca/webfeed/rss/rss-business', source: 'CBC', region: 'CA' },
+  { url: 'https://www.bnnbloomberg.ca/arc/outboundfeeds/rss/category/markets/?outputType=xml', source: 'BNN Bloomberg', region: 'CA' },
+  { url: 'https://www.theglobeandmail.com/arc/outboundfeeds/rss/category/business/', source: 'Globe and Mail', region: 'CA' },
+  { url: GN('en-CA', 'CA'), source: 'Google News Canada', region: 'CA', google: true },
 ];
-let heads: { at: number; list: (Scored & { also: number })[]; errors: string[] } = { at: 0, list: [], errors: [] };
+export type RegionHeadline = Scored & { also: number; region: Region; topic: string };
+
+// Google News asks for few requests: each of its feeds is read at most every 15 minutes, one after another, and after
+// a "too many requests" answer it is left alone for an hour (its last items are reused meanwhile).
+const feedMem = new Map<string, { at: number; until: number; items: ReturnType<typeof parseRss> }>();
+async function feedItems(f: { url: string; source: string; google?: boolean }, i: number) {
+  const m = feedMem.get(f.url), now = Date.now();
+  if (m && (now < m.until || (f.google && now - m.at < 15 * 60000))) return m.items;
+  if (f.google) await new Promise(r => setTimeout(r, 2000 * FEEDS.filter((x, k) => x.google && k < i).length));   // Google feeds 2 s apart
+  try {
+    const items = parseRss(await getText(f.url), f.source);
+    feedMem.set(f.url, { at: now, until: 0, items });
+    return items;
+  } catch (e) {
+    if (/HTTP 429/.test((e as Error).message)) feedMem.set(f.url, { at: now, until: now + 3600000, items: m?.items ?? [] });
+    throw e;
+  }
+}
+let heads: { at: number; list: RegionHeadline[]; errors: string[] } = { at: 0, list: [], errors: [] };
 let headLoading: Promise<void> | null = null;
-export async function headlines(): Promise<{ list: (Scored & { also: number })[]; important: number; errors: string[]; at: string }> {
+const stored = new Set<string>();          // keys already written to news_items by this process
+export async function headlines(): Promise<{ list: RegionHeadline[]; important: number; errors: string[]; at: string }> {
   if (Date.now() - heads.at > 3 * 60000) {
     if (!headLoading) headLoading = (async () => {
-      const errors: string[] = []; const all: Scored[] = [];
-      await Promise.all(FEEDS.map(async f => {
-        try { all.push(...parseRss(await getText(f.url), f.source).map(scoreHeadline)); } catch (e) { errors.push(`${f.source}: ${(e as Error).message}`); }
+      const errors: string[] = []; const all: (Scored & { region: Region })[] = [];
+      await Promise.all(FEEDS.map(async (f, i) => {
+        try {
+          for (const h of await feedItems(f, i)) {
+            const sp = f.google ? splitPublisher(h.title) : { title: h.title, publisher: null };
+            const it = { ...h, title: sp.title, source: sp.publisher ? `${sp.publisher} (Google News)` : f.source };
+            all.push({ ...scoreHeadline(it), region: headlineRegion(it.title, f.region) });
+          }
+        } catch (e) { errors.push(`${f.source}: ${(e as Error).message}`); }
       }));
       const cut = Date.now() - 36 * 3600000;
-      const list = dedupe(all.filter(h => h.pub >= cut && h.score >= 3)).slice(0, 60);
+      const list = (dedupe(all.filter(h => h.pub >= cut && h.pub <= Date.now() + 600000 && h.score >= 3)) as (Scored & { also: number; region: Region })[])
+        .slice(0, 150).map(h => ({ ...h, topic: headlineTopic(h.title) }));
       heads = { at: Date.now(), list: list.length || !heads.list.length ? list : heads.list, errors };
+      await keep(list).catch(e => errors.push(`store: ${(e as Error).message}`));
     })().finally(() => { headLoading = null; });
     await headLoading;
   }
   return { list: heads.list, important: IMPORTANT, errors: heads.errors, at: new Date(heads.at).toISOString() };
+}
+
+/** Write new market-relevant headlines (score 4+) to news_items, once each; one small INSERT per refresh. */
+async function keep(list: RegionHeadline[]) {
+  const fresh = list.filter(h => h.score >= 4 && !stored.has(headlineKey(h.title)));
+  if (!fresh.length) return;
+  const vals: unknown[] = [], rows: string[] = [];
+  for (const h of fresh.slice(0, 80)) {
+    const k = headlineKey(h.title);
+    stored.add(k);
+    const i = vals.length;
+    rows.push(`($${i + 1},$${i + 2},$${i + 3},$${i + 4},$${i + 5},$${i + 6},$${i + 7},$${i + 8},$${i + 9})`);
+    vals.push(k, new Date(h.pub).toISOString(), h.title.slice(0, 400), h.link || null, h.source.slice(0, 80), h.region, h.topic.slice(0, 40), h.score, 1 + h.also);
+  }
+  await pool.query(`INSERT INTO news_items (key, ts, title, link, source, region, topic, score, feeds) VALUES ${rows.join(',')}
+    ON CONFLICT (key) DO UPDATE SET feeds = GREATEST(news_items.feeds, EXCLUDED.feeds), score = GREATEST(news_items.score, EXCLUDED.score)`, vals);
+  if (stored.size > 20000) stored.clear();
+}
+
+/** Stored headlines between two times (chart history), strongest first per 15 minutes. */
+export async function storedHeadlines(fromMs: number, toMs: number, minScore = 5): Promise<{ ts: string; title: string; link: string | null; source: string; region: Region; topic: string; score: number; feeds: number }[]> {
+  const r = await pool.query(
+    `SELECT ts, title, link, source, region, topic, score, feeds FROM news_items
+     WHERE ts >= $1 AND ts < $2 AND (score >= $3 OR (score >= $3 - 1 AND feeds >= 3)) ORDER BY ts LIMIT 3000`,
+    [new Date(fromMs).toISOString(), new Date(toMs).toISOString(), minScore]);
+  return r.rows.map(x => ({ ...x, ts: new Date(x.ts).toISOString() }));
 }
 
 /** NQ's last-15-minute move, or null when the feed has nothing. */

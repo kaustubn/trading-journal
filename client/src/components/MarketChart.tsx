@@ -1061,6 +1061,10 @@ export default function MarketChart({ token, focus }: { token: string; focus?: {
                 <input type="checkbox" checked={s.newsMedium} onChange={() => update({ newsMedium: !s.newsMedium, news: true })} />
                 <span>Also medium-impact news</span>
               </label>
+              <label className="mc-check mc-row">
+                <input type="checkbox" checked={s.newsHeadlines !== false} onChange={() => update({ newsHeadlines: s.newsHeadlines === false, news: true })} />
+                <span>Breaking headlines (USA, India, Canada), purple</span>
+              </label>
               <div className="mc-hint">Previous day = the full 6pm–5pm ET session. Levels follow the day at the right edge of each chart.</div>
             </div>
           )}

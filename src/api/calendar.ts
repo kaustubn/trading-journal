@@ -5,10 +5,10 @@ import { requireAdmin } from '../middleware/admin';
 import { parseEventsFile, FileTz, Impact } from '../shared/econCalendar';
 import { listEvents, saveEvents, coverage, reactions } from '../news/econEvents';
 import { earnings, premarket } from '../services/marketData';
-import { upcoming } from '../news/live';
+import { upcoming, storedHeadlines } from '../news/live';
 import { SCHEDULED } from '../shared/newsFeed';
 import { reactionFor, nyToUtc } from '../shared/econCalendar';
-import { ChartNews } from '../shared/chartNews';
+import { ChartNews, pickChartHeadlines } from '../shared/chartNews';
 
 const router = Router();
 router.use(verifyToken);
@@ -67,6 +67,13 @@ router.get('/chart', async (req: Request, res: Response) => {
             actual: null, forecast: null, previous: null, surprise: null, kind: 'earnings', nq: null });
         }
       } catch { /* earnings list is optional */ }
+    }
+    // breaking headlines kept by the news collector, kept sparse on the NQ chart: US stories scoring 5+, India / Canada
+    // only very big ones (7+, or carried by 3+ outlets); at most one per country per hour (the strongest)
+    if (req.query.headlines === '1') {
+      for (const h of pickChartHeadlines(await storedHeadlines(from, to, 5)))
+        out.push({ utc: h.ts, title: h.title, impact: h.score >= 7 || h.feeds >= 3 ? 'high' : 'medium', actual: null, forecast: null, previous: null,
+          surprise: null, kind: 'headline', nq: null, source: h.source, region: h.region, topic: h.topic });
     }
     out.sort((a, b) => Date.parse(a.utc) - Date.parse(b.utc));
     res.json({ events: out, period: t?.period ?? null });

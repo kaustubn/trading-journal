@@ -207,6 +207,32 @@ export const MIGRATIONS: Migration[] = [
       CREATE INDEX IF NOT EXISTS idx_goals_user ON goals(user_id, account_id);
     `,
   },
+  {
+    // News v2 (2026-11-23): market headlines from the USA, India and Canada kept for the chart's history, and the
+    // short AI briefs (what happened / why / now / next).
+    id: '009_news_items',
+    sql: `
+      CREATE TABLE IF NOT EXISTS news_items (
+        id SERIAL PRIMARY KEY,
+        key VARCHAR(40) NOT NULL UNIQUE,
+        ts TIMESTAMPTZ NOT NULL,
+        title TEXT NOT NULL,
+        link TEXT,
+        source VARCHAR(80),
+        region VARCHAR(2) NOT NULL DEFAULT 'US',
+        topic VARCHAR(40),
+        score INT NOT NULL,
+        feeds INT NOT NULL DEFAULT 1
+      );
+      CREATE INDEX IF NOT EXISTS idx_news_items_ts ON news_items(ts);
+      CREATE TABLE IF NOT EXISTS news_briefs (
+        id SERIAL PRIMARY KEY,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        engine VARCHAR(30) NOT NULL,
+        body JSONB NOT NULL
+      );
+    `,
+  },
 ];
 
 export async function runMigrations(client: PoolClient, list: Migration[] = MIGRATIONS): Promise<string[]> {
