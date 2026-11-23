@@ -169,7 +169,7 @@ export async function makeBrief(): Promise<BriefBody> {
 /** Latest brief; builds a new one when the last is older than 30 minutes (60 at weekends). */
 export async function getBrief(force = false): Promise<BriefBody | null> {
   if (!latest) {
-    const r = await pool.query('SELECT body FROM news_briefs ORDER BY id DESC LIMIT 1');
+    const r = await pool.query(`SELECT body FROM news_briefs WHERE engine NOT LIKE 'economy%' AND engine NOT IN ('claude-review', 'economy-review') ORDER BY id DESC LIMIT 1`);
     if (r.rows[0]) latest = r.rows[0].body;
   }
   const stale = !latest || Date.now() - Date.parse(latest.generated_at) > maxAge();

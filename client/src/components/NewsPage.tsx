@@ -164,7 +164,18 @@ function Upcoming({ token }: { token: string }) {
   );
 }
 
-function BriefCard({ b, reviewed, onRefresh, busy }: { b: Brief; reviewed?: string[]; onRefresh?: () => void; busy?: boolean }) {
+/** A brief from the server with every list present (an old or odd row must never crash the page). */
+const arrOf = <T,>(v: unknown): T[] => (Array.isArray(v) ? v as T[] : []);
+function normBrief(raw: any): Brief {
+  return {
+    ...raw, headline: String(raw?.headline ?? ''), happened: arrOf<any>(raw?.happened).map(h => ({ text: String(h?.text ?? h ?? ''), src: arrOf<number>(h?.src) })),
+    why: arrOf(raw?.why), now: arrOf(raw?.now), next: arrOf(raw?.next), regions: raw?.regions ?? {}, impact: raw?.impact ?? {}, watch: arrOf(raw?.watch),
+    sources: arrOf(raw?.sources), odds: arrOf(raw?.odds), generated_at: raw?.generated_at ?? new Date().toISOString(), engine: String(raw?.engine ?? ''),
+  };
+}
+const isBrief = (raw: any) => !!raw && typeof raw === 'object' && Array.isArray(raw.happened);
+function BriefCard({ b: raw, reviewed, onRefresh, busy }: { b: Brief; reviewed?: string[]; onRefresh?: () => void; busy?: boolean }) {
+  const b = normBrief(raw);
   const [showSrc, setShowSrc] = useState(false);
   const srcOf = (n: number) => b.sources.find(x => x.i === n);
   const Sec = ({ title, items }: { title: string; items: string[] }) => (items.length ? <div className="np-bsec"><h4>{title}</h4><ul>{items.map((x, i) => <li key={i}>{x}</li>)}</ul></div> : null);
@@ -218,8 +229,12 @@ function EconomyTab({ token }: { token: string }) {
   useEffect(() => { load(); const t = window.setInterval(() => load(), 20 * 60000); return () => window.clearInterval(t); }, [token]); // eslint-disable-line react-hooks/exhaustive-deps
   if (d === undefined) return <div className="hb-card hb-dim">Reading the economy news… (first time can take 20 seconds)</div>;
   if (!d || !d.brief) return <div className="hb-card hb-dim">No economy summary yet. <button className="hb-btn" onClick={() => load(true)}>Make one now</button></div>;
-  const b = d.reviewed ?? d.brief;
-  const reviewed = !!d.reviewed;
+  const okEcon = (x: any) => !!x && typeof x === 'object' && x.countries && typeof x.countries === 'object';
+  const b = okEcon(d.reviewed) ? d.reviewed! : d.brief;
+  const reviewed = b === d.reviewed;
+  if (!okEcon(b)) return <div className="hb-card hb-dim">No economy summary yet. <button className="hb-btn" onClick={() => load(true)}>Make one now</button></div>;
+  for (const k of ['US', 'India', 'Canada'] as const) { const c: any = b.countries[k]; if (c) { c.happened = arrOf(c.happened); c.why = arrOf(c.why); c.now = arrOf(c.now); c.next = arrOf(c.next); } }
+  b.sources = arrOf(b.sources);
   const srcOf = (n: number) => b.sources.find(x => x.i === n);
   const Sec = ({ title, items }: { title: string; items: string[] }) => (items.length ? <div className="np-bsec"><h4>{title}</h4><ul>{items.map((x, i) => <li key={i}>{x}</li>)}</ul></div> : null);
   const cols = [['US', 'USA', 'US'], ['India', 'India', 'IN'], ['Canada', 'Canada', 'CA']] as const;
@@ -303,8 +318,8 @@ function NewsCalendar({ token }: { token: string }) {
   const cells = [...Array(first).fill(null), ...Array.from({ length: nDays }, (_, i) => i + 1)];
   const isIpo = (h: DayItem) => h.topic === 'ipo';
   const items = (d?.items ?? []).filter(h => (kind === 'all' || h.kind === kind) && (region === 'all' ? true : region === 'IPO' ? isIpo(h) : h.region === region));
-  const mb = d?.briefs.marketReviewed ?? d?.briefs.market ?? null;
-  const eb = d?.briefs.economyReviewed ?? d?.briefs.economy ?? null;
+  const mb = [d?.briefs.marketReviewed, d?.briefs.market].find(isBrief) ?? null;
+  const eb = [d?.briefs.economyReviewed, d?.briefs.economy].find(x => !!x && typeof x === 'object' && !!(x as any).countries) ?? null;
   const t = (iso: string) => new Date(iso).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
   return (
     <>
@@ -335,7 +350,7 @@ function NewsCalendar({ token }: { token: string }) {
       <h3 className="np-day-title">{new Date(sel + 'T12:00:00').toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}</h3>
       {d === undefined ? <div className="hb-card hb-dim">Loading the day…</div> : d === null ? <div className="hb-card hb-dim">Could not load this day.</div> : (
         <>
-          {mb ? <BriefCard b={mb} reviewed={d.briefs.marketReviewed ? (d.briefs.marketReviewed.corrections ?? []) : undefined} /> : <div className="hb-card hb-dim">No market brief saved for this day.</div>}
+          {mb ? <BriefCard b={mb} reviewed={mb === d.briefs.marketReviewed ? (d.briefs.marketReviewed?.corrections ?? []) : undefined} /> : <div className="hb-card hb-dim">No market brief saved for this day.</div>}
           {eb && (
             <div className="np-econ">
               {([['US', 'USA', 'US'], ['India', 'India', 'IN'], ['Canada', 'Canada', 'CA']] as const).map(([k, name, r]) => {
@@ -344,9 +359,9 @@ function NewsCalendar({ token }: { token: string }) {
                   <div key={k} className="hb-card np-econ-col">
                     <div className="np-econ-flag">{FLAG[r]} {name} economy</div>
                     <div className="np-econ-h">{c.headline}</div>
-                    {c.happened.length > 0 && <ul className="np-day-ul">{c.happened.map((h, i) => <li key={i}>{h.text}</li>)}</ul>}
-                    {c.why.length > 0 && <div className="hb-dim"><b>Why:</b> {c.why.join(' ')}</div>}
-                    {c.next.length > 0 && <div className="hb-dim"><b>Next:</b> {c.next.join(' ')}</div>}
+                    {arrOf<any>(c.happened).length > 0 && <ul className="np-day-ul">{arrOf<any>(c.happened).map((h, i) => <li key={i}>{h?.text ?? String(h)}</li>)}</ul>}
+                    {arrOf<string>(c.why).length > 0 && <div className="hb-dim"><b>Why:</b> {arrOf<string>(c.why).join(' ')}</div>}
+                    {arrOf<string>(c.next).length > 0 && <div className="hb-dim"><b>Next:</b> {arrOf<string>(c.next).join(' ')}</div>}
                     {c.people && <div className="np-econ-people">{c.people}</div>}
                   </div>
                 ) : null;
@@ -397,7 +412,7 @@ function BriefTab({ token }: { token: string }) {
   const [region, setRegion] = useState('all');
   const load = (refresh = false) => {
     setBusy(true);
-    axios.get('/api/news/brief', { ...auth, params: { refresh: refresh ? 1 : undefined } }).then(r => { setB(r.data.brief); setRev(r.data.reviewed ?? null); }).catch(() => setB(null)).finally(() => setBusy(false));
+    axios.get('/api/news/brief', { ...auth, params: { refresh: refresh ? 1 : undefined } }).then(r => { setB(isBrief(r.data.brief) ? r.data.brief : null); setRev(isBrief(r.data.reviewed) ? r.data.reviewed : null); }).catch(() => setB(null)).finally(() => setBusy(false));
   };
   useEffect(() => {
     load();
