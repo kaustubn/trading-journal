@@ -40,6 +40,7 @@ import PatternFinder from './components/PatternFinder';
 import PracticeLog from './components/PracticeLog';
 import NewsAnalyzer from './components/NewsAnalyzer';
 import NewsPage from './components/NewsPage';
+import GoalsPage from './components/GoalsPage';
 import NewsBlackoutBanner from './components/NewsBlackoutBanner';
 import PropBreachBanner from './components/PropBreachBanner';
 import EdgeOddsCard from './components/EdgeOddsCard';
@@ -59,7 +60,7 @@ import {
   CandlestickChart, FlaskConical, Workflow, ListChecks, ShieldCheck, Building2, Lock, Upload, Plus,
   RefreshCw, LogOut, Menu, X, BookOpen, ChevronLeft, ChevronRight, LineChart, AlertTriangle, Flame, RotateCcw,
   CalendarDays, PlusCircle, Target, ScanSearch, Timer, Newspaper,
-  Calculator,
+  Calculator, Flag,
 } from 'lucide-react';
 import './App.css';
 
@@ -68,6 +69,7 @@ type NavItem = { key: string; label: string; icon: React.ComponentType<any>; mat
 // One-line plain-English purpose for every page (shown under the title)
 const PAGE_META: Record<string, { title: string; sub: string; icon: React.ComponentType<any> }> = {
   dashboard: { title: 'Dashboard', icon: LayoutDashboard, sub: 'Your results at a glance, what to work on this week, and every trading day on the calendar.' },
+  goals: { title: 'Goals', icon: Flag, sub: 'Set an amount and a date, then see which way of trading can get you there with your own numbers.' },
   data: { title: 'Trade Log', icon: Table2, sub: 'Every trade in one table. Search, filter, tag many trades at once, or export to CSV.' },
   premarket: { title: 'Daily Plan', icon: NotebookPen, sub: 'Before the open: call the day type, bias and live setups. After the close: note whether you followed it.' },
   challenges: { title: 'Challenges', icon: Trophy, sub: 'Each prop-firm attempt or backtest run as one row. Mark it passed or blown, and compare any two runs.' },
@@ -199,6 +201,7 @@ export default function App() {
     {
       title: 'Journal', items: [
         { key: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+        { key: 'goals', label: 'Goals', icon: Flag },
         { key: 'data', label: 'Trade Log', icon: Table2 },
         { key: 'premarket', label: 'Daily Plan', icon: NotebookPen },
         { key: 'challenges', label: 'Challenges', icon: Trophy },
@@ -729,6 +732,9 @@ export default function App() {
           )}
           {view === 'checklist' && (
             <ErrorBoundary name="Checklist"><Checklist /></ErrorBoundary>
+          )}
+          {token && view === 'goals' && (
+            <ErrorBoundary name="Goals"><GoalsPage token={token} account_id={selectedAccount} /></ErrorBoundary>
           )}
           {token && view === 'news' && (
             <ErrorBoundary name="News"><NewsPage token={token} isAdmin={isAdmin} research={isAdmin ? (

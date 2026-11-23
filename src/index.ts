@@ -43,6 +43,7 @@ import calendarRouter from './api/calendar';
 import habitsRouter from './api/habits';
 import sizelabRouter from './api/sizelab';
 import alertsRouter from './api/alerts';
+import goalsRouter from './api/goals';
 
 // Fail fast: never run with a missing or weak token-signing secret
 if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 32) {
@@ -114,6 +115,7 @@ app.use('/api/news', newsRouter); // own auth (blackout: any user; research: adm
 app.use('/api/calendar', calendarRouter); // own auth (import: admin)
 app.use('/api/habits', habitsRouter); // own auth
 app.use('/api/sizelab', sizelabRouter); // own auth; research trade lists stay out of the public code
+app.use('/api/goals', goalsRouter); // own auth
 app.use('/api/alerts', alertsRouter); // own auth (/tick is public: called by the scheduler)
 app.use('/api/bars', barsRouter); // own auth (admin only); keep above the '/api' mounts
 app.use('/api/coach/replay', coachReplayRouter); // own auth (admin only)

@@ -189,6 +189,24 @@ export const MIGRATIONS: Migration[] = [
     id: '007_bt_market_sessions',
     sql: `ALTER TABLE bt_sessions ADD COLUMN IF NOT EXISTS mkt_sessions VARCHAR(80);`,
   },
+  {
+    // Goals page (2026-11-23): "make X by date D" with the chosen plan; progress comes from the account's trades.
+    id: '008_goals',
+    sql: `
+      CREATE TABLE IF NOT EXISTS goals (
+        id SERIAL PRIMARY KEY,
+        user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        account_id INT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+        title VARCHAR(100),
+        amount NUMERIC(14, 2) NOT NULL,
+        start_date DATE NOT NULL,
+        end_date DATE NOT NULL,
+        plan JSONB,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_goals_user ON goals(user_id, account_id);
+    `,
+  },
 ];
 
 export async function runMigrations(client: PoolClient, list: Migration[] = MIGRATIONS): Promise<string[]> {
