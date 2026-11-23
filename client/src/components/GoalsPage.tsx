@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
 import { Flag, Trash2 } from 'lucide-react';
 import { baseline as emptyBaseline, Baseline, STYLES, styleLevels, estimateWinRate, plan, tradingDays, progress, PlanResult, dayTargets, convert, schedule, tradingDayList, suggestStyles } from '../../../src/shared/goalPlanner';
-import { money, currencySymbol, curSymbol } from '../utils/format';
+import { money, curSymbol } from '../utils/format';
 import { EmptyState } from './ui';
 import '../styles/Goals.css';
 
@@ -79,9 +79,12 @@ export default function GoalsPage({ token, account_id }: { token: string; accoun
     return Number.isFinite(v) ? v : 0;
   })();
   const inCur = (v: number, c: string) => money(v, 0, curSymbol(c));
-  /** The same amount in the other currencies (" · C$1,115 · ₹93,400"). */
-  const others = (v: number) => ['CAD', 'USD', 'INR'].filter(c => c !== acctCur)
-    .map(c => (fx ? convert(v, acctCur, c, fx.cad) : NaN)).map((x, i) => (Number.isFinite(x) ? ` · ${inCur(x, ['CAD', 'USD', 'INR'].filter(c => c !== acctCur)[i])}` : '')).join('');
+  /** An account-currency amount shown in the currency picked for the goal, so the whole page uses one currency. */
+  const disp = (v: number) => {
+    if (cur === acctCur || !fx) return inCur(v, acctCur);
+    const x = convert(v, acctCur, cur, fx.cad);
+    return Number.isFinite(x) ? inCur(x, cur) : inCur(v, acctCur);
+  };
   const greenRate = (() => { const t = numOr(day.green, null); return t != null ? t / 100 : b?.greenDayRate ?? null; })();
   const pfDay = numOr(day.pf, null) ?? b?.dayProfitFactor ?? null;
   const dt = greenRate != null && pfDay != null ? dayTargets(goal, days, greenRate, pfDay) : null;
@@ -122,13 +125,12 @@ export default function GoalsPage({ token, account_id }: { token: string; accoun
     setSaving(false);
   };
   const del = async (g: SavedGoal) => {
-    if (!window.confirm(`Delete the goal "${g.title || money(g.amount, 0)}"?`)) return;
+    if (!window.confirm(`Delete the goal "${g.title || disp(g.amount)}"?`)) return;
     await axios.delete(`/api/goals/${g.id}`, auth).catch(() => alert('Could not delete the goal.'));
     setReload(x => x + 1);
   };
 
   if (!account_id) return <EmptyState icon={Flag} title="Pick an account">Goals use the trades of the account selected on the left.</EmptyState>;
-  const cs = currencySymbol();
 
   return (
     <div className="gl">
@@ -141,13 +143,13 @@ export default function GoalsPage({ token, account_id }: { token: string; accoun
             return (
               <div className="gl-goal" key={g.id}>
                 <div className="gl-between">
-                  <strong>{g.title || (g.plan?.withdraw ? `Withdraw ${inCur(g.plan.withdraw.amount, g.plan.withdraw.currency)}` : `Make ${money(g.amount, 0)}`)}</strong>
+                  <strong>{g.title || (g.plan?.withdraw ? `Withdraw ${inCur(g.plan.withdraw.amount, g.plan.withdraw.currency)}` : `Make ${disp(g.amount)}`)}</strong>
                   <span className={`gl-pill ${pr.status}`}>{{ done: 'Reached', missed: 'Missed', ahead: 'On pace', behind: 'Behind pace' }[pr.status]}</span>
                 </div>
                 <div className="gl-bar"><div style={{ width: `${Math.max(0, Math.min(100, pr.pct * 100))}%` }} /></div>
                 <div className="gl-dim">
-                  {money(g.pnl, 0)} of {money(g.amount, 0)} ({Math.round(pr.pct * 100)}%) · {g.trades} trades · {g.start_date} → {g.end_date} · {left} trading days left
-                  {pr.needPerDay != null && pr.status !== 'done' && <> · need {money(pr.needPerDay, 0)}/day</>}
+                  {disp(g.pnl)} of {disp(g.amount)} ({Math.round(pr.pct * 100)}%) · {g.trades} trades · {g.start_date} → {g.end_date} · {left} trading days left
+                  {pr.needPerDay != null && pr.status !== 'done' && <> · need {disp(pr.needPerDay)}/day</>}
                 </div>
                 {g.plan?.withdraw && g.plan.withdraw.currency !== acctCur && <div className="gl-dim">Withdrawal {inCur(g.plan.withdraw.amount, g.plan.withdraw.currency)}{g.plan.withdraw.keepPct < 100 ? ` (you keep ${g.plan.withdraw.keepPct}%)` : ''} = {money(g.amount, 0)} profit in this account at the rate on the day you set it.</div>}
                 {g.plan?.name && <div className="gl-dim">Plan: {g.plan.name} — {g.plan.lots} {g.plan.sizeName}{g.plan.lots === 1 ? '' : 's'}, target {pts(g.plan.targetPts)}, stop {pts(g.plan.stopPts)}, {g.plan.tradesPerDay} trade{g.plan.tradesPerDay === 1 ? '' : 's'}/day</div>}
@@ -172,12 +174,12 @@ export default function GoalsPage({ token, account_id }: { token: string; accoun
         </div>
         <div className="gl-row">
           {QUICK.map(([l, n]) => <button key={l} className={`gl-chip${end === plusDays(n) ? ' on' : ''}`} onClick={() => setEnd(plusDays(n))}>{l}</button>)}
-          {acct?.profitTarget ? <button className="gl-chip" onClick={() => setAmount(String(acct.profitTarget))}>Use prop target ({money(acct.profitTarget, 0)})</button> : null}
-          <span className="gl-dim">{days} trading days{goal > 0 && days > 0 ? ` · ${money(goal / days, 0)} a day` : ''}</span>
+          {acct?.profitTarget ? <button className="gl-chip" onClick={() => setAmount(String(acct.profitTarget))}>Use prop target ({disp(acct.profitTarget)})</button> : null}
+          <span className="gl-dim">{days} trading days{goal > 0 && days > 0 ? ` · ${disp(goal / days)} a day` : ''}</span>
         </div>
         {entered > 0 && (cur !== acctCur || keepPct < 100) && (
           <p className="gl-dim gl-conv">
-            {inCur(entered, cur)} to withdraw{keepPct < 100 ? ` at a ${keepPct}% split` : ''} = <b>{goal > 0 ? money(goal, 0) : '—'}</b> profit needed in this {acctCur} account{goal > 0 ? others(goal) : ''}
+            {inCur(entered, cur)} to withdraw{keepPct < 100 ? ` at a ${keepPct}% split` : ''} = <b>{goal > 0 ? money(goal, 0) : '—'}</b> profit needed in this {acctCur} account
             {cur !== acctCur && fx ? <> · 1 {cur} = {curSymbol(acctCur)}{(convert(1, cur, acctCur, fx.cad)).toFixed(acctCur === 'INR' ? 2 : 4)}{fx.live ? ' (today)' : ' (approximate: live rate unavailable)'}</> : null}
           </p>
         )}
@@ -200,13 +202,13 @@ export default function GoalsPage({ token, account_id }: { token: string; accoun
             </div>
             {base.trades < 10 && <p className="gl-warn">Fewer than 10 closed trades here, so your win rate can't be measured yet. Type a win rate below to try plans.</p>}
             <details className="gl-assume">
-              <summary>Assumptions (change any)</summary>
+              <summary>Assumptions (change any; amounts in the account's own currency, {acctCur})</summary>
               <div className="gl-form">
                 <label>Win rate % (blank = estimate from your trades)<input inputMode="decimal" value={as.winRate} onChange={e => setAs({ ...as, winRate: e.target.value })} placeholder="auto" /></label>
-                <label>{cs} per point per {sizeName}<input inputMode="decimal" value={as.lotPv} onChange={e => setAs({ ...as, lotPv: e.target.value })} placeholder="NQ 20, MNQ 2, ES 50" /></label>
-                <label>Costs per {sizeName} per trade ({cs})<input inputMode="decimal" value={as.costPerLot} onChange={e => setAs({ ...as, costPerLot: e.target.value })} /></label>
-                <label>Daily loss limit ({cs}, blank = none)<input inputMode="decimal" value={as.dailyLossLimit} onChange={e => setAs({ ...as, dailyLossLimit: e.target.value })} /></label>
-                <label>Max drawdown ({cs}, blank = none)<input inputMode="decimal" value={as.maxDrawdown} onChange={e => setAs({ ...as, maxDrawdown: e.target.value })} /></label>
+                <label>{acctCur} per point per {sizeName}<input inputMode="decimal" value={as.lotPv} onChange={e => setAs({ ...as, lotPv: e.target.value })} placeholder="NQ 20, MNQ 2, ES 50" /></label>
+                <label>Costs per {sizeName} per trade ({acctCur})<input inputMode="decimal" value={as.costPerLot} onChange={e => setAs({ ...as, costPerLot: e.target.value })} /></label>
+                <label>Daily loss limit ({acctCur}, blank = none)<input inputMode="decimal" value={as.dailyLossLimit} onChange={e => setAs({ ...as, dailyLossLimit: e.target.value })} /></label>
+                <label>Max drawdown ({acctCur}, blank = none)<input inputMode="decimal" value={as.maxDrawdown} onChange={e => setAs({ ...as, maxDrawdown: e.target.value })} /></label>
                 <label>Most {sizeName}s you'd trade<input inputMode="numeric" value={as.maxLots} onChange={e => setAs({ ...as, maxLots: e.target.value })} placeholder="no limit" /></label>
               </div>
               <p className="gl-dim">Win rate for each plan = the coin-flip chance for its target and stop plus your edge over a coin flip at your own average win and loss. Bigger targets win less often.</p>
@@ -231,18 +233,18 @@ export default function GoalsPage({ token, account_id }: { token: string; accoun
                 <div className="gl-daygrid">
                   <div className="gl-day green">
                     <span>On each green day make at least</span>
-                    <strong>{money(dt.perGreenDay, 0)}</strong>
-                    <em>about {Math.round(dt.greenDays)} of {days} days{others(dt.perGreenDay)}</em>
-                    {b.avgGreenDay != null && <em>your average green day now: {money(b.avgGreenDay, 0)}</em>}
+                    <strong>{disp(dt.perGreenDay)}</strong>
+                    <em>about {Math.round(dt.greenDays)} of {days} days</em>
+                    {b.avgGreenDay != null && <em>your average green day now: {disp(b.avgGreenDay)}</em>}
                   </div>
                   <div className="gl-day red">
                     <span>On each red day lose at most</span>
-                    <strong>{money(dt.perRedDay, 0)}</strong>
-                    <em>about {Math.round(dt.redDays)} of {days} days{others(dt.perRedDay)}</em>
-                    {b.avgRedDay != null && <em>your average red day now: -{money(b.avgRedDay, 0)}</em>}
+                    <strong>{disp(dt.perRedDay)}</strong>
+                    <em>about {Math.round(dt.redDays)} of {days} days</em>
+                    {b.avgRedDay != null && <em>your average red day now: -{disp(b.avgRedDay)}</em>}
                   </div>
                 </div>
-                <p className="gl-dim">Total won on green days {money(dt.won, 0)} − total lost on red days {money(dt.lost, 0)} = {money(goal, 0)}. A day profit factor of {pfDay.toFixed(2)} means you make {pfDay.toFixed(2)}× what you lose. Blank boxes use your last 120 days ({Math.round((b.greenDayRate ?? 0) * 100)}% green days{b.dayProfitFactor != null ? `, day profit factor ${b.dayProfitFactor.toFixed(2)}` : ''}).</p>
+                <p className="gl-dim">Total won on green days {disp(dt.won)} − total lost on red days {disp(dt.lost)} = {disp(goal)}. A day profit factor of {pfDay.toFixed(2)} means you make {pfDay.toFixed(2)}× what you lose. Blank boxes use your last 120 days ({Math.round((b.greenDayRate ?? 0) * 100)}% green days{b.dayProfitFactor != null ? `, day profit factor ${b.dayProfitFactor.toFixed(2)}` : ''}).</p>
               </>
             )}
         </section>
@@ -250,11 +252,11 @@ export default function GoalsPage({ token, account_id }: { token: string; accoun
 
       {b && goal > 0 && sched.rows.length > 0 && (
         <section className="gl-card">
-          <h3>Day by day <span className="gl-dim">{mode === 'compound' && sched.dailyPct != null ? `${(sched.dailyPct * 100).toFixed(2)}% of the balance each day` : `${money(goal / sched.rows.length, 0)} each trading day`}</span></h3>
+          <h3>Day by day <span className="gl-dim">{mode === 'compound' && sched.dailyPct != null ? `${(sched.dailyPct * 100).toFixed(2)}% of the balance each day` : `${disp(goal / sched.rows.length)} each trading day`}</span></h3>
           <div className="gl-row">
             <button className={`gl-chip${mode === 'flat' ? ' on' : ''}`} onClick={() => setMode('flat')}>Same amount every day</button>
             <button className={`gl-chip${mode === 'compound' ? ' on' : ''}`} onClick={() => setMode('compound')}>Compound (same % every day)</button>
-            <label className="gl-inline">Starting balance ({cs})<input inputMode="decimal" value={startBal} onChange={e => setStartBal(e.target.value)} placeholder="optional" /></label>
+            <label className="gl-inline">Starting balance ({acctCur})<input inputMode="decimal" value={startBal} onChange={e => setStartBal(e.target.value)} placeholder="optional" /></label>
           </div>
           {mode === 'compound' && !(numOr(startBal, 0)! > 0) && <p className="gl-warn">Compounding needs a starting balance; showing the same amount every day.</p>}
           <div className="gl-table-wrap">
@@ -264,10 +266,10 @@ export default function GoalsPage({ token, account_id }: { token: string; accoun
                 {(showAllDays ? sched.rows : sched.rows.slice(0, 15)).map(r => (
                   <tr key={r.date}>
                     <td className="nowrap">{new Date(r.date + 'T12:00:00Z').toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit', weekday: 'short', timeZone: 'UTC' })}</td>
-                    <td className="r strong">{money(r.target, 0)}</td>
-                    {r.green != null && <><td className="r up">{money(r.green, 0)}</td><td className="r down">-{money(r.red!, 0)}</td></>}
-                    <td className="r">{money(r.total, 0)}</td>
-                    {r.balance != null && <td className="r strong">{money(r.balance, 0)}</td>}
+                    <td className="r strong">{disp(r.target)}</td>
+                    {r.green != null && <><td className="r up">{disp(r.green)}</td><td className="r down">-{disp(r.red!)}</td></>}
+                    <td className="r">{disp(r.total)}</td>
+                    {r.balance != null && <td className="r strong">{disp(r.balance)}</td>}
                   </tr>
                 ))}
               </tbody>
@@ -290,20 +292,20 @@ export default function GoalsPage({ token, account_id }: { token: string; accoun
                     {[...(ideas.current ? [ideas.current] : []), ...ideas.ideas].map((x, i) => (
                       <tr key={i} className={x.current ? 'gl-cur' : i === (ideas.current ? 1 : 0) ? 'gl-best' : ''}>
                         <td className="nowrap">{x.current ? 'Your style now' : `Idea ${ideas.current ? i : i + 1}${i === (ideas.current ? 1 : 0) ? ' · best' : ''}`}</td>
-                        <td className="r">{money(x.target, 0)}</td>
-                        <td className="r">{money(x.stop, 0)}</td>
+                        <td className="r">{disp(x.target)}</td>
+                        <td className="r">{disp(x.stop)}</td>
                         <td className="r">{x.tradesPerDay}</td>
                         <td className="r">{pctTxt(x.winRate)}</td>
-                        <td className={`r ${x.perDay >= 0 ? 'up' : 'down'}`}>{money(x.perDay, 0)}</td>
-                        <td className="r down">-{money(x.worstDay, 0)}</td>
+                        <td className={`r ${x.perDay >= 0 ? 'up' : 'down'}`}>{disp(x.perDay)}</td>
+                        <td className="r down">-{disp(x.worstDay)}</td>
                         <td className="r strong">{pctTxt(x.pReach)}</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
-              <p className="gl-dim">Ideas stay at {ideas.maxTrades} trades a day or fewer (about twice your pace){ideas.maxWorstDay ? <> and a worst day of at most {money(ideas.maxWorstDay, 0)} ({numOr(as.dailyLossLimit, null) ? 'your daily loss limit' : 'twice your average red day; set a daily loss limit under Assumptions to change it'})</> : null}. Reward:risk stays between 0.2× and 2× of yours, because the win-rate estimate is unreliable far from how you really trade. When two ideas have about the same odds, the one with the smaller worst day ranks first.</p>
-              <p className="gl-dim">Targets and stops are in money per trade, scaled from your average win ({money(b.avgWinMoney ?? 0, 0)}) and loss ({money(b.avgLossMoney ?? 0, 0)}), after costs. Win rate = the coin-flip chance for that target and stop plus your measured edge, so smaller targets win more often. “Reached goal” = share of 2,000 simulated runs that hit the goal by the date{numOr(as.dailyLossLimit, null) ? ', stopping each day at your daily loss limit' : ''}. Very small targets assume fills as good as your current ones; test them on replay before using them live.</p>
+              <p className="gl-dim">Ideas stay at {ideas.maxTrades} trades a day or fewer (about twice your pace){ideas.maxWorstDay ? <> and a worst day of at most {disp(ideas.maxWorstDay)} ({numOr(as.dailyLossLimit, null) ? 'your daily loss limit' : 'twice your average red day; set a daily loss limit under Assumptions to change it'})</> : null}. Reward:risk stays between 0.2× and 2× of yours, because the win-rate estimate is unreliable far from how you really trade. When two ideas have about the same odds, the one with the smaller worst day ranks first.</p>
+              <p className="gl-dim">Targets and stops are in money per trade, scaled from your average win ({disp(b.avgWinMoney ?? 0)}) and loss ({disp(b.avgLossMoney ?? 0)}), after costs. Win rate = the coin-flip chance for that target and stop plus your measured edge, so smaller targets win more often. “Reached goal” = share of 2,000 simulated runs that hit the goal by the date{numOr(as.dailyLossLimit, null) ? ', stopping each day at your daily loss limit' : ''}. Very small targets assume fills as good as your current ones; test them on replay before using them live.</p>
             </>
           )}
         </section>
@@ -312,7 +314,7 @@ export default function GoalsPage({ token, account_id }: { token: string; accoun
       {b && (
         <section className="gl-card">
           <h3>Ways to get there <span className="gl-dim">pick one, adjust it, save the goal</span></h3>
-          {!(goal > 0) || days < 1 ? <p className="gl-dim">Enter an amount and a date above to see the plans.</p> : !lotPv ? <p className="gl-warn">Enter the {cs} per point under Assumptions.</p> : (
+          {!(goal > 0) || days < 1 ? <p className="gl-dim">Enter an amount and a date above to see the plans.</p> : !lotPv ? <p className="gl-warn">Enter the {acctCur} per point under Assumptions.</p> : (
             <div className="gl-plans">
               {rows.map(({ s, e, w, r }) => (
                 <div key={s.key} className={`gl-plan${chosen === s.key ? ' on' : ''}`} onClick={() => setChosen(s.key)} role="button" tabIndex={0}
@@ -327,8 +329,8 @@ export default function GoalsPage({ token, account_id }: { token: string; accoun
                   </div>
                   <dl className="gl-out">
                     <div><dt>Size</dt><dd>{r.lots ?? '—'} {sizeName}{r.lots === 1 ? '' : 's'}{r.capped ? ' (capped by limits)' : ''}</dd></div>
-                    <div><dt>Risk per trade</dt><dd>{r.riskPerTrade == null ? '—' : money(r.riskPerTrade, 0)}</dd></div>
-                    <div><dt>Worst day</dt><dd>{r.worstDay == null ? '—' : `-${money(r.worstDay, 0)}`}</dd></div>
+                    <div><dt>Risk per trade</dt><dd>{r.riskPerTrade == null ? '—' : disp(r.riskPerTrade)}</dd></div>
+                    <div><dt>Worst day</dt><dd>{r.worstDay == null ? '—' : `-${disp(r.worstDay)}`}</dd></div>
                     <div><dt>Win rate needed</dt><dd>{r.winRateNeeded == null ? '—' : r.winRateNeeded > 1 ? '>100%' : pctTxt(r.winRateNeeded)}</dd></div>
                     <div><dt>Your win rate (est.)</dt><dd>{pctTxt(w)}</dd></div>
                     <div><dt>Reached goal</dt><dd>{pctTxt(r.pReach)}</dd></div>
