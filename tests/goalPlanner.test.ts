@@ -97,3 +97,36 @@ test('baseline day stats and currency conversion', () => {
   assert.ok(Math.abs(convert(1000, 'CAD', 'INR', cad) - 62500) < 1e-6);
   assert.ok(Number.isNaN(convert(1, 'EUR', 'CAD', cad)));
 });
+
+test('schedule: flat and compounding day targets, green/red split per day', () => {
+  const { schedule, tradingDayList } = require('../src/shared/goalPlanner');
+  const dates = tradingDayList('2026-11-23', '2026-11-27');
+  assert.deepEqual(dates, ['2026-11-23', '2026-11-24', '2026-11-25', '2026-11-26', '2026-11-27']);
+  const f = schedule(dates, 500, 'flat', 1000, 0.5, 1.5);
+  assert.equal(f.rows[0].target, 100); assert.equal(f.rows[4].total, 500); assert.equal(f.rows[4].balance, 1500);
+  assert.ok(Math.abs(f.rows[0].green! - 600) < 1e-9);   // 100 * 1.5 / (0.5 * 0.5)
+  assert.ok(Math.abs(f.rows[0].red! - 400) < 1e-9);     // 100 / (0.5 * 0.5)
+  const c = schedule(dates, 500, 'compound', 1000, null, null);
+  assert.ok(Math.abs(c.rows[4].balance! - 1500) < 1e-6);
+  assert.ok(c.rows[4].target > c.rows[0].target);
+  assert.ok(Math.abs(c.dailyPct! - (Math.pow(1.5, 1 / 5) - 1)) < 1e-12);
+  assert.equal(schedule(dates, 500, 'compound', null, null, null).dailyPct, null);   // no balance -> flat
+});
+
+test('style ideas: ranked by chance of reaching the goal, inside the daily loss limit, current style kept for comparison', () => {
+  const { suggestStyles } = require('../src/shared/goalPlanner');
+  // 50% winners of $200, losers of $100 -> real edge over a coin flip (33% at 2:1)
+  const b = baseline(Array.from({ length: 40 }, (_, k) => nq(k % 2 ? 200 : -100, 1, 'd' + (k >> 1))));
+  const r = suggestStyles({ goal: 1500, days: 10, b, cost: 5, dailyLossLimit: 400 });
+  assert.ok(r.current && r.current.current);
+  assert.ok(r.ideas.length >= 3);
+  for (const x of r.ideas) { assert.ok(x.tradesPerDay * (x.stop + 5) <= 400); assert.ok(x.perTrade > 0); }
+  for (let i = 1; i < r.ideas.length; i++) assert.ok(Math.floor(r.ideas[i - 1].pReach * 20 + 1e-9) >= Math.floor(r.ideas[i].pReach * 20 + 1e-9));
+  assert.equal(r.maxTrades, 4);                                       // 2 trades a day now -> at most 4
+  // no daily loss limit: worst day <= 2x the average red day (one red day of -300 here)
+  const b2 = baseline([...Array.from({ length: 40 }, (_, k) => nq(k % 2 ? 200 : -100, 1, 'd' + (k >> 1))), nq(-300, 1, 'red')]);
+  const free = suggestStyles({ goal: 1500, days: 10, b: b2, cost: 5 });
+  assert.equal(free.maxWorstDay, 600);
+  for (const x of free.ideas) assert.ok(x.worstDay <= free.maxWorstDay! + 1e-9);
+  assert.equal(suggestStyles({ goal: 1500, days: 10, b: baseline([]), cost: 0 }).ideas.length, 0);
+});

@@ -4,7 +4,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
 import { Flag, Trash2 } from 'lucide-react';
-import { baseline as emptyBaseline, Baseline, STYLES, styleLevels, estimateWinRate, plan, tradingDays, progress, PlanResult, dayTargets, convert } from '../../../src/shared/goalPlanner';
+import { baseline as emptyBaseline, Baseline, STYLES, styleLevels, estimateWinRate, plan, tradingDays, progress, PlanResult, dayTargets, convert, schedule, tradingDayList, suggestStyles } from '../../../src/shared/goalPlanner';
 import { money, currencySymbol, curSymbol } from '../utils/format';
 import { EmptyState } from './ui';
 import '../styles/Goals.css';
@@ -42,12 +42,16 @@ export default function GoalsPage({ token, account_id }: { token: string; accoun
   const [cur, setCur] = useState('CAD');           // currency the goal is typed in (Kay withdraws in CAD)
   const [keep, setKeep] = useState('100');         // % of profit you keep (prop firm profit split)
   const [day, setDay] = useState({ green: '', pf: '' });
+  const [mode, setMode] = useState<'flat' | 'compound'>('flat');
+  const [startBal, setStartBal] = useState('');
+  const [showAllDays, setShowAllDays] = useState(false);
 
   useEffect(() => {
     if (!account_id) return;
     setErr(''); setB(null); setEdits({}); setChosen('');
     axios.get(`/api/goals/baseline/${account_id}`, auth).then(r => {
       setB(r.data.baseline); setAcct(r.data.account); setSymbol(r.data.symbol); setFx(r.data.fx ?? null); setDay({ green: '', pf: '' });
+      setStartBal(r.data.account?.startingBalance ? String(r.data.account.startingBalance) : '');
       const a: Acct = r.data.account;
       setAs({ winRate: '', lotPv: r.data.baseline.lotPv ? String(+r.data.baseline.lotPv.toFixed(2)) : '',
         costPerLot: a.costPerTrade ? String(a.costPerTrade) : '0',
@@ -81,6 +85,12 @@ export default function GoalsPage({ token, account_id }: { token: string; accoun
   const greenRate = (() => { const t = numOr(day.green, null); return t != null ? t / 100 : b?.greenDayRate ?? null; })();
   const pfDay = numOr(day.pf, null) ?? b?.dayProfitFactor ?? null;
   const dt = greenRate != null && pfDay != null ? dayTargets(goal, days, greenRate, pfDay) : null;
+  const dates = useMemo(() => tradingDayList(today(), end), [end]);
+  const sched = useMemo(() => schedule(dates, goal, mode, numOr(startBal, null), greenRate, pfDay), [dates, goal, mode, startBal, greenRate, pfDay]);
+  const ideas = useMemo(() => (b ? suggestStyles({ goal, days, b, cost: (numOr(as.costPerLot, 0) ?? 0) * (b.typicalLots ?? 1),
+    winRate: numOr(as.winRate, null) != null ? Math.min(0.99, Math.max(0.01, numOr(as.winRate, 50)! / 100)) : null,
+    dailyLossLimit: numOr(as.dailyLossLimit, null), maxDrawdown: numOr(as.maxDrawdown, null) }) : null),
+  [b, goal, days, as]); // eslint-disable-line react-hooks/exhaustive-deps
   const lotPv = numOr(as.lotPv, null);
   const sizeName = base.sizeStep > 1 ? `lot (${base.sizeStep} qty)` : 'contract';
 
@@ -235,6 +245,67 @@ export default function GoalsPage({ token, account_id }: { token: string; accoun
                 <p className="gl-dim">Total won on green days {money(dt.won, 0)} − total lost on red days {money(dt.lost, 0)} = {money(goal, 0)}. A day profit factor of {pfDay.toFixed(2)} means you make {pfDay.toFixed(2)}× what you lose. Blank boxes use your last 120 days ({Math.round((b.greenDayRate ?? 0) * 100)}% green days{b.dayProfitFactor != null ? `, day profit factor ${b.dayProfitFactor.toFixed(2)}` : ''}).</p>
               </>
             )}
+        </section>
+      )}
+
+      {b && goal > 0 && sched.rows.length > 0 && (
+        <section className="gl-card">
+          <h3>Day by day <span className="gl-dim">{mode === 'compound' && sched.dailyPct != null ? `${(sched.dailyPct * 100).toFixed(2)}% of the balance each day` : `${money(goal / sched.rows.length, 0)} each trading day`}</span></h3>
+          <div className="gl-row">
+            <button className={`gl-chip${mode === 'flat' ? ' on' : ''}`} onClick={() => setMode('flat')}>Same amount every day</button>
+            <button className={`gl-chip${mode === 'compound' ? ' on' : ''}`} onClick={() => setMode('compound')}>Compound (same % every day)</button>
+            <label className="gl-inline">Starting balance ({cs})<input inputMode="decimal" value={startBal} onChange={e => setStartBal(e.target.value)} placeholder="optional" /></label>
+          </div>
+          {mode === 'compound' && !(numOr(startBal, 0)! > 0) && <p className="gl-warn">Compounding needs a starting balance; showing the same amount every day.</p>}
+          <div className="gl-table-wrap">
+            <table className="gl-table">
+              <thead><tr><th>Date</th><th className="r">Day target</th>{sched.rows[0].green != null && <><th className="r">If green, make ≥</th><th className="r">If red, lose ≤</th></>}<th className="r">Total</th>{sched.rows[0].balance != null && <th className="r">Balance</th>}</tr></thead>
+              <tbody>
+                {(showAllDays ? sched.rows : sched.rows.slice(0, 15)).map(r => (
+                  <tr key={r.date}>
+                    <td className="nowrap">{new Date(r.date + 'T12:00:00Z').toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit', weekday: 'short', timeZone: 'UTC' })}</td>
+                    <td className="r strong">{money(r.target, 0)}</td>
+                    {r.green != null && <><td className="r up">{money(r.green, 0)}</td><td className="r down">-{money(r.red!, 0)}</td></>}
+                    <td className="r">{money(r.total, 0)}</td>
+                    {r.balance != null && <td className="r strong">{money(r.balance, 0)}</td>}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {sched.rows.length > 15 && <button className="gl-chip" onClick={() => setShowAllDays(!showAllDays)}>{showAllDays ? 'Show fewer days' : `Show all ${sched.rows.length} days`}</button>}
+          <p className="gl-dim">“If green / if red” use your green-day % and profit factor above: each day you either make at least the green number or keep the loss under the red number, and on average the target is met. Weekends are skipped; market holidays are not.</p>
+        </section>
+      )}
+
+      {b && ideas && goal > 0 && days >= 1 && (
+        <section className="gl-card">
+          <h3>Style ideas <span className="gl-dim">{'combinations of target, stop and trades a day, tried against your goal'}</span></h3>
+          {!ideas.current && !ideas.ideas.length ? <p className="gl-warn">Need at least one winning and one losing trade on this account (and 10 trades, or a win rate typed under Assumptions) to suggest styles.</p> : (
+            <>
+              <div className="gl-table-wrap">
+                <table className="gl-table">
+                  <thead><tr><th>Style</th><th className="r">Target / trade</th><th className="r">Stop / trade</th><th className="r">Trades a day</th><th className="r">Win rate (est.)</th><th className="r">Avg per day</th><th className="r">Worst day</th><th className="r">Reached goal</th></tr></thead>
+                  <tbody>
+                    {[...(ideas.current ? [ideas.current] : []), ...ideas.ideas].map((x, i) => (
+                      <tr key={i} className={x.current ? 'gl-cur' : i === (ideas.current ? 1 : 0) ? 'gl-best' : ''}>
+                        <td className="nowrap">{x.current ? 'Your style now' : `Idea ${ideas.current ? i : i + 1}${i === (ideas.current ? 1 : 0) ? ' · best' : ''}`}</td>
+                        <td className="r">{money(x.target, 0)}</td>
+                        <td className="r">{money(x.stop, 0)}</td>
+                        <td className="r">{x.tradesPerDay}</td>
+                        <td className="r">{pctTxt(x.winRate)}</td>
+                        <td className={`r ${x.perDay >= 0 ? 'up' : 'down'}`}>{money(x.perDay, 0)}</td>
+                        <td className="r down">-{money(x.worstDay, 0)}</td>
+                        <td className="r strong">{pctTxt(x.pReach)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <p className="gl-dim">Ideas stay at {ideas.maxTrades} trades a day or fewer (about twice your pace){ideas.maxWorstDay ? <> and a worst day of at most {money(ideas.maxWorstDay, 0)} ({numOr(as.dailyLossLimit, null) ? 'your daily loss limit' : 'twice your average red day; set a daily loss limit under Assumptions to change it'})</> : null}. Reward:risk stays between 0.2× and 2× of yours, because the win-rate estimate is unreliable far from how you really trade. When two ideas have about the same odds, the one with the smaller worst day ranks first.</p>
+              <p className="gl-dim">Targets and stops are in money per trade, scaled from your average win ({money(b.avgWinMoney ?? 0, 0)}) and loss ({money(b.avgLossMoney ?? 0, 0)}), after costs. Win rate = the coin-flip chance for that target and stop plus your measured edge, so smaller targets win more often. “Reached goal” = share of 2,000 simulated runs that hit the goal by the date{numOr(as.dailyLossLimit, null) ? ', stopping each day at your daily loss limit' : ''}. Very small targets assume fills as good as your current ones; test them on replay before using them live.</p>
+            </>
+          )}
         </section>
       )}
 

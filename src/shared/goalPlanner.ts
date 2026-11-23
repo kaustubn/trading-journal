@@ -19,6 +19,7 @@ export interface Baseline {
   dayProfitFactor: number | null;    // money made on green days / money lost on red days
   avgGreenDay: number | null; avgRedDay: number | null;   // red day as a positive loss
   profitFactor: number | null;       // per trade
+  avgWinMoney: number | null; avgLossMoney: number | null;   // per trade, loss as a positive number
 }
 
 const median = (a: number[]) => { if (!a.length) return NaN; const s = [...a].sort((x, y) => x - y); const m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
@@ -39,6 +40,7 @@ export function baseline(trades: TradeLite[]): Baseline {
     trades: ok.length, days,
     winRate: ok.length ? wins.length / ok.length : null,
     avgWinPts: avg(wins.map(pts)), avgLossPts: avg(losses.map(pts)),
+    avgWinMoney: avg(wins.map(t => t.pnl)), avgLossMoney: avg(losses.map(t => -t.pnl)),
     tradesPerDay: days ? ok.length / days : null,
     sizeStep,
     lotPv: Number.isFinite(unitPv) ? unitPv * sizeStep : null,
@@ -209,3 +211,85 @@ export function dayTargets(goal: number, days: number, greenRate: number, pf: nu
 /** Convert between currencies with CAD rates (CAD value of 1 unit of each). */
 export const convert = (amount: number, from: string, to: string, cad: Record<string, number>) =>
   (cad[from] && cad[to] ? (amount * cad[from]) / cad[to] : NaN);
+
+/** Trading days (Mon-Fri) from `from` to `to` inclusive, as YYYY-MM-DD. */
+export function tradingDayList(from: string, to: string): string[] {
+  const a = Date.parse(from + 'T00:00:00Z'), b = Date.parse(to + 'T00:00:00Z'), out: string[] = [];
+  if (!Number.isFinite(a) || !Number.isFinite(b)) return out;
+  for (let t = a; t <= b && out.length < 400; t += 86400000) { const d = new Date(t).getUTCDay(); if (d !== 0 && d !== 6) out.push(new Date(t).toISOString().slice(0, 10)); }
+  return out;
+}
+
+export interface ScheduleRow { date: string; n: number; target: number; green: number | null; red: number | null; total: number; balance: number | null }
+/** Day-by-day targets. 'flat' = the same amount every day; 'compound' = the same % of the balance every day
+ *  (needs a starting balance). With a green-day rate and profit factor, each day's target becomes "make at least
+ *  X on a green day / lose at most Y on a red day" (same maths as dayTargets, for one day). */
+export function schedule(dates: string[], goal: number, mode: 'flat' | 'compound', startBalance: number | null,
+  greenRate: number | null, pf: number | null): { rows: ScheduleRow[]; dailyPct: number | null } {
+  const n = dates.length;
+  if (!n || !(goal > 0)) return { rows: [], dailyPct: null };
+  const comp = mode === 'compound' && startBalance != null && startBalance > 0;
+  const r = comp ? Math.pow((startBalance! + goal) / startBalance!, 1 / n) - 1 : null;
+  const split = greenRate != null && pf != null && greenRate > 0 && greenRate < 1 && pf > 1;
+  let total = 0, bal = startBalance != null && startBalance > 0 ? startBalance : null;
+  const rows = dates.map((date, i) => {
+    const target = comp ? bal! * r! : goal / n;
+    total += target; if (bal != null) bal += target;
+    return { date, n: i + 1, target, total, balance: bal,
+      green: split ? (target * pf!) / ((pf! - 1) * greenRate!) : null,
+      red: split ? target / ((pf! - 1) * (1 - greenRate!)) : null };
+  });
+  return { rows, dailyPct: r };
+}
+
+export interface StyleIdea {
+  target: number; stop: number; tradesPerDay: number;     // money per trade
+  winRate: number; perTrade: number; perDay: number;      // estimated
+  pReach: number; worstDay: number; current?: boolean;
+}
+/** Try many target / stop / trades-a-day combinations (in money per trade, scaled from your own average win and
+ *  loss) and rank them by how often they reach the goal in time, using your edge over a coin flip. Combinations
+ *  whose all-losing day breaks the daily loss limit are left out. */
+export function suggestStyles(p: { goal: number; days: number; b: Baseline; cost: number; winRate?: number | null;
+  dailyLossLimit?: number | null; maxDrawdown?: number | null; limit?: number }): { current: StyleIdea | null; ideas: StyleIdea[]; maxWorstDay: number | null; maxTrades: number } {
+  const { b } = p;
+  const W = b.avgWinMoney, L = b.avgLossMoney;
+  const maxTrades = Math.min(8, Math.max(2, Math.ceil(2 * (b.tradesPerDay ?? 1))));   // at most about twice your pace
+  // worst possible day: your daily loss limit, or else twice your average red day
+  const maxWorstDay = p.dailyLossLimit && p.dailyLossLimit > 0 ? p.dailyLossLimit : b.avgRedDay ? 2 * b.avgRedDay : null;
+  if (!(p.goal > 0) || !(p.days >= 1) || !W || !L) return { current: null, ideas: [], maxWorstDay, maxTrades };
+  const edge = p.winRate != null ? null : (b.winRate != null && b.trades >= 10 ? b.winRate - coinFlipWinRate(W, L) : null);
+  const wr = (T: number, S: number) => (p.winRate != null ? p.winRate : edge == null ? null : Math.min(0.95, Math.max(0.05, coinFlipWinRate(T, S) + edge)));
+  const score = (T: number, S: number, n: number, runs: number): StyleIdea | null => {
+    const w = wr(T, S); if (w == null) return null;
+    const winNet = T - p.cost, lossNet = S + p.cost;
+    const perTrade = w * winNet - (1 - w) * lossNet;
+    const sim = simulate({ goal: p.goal, days: p.days, tradesPerDay: n, win: winNet, loss: lossNet, winRate: w, dailyLossLimit: p.dailyLossLimit, maxDrawdown: p.maxDrawdown }, runs, 11);
+    return { target: T, stop: S, tradesPerDay: n, winRate: w, perTrade, perDay: perTrade * n, pReach: sim.pReach, worstDay: n * lossNet };
+  };
+  const curN = Math.max(1, Math.round(b.tradesPerDay ?? 1));
+  const cur = score(W, L, curN, 2000);
+  const cands: StyleIdea[] = [];
+  for (const tm of [0.1, 0.25, 0.4, 0.5, 0.75, 1, 1.5, 2, 3])
+    for (const sm of [0.5, 0.75, 1, 1.5])
+      for (const n of [1, 2, 3, 4, 5, 6, 8].filter(k => k <= maxTrades)) {
+        const T = W * tm, S = L * sm;
+        if (tm / sm > 2 || tm / sm < 0.2) continue;                  // stay near the reward:risk you really trade (the estimate is weak far from it)
+        if (T <= p.cost * 2) continue;                               // costs would eat the win
+        if (maxWorstDay && n * (S + p.cost) > maxWorstDay) continue;
+        const x = score(T, S, n, 500);
+        if (x && x.perTrade > 0) cands.push(x);
+      }
+  // similar odds (same 5% band): the smaller worst day wins
+  const band = (x: StyleIdea) => Math.floor(x.pReach * 20 + 1e-9);
+  cands.sort((a, c) => band(c) - band(a) || a.worstDay - c.worstDay || c.pReach - a.pReach);
+  // keep different styles (not five near-copies): distinct target size and trades a day
+  const picked: StyleIdea[] = [];
+  for (const c of cands) {
+    if (picked.some(x => Math.abs(x.target - c.target) / c.target < 0.2 && x.tradesPerDay === c.tradesPerDay)) continue;
+    picked.push(score(c.target, c.stop, c.tradesPerDay, 2000)!);
+    if (picked.length >= (p.limit ?? 6)) break;
+  }
+  picked.sort((a, c) => band(c) - band(a) || a.worstDay - c.worstDay || c.pReach - a.pReach);
+  return { current: cur ? { ...cur, current: true } : null, ideas: picked, maxWorstDay, maxTrades };
+}
