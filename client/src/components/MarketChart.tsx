@@ -86,6 +86,7 @@ export default function MarketChart({ token, focus }: { token: string; focus?: {
   const [layoutName, setLayoutName] = useState('');
   const [renaming, setRenaming] = useState<number | null>(null);
   const indActionRef = useRef<(name: string, feature: string) => void>(() => {});
+  const toggleLegendRef = useRef<() => void>(() => {});
   const [ftDate, setFtDate] = useState('');
   const [ftTime, setFtTime] = useState('09:25');
   const [ftSpeed, setFtSpeed] = useState(10);
@@ -168,6 +169,7 @@ export default function MarketChart({ token, focus }: { token: string; focus?: {
       setBusy: (i, b) => setBusyPanes(cur => (cur[i] === b ? cur : { ...cur, [i]: b })),
       onChartDate: (i, day) => setChartDates(cur => (cur[i] === day ? cur : { ...cur, [i]: day })),
       indicatorAction: (name, feature) => indActionRef.current(name, feature),
+      toggleLegend: () => toggleLegendRef.current(),
       syncUntil: 0,
       syncSrc: -1,
       panes: new Map(),
@@ -391,6 +393,7 @@ export default function MarketChart({ token, focus }: { token: string; focus?: {
     const d = ws.panes.get(activeIdx)?.chart.getDataList();
     return d && d.length ? d[d.length - 1].close : null;
   };
+  toggleLegendRef.current = () => update(cur => ({ ...cur, legendOpen: cur.legendOpen === false }));
   indActionRef.current = (name: string, feature: string) => {
     const k = IND_KEYS.find(x => INDS[x].name === name);
     if (!k) return;

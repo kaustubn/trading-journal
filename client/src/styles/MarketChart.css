@@ -705,3 +705,10 @@
 .mc-news-this.down { color: #ef5350; }
 .mc-news-foot { margin-top: 6px; font-size: 10.5px; color: var(--text-dim, #9598a1); }
 @media (max-width: 560px) { .mc-news-card { width: 250px; font-size: 11.5px; } }
+
+/* indicator legend collapse button (TradingView-style) */
+.mc-legend-btn { position: absolute; left: 8px; z-index: 5; display: inline-flex; align-items: center; gap: 4px; height: 20px; min-width: 22px; padding: 0 5px;
+  background: color-mix(in srgb, var(--surface, #1e222d) 75%, transparent); color: var(--text-dim, #9598a1); border: 1px solid var(--border, #363a45);
+  border-radius: 4px; cursor: pointer; font-size: 11.5px; line-height: 1; }
+.mc-legend-btn:hover { color: var(--text, #d1d4dc); border-color: var(--accent, #2962ff); }
+.mc-legend-btn.closed { padding: 0 6px; }

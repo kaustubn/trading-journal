@@ -82,7 +82,7 @@ function Notifications({ token }: { token: string }) {
       <div className="hb-between">
         <div className="np-notify-h">{on ? <Bell size={18} /> : <BellOff size={18} />}
           <div><b>{on ? 'Notifications on for this device' : 'Get notified on this device'}</b>
-            <div className="hb-dim">Big releases {s.lead_min} min before, breaking market news, and fast NQ moves. Checked every 10 min on weekdays, about 3:00 to 17:00 BC.</div></div>
+            <div className="hb-dim">Big releases {s.lead_min}–{Math.max(0, s.lead_min - 10)} min before, breaking market news, and fast NQ moves. Checked every 10 min on weekdays, about 3:00 to 17:00 BC.</div></div>
         </div>
         <div className="hb-row">
           {on ? (<><button className="hb-btn" onClick={test}>Test</button><button className="hb-btn" onClick={() => setOpen(!open)}>Choose</button><button className="hb-btn" disabled={busy} onClick={turnOff}>Turn off</button></>)
@@ -94,7 +94,7 @@ function Notifications({ token }: { token: string }) {
       {on && open && (
         <div className="np-choose">
           {chk('news', 'Big scheduled releases (CPI, jobs, Fed…)')}
-          <label className="np-chk">Warn me <select value={s.lead_min} onChange={e => save({ lead_min: Number(e.target.value) })}>{[5, 10, 15, 30, 60].map(m => <option key={m} value={m}>{m} min</option>)}</select> before</label>
+          <label className="np-chk">Warn me <select value={s.lead_min} onChange={e => save({ lead_min: Number(e.target.value) })}>{[10, 15, 30, 60].map(m => <option key={m} value={m}>{m} min</option>)}</select> before <span className="hb-dim">(arrives {s.lead_min}–{Math.max(0, s.lead_min - 10)} min before: checks run every 10 min)</span></label>
           {chk('headlines', 'Breaking market-moving headlines')}
           {chk('bigmove', 'NQ moves fast')}
           <label className="np-chk">Fast = <select value={s.bigmove_pct} onChange={e => save({ bigmove_pct: Number(e.target.value) })}>{[0.4, 0.6, 0.8, 1, 1.5].map(p => <option key={p} value={p}>{p}%</option>)}</select> in 15 min</label>

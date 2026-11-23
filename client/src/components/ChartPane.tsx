@@ -11,7 +11,7 @@ import { TZ, sessionDay } from '../chart/time';
 import { barTime } from '../chart/drawings';
 import { DrawingController, DrawingStore } from '../chart/drawingController';
 import { ReplayEngine, ReplayView } from '../chart/replay';
-import { PANE, Settings, Meta, BarsResp, FocusTrade, toK, periodOf, syncIndicators, viewOf, barEnd } from '../chart/config';
+import { PANE, Settings, Meta, BarsResp, FocusTrade, toK, periodOf, syncIndicators, viewOf, barEnd, INDS, IND_KEYS } from '../chart/config';
 
 /** What the workspace shares with every chart window. Stable object; read through the getters. */
 export interface Workspace {
@@ -31,6 +31,7 @@ export interface Workspace {
   setBusy: (index: number, busy: boolean) => void;
   onChartDate: (index: number, day: string) => void;
   indicatorAction: (name: string, feature: string) => void;  // eye / gear / close in an indicator's legend
+  toggleLegend: () => void;            // collapse / expand the main chart's indicator legends
   syncUntil: number;                   // time sync: ignore other windows' scroll events until then (they were caused by the sync)
   syncSrc: number;                     // the window being scrolled by the trader
   panes: Map<number, PaneHandle>;
@@ -52,6 +53,14 @@ export interface PaneHandle {
 }
 
 interface Props { index: number; tf: number; s: Settings; active: boolean; ws: Workspace; onActivate: (i: number) => void; }
+
+/** Indicator legends on/off (the library has one switch for all panes). When open, leave a gap under the price
+ *  line for the collapse button so it never covers a legend row, however many rows wrap. */
+function applyLegend(chart: Chart, s: Settings) {
+  const open = s.legendOpen !== false;
+  const hasMain = IND_KEYS.some(k => INDS[k].main && s.indicators[k]?.on);
+  chart.setStyles({ indicator: { tooltip: { showRule: open ? 'always' : 'none' } }, candle: { tooltip: { legend: { marginBottom: open && hasMain ? 28 : 4 } } } } as any);
+}
 
 export default function ChartPane({ index, tf, s, active, ws, onActivate }: Props) {
   const rootRef = useRef<HTMLDivElement>(null);
@@ -279,6 +288,7 @@ export default function ChartPane({ index, tf, s, active, ws, onActivate }: Prop
     chartRef.current = chart;
     appliedRef.current = { s: st, tf: tfRef.current };
     chart.setStyles(chartStyles(st.theme, st.chart));
+    applyLegend(chart, st);
     chart.subscribeAction('onIndicatorTooltipFeatureClick', (d: any) => { if (d?.indicator?.name && d?.feature?.id) ws.indicatorAction(d.indicator.name, d.feature.id); });
     chart.setSymbol({ ticker: 'NQ', pricePrecision: 2, volumePrecision: 0 });
     chart.setPeriod(periodOf(tfRef.current));
@@ -451,6 +461,7 @@ export default function ChartPane({ index, tf, s, active, ws, onActivate }: Prop
     }
     if (a.s.clock !== s.clock) chart.setTimezone(TZ[s.clock]);
     if (a.s.theme !== s.theme || a.s.look !== s.look || a.s.chart !== s.chart) { chart.setStyles(s.theme); chart.setStyles(chartStyles(s.theme, s.chart)); }
+    applyLegend(chart, s);
     if (a.s.log !== s.log) chart.overrideYAxis({ paneId: PANE, name: s.log ? 'logarithm' : 'normal' });
     if (a.s.indicators !== s.indicators || a.tf !== tf || a.s.look !== s.look || a.s.chart.ctype !== s.chart.ctype || (s.chart.ctype === 'heikin' && a.s.chart !== s.chart)) syncIndicators(chart, s, tf);
     pushBg();
@@ -612,11 +623,24 @@ export default function ChartPane({ index, tf, s, active, ws, onActivate }: Prop
     };
   }, [ws, index, onActivate]);
 
+  // legend collapse button (like TradingView): below the price line, or below the indicator rows when open
+  const mainInds = IND_KEYS.filter(k => INDS[k].main && s.indicators[k]?.on).length;
+  const legendOpen = s.legendOpen !== false;
+  const LEG_ROW = 20, LEG_TOP = 8;
+  const legendBtnTop = LEG_TOP + 2 * LEG_ROW + 2;   // right under the price line (open: in the gap left for it)
   const fmtNy = (ms: number) => new Date(ms).toLocaleString('en-US', { timeZone: 'America/New_York', weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
   return (
     <div ref={rootRef} className={`mc-pane-chart${active ? ' active' : ''}${ws.measureArmed() ? ' mc-measuring' : ''}`}>
       <div ref={boxRef} className="mc-chart" />
       {ws.replayPick() && guideX !== null && <div className="mc-guide" style={{ left: guideX }} />}
+      {mainInds > 0 && (
+        <button className={`mc-legend-btn${legendOpen ? '' : ' closed'}`} style={{ top: legendBtnTop }}
+          onMouseDown={e => e.stopPropagation()} onClick={e => { e.stopPropagation(); ws.toggleLegend(); }}
+          title={legendOpen ? 'Hide indicator legends' : `Show indicator legends (${mainInds})`} aria-label={legendOpen ? 'Hide indicator legends' : 'Show indicator legends'}>
+          <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d={legendOpen ? 'M1.5 6.5 5 3l3.5 3.5' : 'M1.5 3.5 5 7l3.5-3.5'} fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" /></svg>
+          {!legendOpen && <span>{mainInds}</span>}
+        </button>
+      )}
       {countdown && (
         <div className={`mc-countdown${countdown.up ? ' up' : ' down'}`} style={{ top: countdown.y, left: countdown.left, width: countdown.width }}
           title="Time left until this candle closes">{countdown.text}</div>

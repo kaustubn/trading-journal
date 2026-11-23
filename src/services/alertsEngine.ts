@@ -69,7 +69,7 @@ export async function loadUsers(): Promise<AlertUser[]> {
   return r.rows.map(x => {
     const tg = !!(x.enabled && x.telegram_token && x.telegram_chat);
     return { user_id: x.user_id, token: tg ? String(decrypt(x.telegram_token) ?? '') : '', chat: tg ? x.telegram_chat : '', account_id: x.account_id,
-      news: x.news, earnings: x.earnings, rules: x.rules, prop: x.prop, brief: x.brief, lead_min: Number(x.lead_min) || 15,
+      news: x.news, earnings: x.earnings, rules: x.rules, prop: x.prop, brief: x.brief, lead_min: Math.max(10, Number(x.lead_min) || 15),   // checks run every 10 min: a shorter lead could miss a release
       tg, push: !!(x.push_enabled && x.has_push), headlines: x.headlines !== false, bigmove: x.bigmove !== false, bigmove_pct: Number(x.bigmove_pct) || 0.6 };
   }).filter(u => u.tg || u.push);
 }
