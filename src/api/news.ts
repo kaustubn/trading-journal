@@ -8,6 +8,7 @@ import { eventStudy, calendar, parseForecastCsv, getReleases } from '../news/eco
 import { EVENT_INFO, EventCode, personalStats, PTrade } from '../news/econStats';
 import { summarize } from '../news/summary';
 import { listEvents } from '../news/econEvents';
+import { upcoming, headlines } from '../news/live';
 
 const router = Router();
 router.use(verifyToken);
@@ -49,6 +50,17 @@ router.put('/blackout/:account_id', requireAccountParam, async (req: Request, re
 });
 
 // ---- research (owner only: uses the market-data copy) ----
+// ---- News page (any signed-in user) ----
+// GET /api/news/upcoming?days=7 -> market-moving events (official calendars + big-tech earnings), soonest first
+router.get('/upcoming', async (req: Request, res: Response) => {
+  const days = Math.min(30, Math.max(1, Number(req.query.days ?? 7) || 7));
+  try { const now = Date.now(); res.json(await upcoming(now - 3 * 3600000, now + days * 86400000)); } catch (e) { fail(res, 'upcoming', e); }
+});
+// GET /api/news/headlines -> scored, de-duplicated headlines of the last 36 hours
+router.get('/headlines', async (_req: Request, res: Response) => {
+  try { res.json(await headlines()); } catch (e) { fail(res, 'headlines', e); }
+});
+
 router.use(requireAdmin);
 
 // GET /api/news/calendar — all releases (past with first-release values, upcoming known dates)

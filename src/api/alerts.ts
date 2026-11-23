@@ -6,6 +6,7 @@ import pool from '../db';
 import { verifyToken } from '../middleware/auth';
 import { encrypt, decrypt } from '../utils/crypto';
 import { sendTelegram, tickAll, briefText, AlertUser, alertSettingsChanged } from '../services/alertsEngine';
+import { publicKey, subscribe, unsubscribe, devices, pushUser } from '../services/webPush';
 
 const router = Router();
 const fail = (res: Response, where: string, e: unknown) => { console.error(`[alerts] ${where}`, (e as Error).message); res.status(500).json({ error: (e as Error).message || 'Server error' }); };
@@ -26,7 +27,9 @@ async function settingsOf(userId: number) {
 const publicView = (x: any) => x ? {
   enabled: x.enabled, hasToken: !!x.telegram_token, chat: x.telegram_chat, account_id: x.account_id,
   news: x.news, earnings: x.earnings, rules: x.rules, prop: x.prop, brief: x.brief, lead_min: x.lead_min,
-} : { enabled: false, hasToken: false, chat: null, account_id: null, news: true, earnings: true, rules: true, prop: true, brief: true, lead_min: 15 };
+  push_enabled: !!x.push_enabled, headlines: x.headlines !== false, bigmove: x.bigmove !== false, bigmove_pct: Number(x.bigmove_pct ?? 0.6),
+} : { enabled: false, hasToken: false, chat: null, account_id: null, news: true, earnings: true, rules: true, prop: true, brief: true, lead_min: 15,
+  push_enabled: false, headlines: true, bigmove: true, bigmove_pct: 0.6 };
 
 router.get('/settings', async (req: Request, res: Response) => {
   try { res.json({ settings: publicView(await settingsOf(req.userId!)) }); } catch (e) { fail(res, 'settings', e); }
@@ -49,14 +52,48 @@ router.put('/settings', async (req: Request, res: Response) => {
     }
     const prev = await settingsOf(req.userId!);
     const enc = token ? encrypt(token) : prev?.telegram_token ?? null;
+    const pct = Number(b.bigmove_pct ?? prev?.bigmove_pct ?? 0.6);
+    if (!(pct >= 0.2 && pct <= 5)) return res.status(400).json({ error: 'Fast-move alert: 0.2% to 5%.' });
+    const flag = (k: string, def: boolean) => (typeof b[k] === 'boolean' ? b[k] : prev?.[k] ?? def);
     await pool.query(
-      `INSERT INTO alert_settings (user_id, telegram_token, telegram_chat, enabled, account_id, news, earnings, rules, prop, brief, lead_min, updated_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,NOW())
-       ON CONFLICT (user_id) DO UPDATE SET telegram_token=$2, telegram_chat=$3, enabled=$4, account_id=$5, news=$6, earnings=$7, rules=$8, prop=$9, brief=$10, lead_min=$11, updated_at=NOW()`,
-      [req.userId, enc, chat || null, !!b.enabled && !!enc && !!chat, acc, b.news !== false, b.earnings !== false, b.rules !== false, b.prop !== false, b.brief !== false, lead]);
+      `INSERT INTO alert_settings (user_id, telegram_token, telegram_chat, enabled, account_id, news, earnings, rules, prop, brief, lead_min,
+         push_enabled, headlines, bigmove, bigmove_pct, updated_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,NOW())
+       ON CONFLICT (user_id) DO UPDATE SET telegram_token=$2, telegram_chat=$3, enabled=$4, account_id=$5, news=$6, earnings=$7, rules=$8, prop=$9, brief=$10, lead_min=$11,
+         push_enabled=$12, headlines=$13, bigmove=$14, bigmove_pct=$15, updated_at=NOW()`,
+      [req.userId, enc, chat || null, !!b.enabled && !!enc && !!chat, acc, b.news !== false, b.earnings !== false, b.rules !== false, b.prop !== false, b.brief !== false, lead,
+        flag('push_enabled', false), flag('headlines', true), flag('bigmove', true), pct]);
     alertSettingsChanged();
     res.json({ settings: publicView(await settingsOf(req.userId!)) });
   } catch (e) { fail(res, 'settings put', e); }
+});
+
+// ---- app notifications (Web Push) ----
+router.get('/push/key', async (_req: Request, res: Response) => {
+  try { res.json({ key: await publicKey() }); } catch (e) { fail(res, 'push key', e); }
+});
+router.get('/push/devices', async (req: Request, res: Response) => {
+  try { res.json({ devices: (await devices(req.userId!)).map(d => ({ label: d.label, created_at: d.created_at, id: d.endpoint.slice(-12) })) }); }
+  catch (e) { fail(res, 'push devices', e); }
+});
+// POST /push/subscribe {subscription, label}: this device gets notifications; turns push on for the user
+router.post('/push/subscribe', async (req: Request, res: Response) => {
+  try {
+    await subscribe(req.userId!, req.body?.subscription, String(req.body?.label ?? ''));
+    await pool.query(`INSERT INTO alert_settings (user_id, push_enabled) VALUES ($1, true) ON CONFLICT (user_id) DO UPDATE SET push_enabled = true, updated_at = NOW()`, [req.userId]);
+    alertSettingsChanged();
+    res.json({ ok: true, settings: publicView(await settingsOf(req.userId!)) });
+  } catch (e: any) { if (e?.status === 400) return res.status(400).json({ error: e.message }); fail(res, 'push subscribe', e); }
+});
+router.post('/push/unsubscribe', async (req: Request, res: Response) => {
+  try { await unsubscribe(req.userId!, String(req.body?.endpoint ?? '')); res.json({ ok: true }); } catch (e) { fail(res, 'push unsubscribe', e); }
+});
+router.post('/push/test', async (req: Request, res: Response) => {
+  try {
+    const n = await pushUser(req.userId!, { title: '✅ Notifications are on', body: 'Big news, releases and fast NQ moves will show up here.', tag: 'test' });
+    if (!n) return res.status(400).json({ error: 'No device has notifications on yet.' });
+    res.json({ ok: true, devices: n });
+  } catch (e) { res.status(400).json({ error: (e as Error).message }); }
 });
 
 router.post('/test', async (req: Request, res: Response) => {

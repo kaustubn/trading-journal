@@ -1,0 +1,30 @@
+/* News page (np-) */
+.np { min-width: 0; }
+.np-notify .np-notify-h { display: flex; gap: 10px; align-items: flex-start; }
+.np-notify.on { border-color: color-mix(in srgb, var(--accent) 55%, var(--border)); }
+.np-choose { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 6px 14px; margin-top: 10px; }
+.np-chk { display: inline-flex; gap: 6px; align-items: center; font-size: 13px; color: var(--text); cursor: pointer; }
+.np-chk select { background: var(--card); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 2px 6px; }
+.np-tabs { display: flex; gap: 6px; margin: 4px 0 0; flex-wrap: wrap; }
+.np-tabs button { display: inline-flex; gap: 6px; align-items: center; background: var(--card); color: var(--text-dim); border: 1px solid var(--border); border-radius: 999px; padding: 6px 14px; font-size: 13.5px; cursor: pointer; }
+.np-tabs button.on { color: var(--text); border-color: var(--accent); background: color-mix(in srgb, var(--accent) 16%, transparent); }
+.np-day { margin-top: 12px; }
+.np-day-h { font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--text-dim); font-weight: 600; padding-bottom: 4px; border-bottom: 1px solid var(--border); }
+.np-ev { display: flex; gap: 14px; padding: 9px 4px; border-bottom: 1px solid var(--border); }
+.np-ev.next { background: color-mix(in srgb, var(--accent) 10%, transparent); border-radius: 6px; }
+.np-ev.past { opacity: .55; }
+.np-time { width: 92px; flex: none; font-weight: 600; font-variant-numeric: tabular-nums; display: flex; flex-direction: column; }
+.np-time span { font-weight: 400; font-size: 12px; color: var(--text-dim); }
+.np-what { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.np-imp { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 7px; vertical-align: middle; }
+.np-imp.high { background: var(--red, #ef5350); }
+.np-imp.medium { background: #e0a33a; }
+.np-hl { padding: 9px 4px; border-bottom: 1px solid var(--border); display: flex; flex-direction: column; gap: 2px; }
+.np-hl a { color: var(--text); text-decoration: none; }
+.np-hl a:hover { text-decoration: underline; }
+.np-hl.big { border-left: 3px solid var(--accent); padding-left: 9px; }
+.np-hl.big a, .np-hl.big > div:first-child { font-weight: 600; }
+@media (max-width: 560px) {
+  .np-time { width: 70px; }
+  .np-ev { gap: 10px; }
+}

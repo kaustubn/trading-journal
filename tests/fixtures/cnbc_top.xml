@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Hand-written sample in the shape of a news RSS feed (not real articles). -->
+<rss version="2.0"><channel><title>Sample feed</title>
+<item><title><![CDATA[Chipmaker CEO reinstated; stock soars 30% and tech stocks rally]]></title><link>https://example.com/a</link><pubDate>Mon, 23 Nov 2026 16:55 GMT</pubDate></item>
+<item><title>Fed&apos;s Powell signals rate cuts could come in December</title><link>https://example.com/b</link><pubDate>Mon, 23 Nov 2026 15:10:00 GMT</pubDate></item>
+<item><title>I&#x2019;ve been married for 40 years. Should my wife and I keep separate retirement accounts?</title><link>https://example.com/c</link><pubDate>Mon, 23 Nov 2026 14:00:00 GMT</pubDate></item>
+<item><title>Ten holiday recipes for a busy week</title><link>https://example.com/d</link><pubDate>Mon, 23 Nov 2026 13:00:00 GMT</pubDate></item>
+<item><title>No date on this one</title><link>https://example.com/e</link></item>
+</channel></rss>

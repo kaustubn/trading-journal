@@ -160,6 +160,30 @@ export const MIGRATIONS: Migration[] = [
       );
     `,
   },
+  {
+    // News page + app notifications (2026-11-23): server key pair store, one row per device that turned
+    // notifications on, and which news alerts a user wants (Telegram keeps using alert_settings.enabled).
+    id: '006_news_push',
+    sql: `
+      CREATE TABLE IF NOT EXISTS app_kv (
+        key VARCHAR(40) PRIMARY KEY,
+        value TEXT NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS push_subs (
+        id SERIAL PRIMARY KEY,
+        user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        endpoint TEXT NOT NULL UNIQUE,
+        p256dh VARCHAR(200) NOT NULL, auth VARCHAR(60) NOT NULL,
+        label VARCHAR(80) NOT NULL DEFAULT '',
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_push_subs_user ON push_subs(user_id);
+      ALTER TABLE alert_settings ADD COLUMN IF NOT EXISTS push_enabled BOOLEAN NOT NULL DEFAULT false;
+      ALTER TABLE alert_settings ADD COLUMN IF NOT EXISTS headlines BOOLEAN NOT NULL DEFAULT true;
+      ALTER TABLE alert_settings ADD COLUMN IF NOT EXISTS bigmove BOOLEAN NOT NULL DEFAULT true;
+      ALTER TABLE alert_settings ADD COLUMN IF NOT EXISTS bigmove_pct NUMERIC(4, 2) NOT NULL DEFAULT 0.6;
+    `,
+  },
 ];
 
 export async function runMigrations(client: PoolClient, list: Migration[] = MIGRATIONS): Promise<string[]> {

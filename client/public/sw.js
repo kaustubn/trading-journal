@@ -37,3 +37,24 @@ self.addEventListener('fetch', (e) => {
     })
   );
 });
+
+// App notifications (news alerts). The server sends {title, body, url, tag}.
+self.addEventListener('push', (e) => {
+  let d = {};
+  try { d = e.data ? e.data.json() : {}; } catch (_) { d = { title: 'Trading Journal', body: e.data ? e.data.text() : '' }; }
+  e.waitUntil(self.registration.showNotification(d.title || 'Trading Journal', {
+    body: d.body || '', tag: d.tag || undefined, renotify: !!d.tag,
+    icon: '/icon-192.png', badge: '/icon-192.png', data: { url: d.url || '/?view=news' },
+  }));
+});
+
+self.addEventListener('notificationclick', (e) => {
+  e.notification.close();
+  const url = (e.notification.data && e.notification.data.url) || '/?view=news';
+  e.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
+    for (const c of list) {
+      if (new URL(c.url).origin === self.location.origin) { c.postMessage({ type: 'open-view', url }); return c.focus(); }
+    }
+    return self.clients.openWindow(url);
+  }));
+});

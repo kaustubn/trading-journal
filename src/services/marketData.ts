@@ -147,3 +147,9 @@ export async function earnings(force = false) {
   return { symbols: MEGACAPS, events: r.rows, checkedAt: scan.rows[0]?.fetched_at ?? null, note,
     source: 'Nasdaq earnings calendar (dates can move; confirm on the company site).' };
 }
+
+/** NQ futures 1-minute closes for today (Yahoo), for the "fast move" alert. */
+export async function nqMinutes(): Promise<{ t: number[]; c: (number | null)[] }> {
+  const { bars } = await yahoo('NQ=F', '1d', '1m');
+  return { t: bars.t, c: bars.c };
+}

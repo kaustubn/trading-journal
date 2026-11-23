@@ -1,7 +1,9 @@
-// Telegram alerts. The journal runs on a free Render plan that sleeps, so nothing here runs on a timer: an outside
+// Alerts by Telegram and / or app notifications (Web Push). The journal runs on a free Render plan that sleeps, so nothing here runs on a timer: an outside
 // scheduler (GitHub Actions, .github/workflows/alerts-tick.yml) calls GET /api/alerts/tick every 10 minutes on US
 // weekdays. Each tick sends what is due and records it in alert_log, so a message is never sent twice.
-//   news   : high-impact USD releases starting within lead_min minutes (+ what NQ usually does)
+//   news   : high-impact US releases starting within lead_min minutes (official calendars, news/live.ts)
+//   headlines: a market-moving headline (scored, shared/newsFeed) first seen in the last 40 minutes
+//   bigmove: NQ moved bigmove_pct % or more in 15 minutes (with the latest big headline)
 //   brief  : once per weekday morning (07:30-09:25 New York): today's releases, big-tech earnings, NQ overnight levels,
 //            VIX, discipline score
 //   rules  : a personal-rule break today (shared/habits checkRules)
@@ -9,13 +11,28 @@
 import jwt from 'jsonwebtoken';
 import pool from '../db';
 import { decrypt } from '../utils/crypto';
-import { listEvents } from '../news/econEvents';
+import { upcoming, headlines, nqFastMove } from '../news/live';
+import { IMPORTANT, headlineTopic } from '../shared/newsFeed';
+import { pushUser } from './webPush';
 import { utcToNy } from '../shared/econCalendar';
 import { RULE_LABEL } from '../shared/habits';
 import { violations, accountToday, score } from './habitsData';
 import { earnings, premarket } from './marketData';
 
-export interface AlertUser { user_id: number; token: string; chat: string; account_id: number | null; news: boolean; earnings: boolean; rules: boolean; prop: boolean; brief: boolean; lead_min: number }
+export interface AlertUser {
+  user_id: number; token: string; chat: string; account_id: number | null; news: boolean; earnings: boolean; rules: boolean; prop: boolean; brief: boolean; lead_min: number;
+  tg?: boolean; push?: boolean; headlines?: boolean; bigmove?: boolean; bigmove_pct?: number;
+}
+
+/** One alert to every channel the user has on: Telegram and / or app notifications. Fails only if all fail. */
+export async function deliver(u: AlertUser, title: string, body: string, tag?: string): Promise<void> {
+  const tasks: Promise<unknown>[] = [];
+  if (u.tg !== false && u.token && u.chat) tasks.push(sendTelegram(u.token, u.chat, body ? `${title}\n${body}` : title));
+  if (u.push) tasks.push(pushUser(u.user_id, { title, body, tag }));
+  if (!tasks.length) throw new Error('no alert channel is on');
+  const res = await Promise.allSettled(tasks);
+  if (res.every(r => r.status === 'rejected')) throw (res[0] as PromiseRejectedResult).reason;
+}
 
 export async function sendTelegram(token: string, chat: string, text: string): Promise<void> {
   // TELEGRAM_API_BASE: local tests only (a fake Telegram server); never set on the real server
@@ -29,7 +46,15 @@ export async function sendTelegram(token: string, chat: string, text: string): P
   }
 }
 
+const sentMem = new Set<string>();        // already sent (or already in alert_log): skip the database next time
 async function once(userId: number, key: string, send: () => Promise<void>): Promise<boolean> {
+  const mk = `${userId}|${key}`;
+  if (sentMem.has(mk)) return false;
+  if (sentMem.size > 5000) sentMem.clear();
+  sentMem.add(mk);
+  try { return await onceDb(userId, key, send); } catch (e) { sentMem.delete(mk); throw e; }
+}
+async function onceDb(userId: number, key: string, send: () => Promise<void>): Promise<boolean> {
   const ins = await pool.query('INSERT INTO alert_log (user_id, key) VALUES ($1, $2) ON CONFLICT DO NOTHING RETURNING key', [userId, key.slice(0, 200)]);
   if (!ins.rows.length) return false;
   try { await send(); return true; } catch (e) { await pool.query('DELETE FROM alert_log WHERE user_id = $1 AND key = $2', [userId, key.slice(0, 200)]); throw e; }
@@ -39,9 +64,14 @@ const fmt = (n: number | null | undefined, d = 2) => (n == null ? '–' : n.toLo
 const sgn = (n: number | null | undefined, d = 2) => (n == null ? '–' : `${n >= 0 ? '+' : ''}${fmt(n, d)}`);
 
 export async function loadUsers(): Promise<AlertUser[]> {
-  const r = await pool.query(`SELECT * FROM alert_settings WHERE enabled = true AND telegram_token IS NOT NULL AND telegram_chat IS NOT NULL`);
-  return r.rows.map(x => ({ user_id: x.user_id, token: String(decrypt(x.telegram_token) ?? ''), chat: x.telegram_chat, account_id: x.account_id,
-    news: x.news, earnings: x.earnings, rules: x.rules, prop: x.prop, brief: x.brief, lead_min: Number(x.lead_min) || 15 }));
+  const r = await pool.query(`SELECT s.*, EXISTS (SELECT 1 FROM push_subs p WHERE p.user_id = s.user_id) AS has_push FROM alert_settings s
+    WHERE (s.enabled = true AND s.telegram_token IS NOT NULL AND s.telegram_chat IS NOT NULL) OR s.push_enabled = true`);
+  return r.rows.map(x => {
+    const tg = !!(x.enabled && x.telegram_token && x.telegram_chat);
+    return { user_id: x.user_id, token: tg ? String(decrypt(x.telegram_token) ?? '') : '', chat: tg ? x.telegram_chat : '', account_id: x.account_id,
+      news: x.news, earnings: x.earnings, rules: x.rules, prop: x.prop, brief: x.brief, lead_min: Number(x.lead_min) || 15,
+      tg, push: !!(x.push_enabled && x.has_push), headlines: x.headlines !== false, bigmove: x.bigmove !== false, bigmove_pct: Number(x.bigmove_pct) || 0.6 };
+  }).filter(u => u.tg || u.push);
 }
 
 async function propStatus(userId: number, accountId: number): Promise<any> {
@@ -64,11 +94,11 @@ export async function briefText(u: AlertUser, now = Date.now()): Promise<string>
     if (p.nq?.rthClose != null) lines.push(`Yesterday NY session: H ${fmt(p.nq.rthHigh)}  L ${fmt(p.nq.rthLow)}  C ${fmt(p.nq.rthClose)}. Overnight: H ${fmt(p.nq.onHigh)}  L ${fmt(p.nq.onLow)}  gap ${sgn(p.nq.gap)} pts`);
   } catch { lines.push('(market snapshot unavailable)'); }
   const dayStart = Date.parse(`${ny.date}T00:00:00Z`) - 12 * 3600000;
-  const evs = (await listEvents(dayStart, dayStart + 48 * 3600000, ['high'])).filter(e => e.ny_date === ny.date);
+  const evs = (await upcoming(dayStart, dayStart + 48 * 3600000)).events.filter(e => e.ny_date === ny.date && e.kind !== 'earnings');
   if (evs.length) {
-    lines.push('', '📅 High-impact today (New York time):');
-    for (const e of evs) lines.push(`${e.ny_time}  ${e.title}${e.forecast ? `  f ${e.forecast}` : ''}${e.previous ? `  p ${e.previous}` : ''}${e.nq ? `  · NQ median ${e.nq.absMed15.toFixed(0)} pts in 15 min` : ''}`);
-  } else lines.push('', '📅 No high-impact US releases today (in your imported calendar).');
+    lines.push('', '📅 Today (New York time):');
+    for (const e of evs) lines.push(`${e.ny_time}  ${e.title}${e.impact === 'high' ? ' ⚠️' : ''}${e.nq ? `  · NQ median ${e.nq.absMed15.toFixed(0)} pts in 15 min` : ''}`);
+  } else lines.push('', '📅 No market-moving US releases today.');
   if (u.earnings) {
     try {
       const er = await earnings();
@@ -88,20 +118,43 @@ export async function briefText(u: AlertUser, now = Date.now()): Promise<string>
 /** Everything due for one user now. Returns the keys that were sent. */
 export async function tickUser(u: AlertUser, now = Date.now()): Promise<string[]> {
   const sent: string[] = [];
-  const send = (text: string) => () => sendTelegram(u.token, u.chat, text);
+  const send = (text: string, tag?: string) => () => { const [title, ...rest] = text.split('\n'); return deliver(u, title, rest.join('\n'), tag); };
   const ny = utcToNy(now);
   const weekday = ![0, 6].includes(new Date(`${ny.date}T12:00:00Z`).getUTCDay());
 
   if (u.news) {
-    const soon = (await listEvents(now, now + u.lead_min * 60000, ['high'])).filter(e => e.currency === 'USD');
+    const soon = (await upcoming(now, now + u.lead_min * 60000, false)).events.filter(e => e.impact === 'high' && e.kind !== 'earnings');
     const byTime = new Map<string, typeof soon>();
-    for (const e of soon) byTime.set(e.release_utc, [...(byTime.get(e.release_utc) ?? []), e]);
+    for (const e of soon) byTime.set(e.utc, [...(byTime.get(e.utc) ?? []), e]);
     for (const [utc, list] of byTime) {
       const mins = Math.max(0, Math.round((Date.parse(utc) - now) / 60000));
-      const text = [`⏰ In ${mins} min (${list[0].ny_time} New York): ${list.map(e => e.title).join(', ')}`,
-        ...list.filter(e => e.forecast || e.previous).map(e => `${e.title}: forecast ${e.forecast ?? '–'}, previous ${e.previous ?? '–'}`),
-        list.find(e => e.nq)?.nq?.line ?? '', 'Check your news blackout and open orders.'].filter(Boolean).join('\n');
-      if (await once(u.user_id, `news:${utc}`, send(text))) sent.push(`news:${utc}`);
+      const nq = list.find(e => e.nq)?.nq;
+      const text = [`⏰ In ${mins} min: ${list.map(e => e.title).join(', ')}`,
+        `${list[0].ny_time} New York.${nq ? ` NQ usually moves about ${nq.absMed15.toFixed(0)} pts in 15 min.` : ''}`,
+        list[0].why, 'Check your news blackout and open orders.'].filter(Boolean).join('\n');
+      if (await once(u.user_id, `news:${utc}`, send(text, 'news'))) sent.push(`news:${utc}`);
+    }
+  }
+  if (u.headlines) {
+    // newest first, one per topic per 3 hours (several stories about the same event = one alert), at most 2 a tick
+    const h = (await headlines()).list.filter(x => x.score >= IMPORTANT && x.pub >= now - 40 * 60000 && x.pub <= now + 60000);
+    const seen = new Set<string>(); let n = 0;
+    for (const x of h) {
+      const topic = headlineTopic(x.title);
+      if (seen.has(topic) || n >= 2) continue;
+      seen.add(topic);
+      const key = `hl:${topic}:${ny.date}:${Math.floor(Number(ny.time.slice(0, 2)) / 3)}`;
+      if (await once(u.user_id, key, send(`📰 ${x.title}\n${x.source}${x.also ? ` + ${x.also} more` : ''} · ${utcToNy(x.pub).time} New York`, 'headline'))) { sent.push(key); n++; }
+    }
+  }
+  if (u.bigmove && weekday) {
+    const m = await nqFastMove().catch(() => null);
+    if (m && Math.abs(m.pct) >= (u.bigmove_pct ?? 0.6)) {
+      const [hh, mm] = ny.time.split(':').map(Number);
+      const key = `move:${ny.date}:${Math.floor((hh * 60 + mm) / 30)}`;
+      const top = (await headlines().catch(() => null))?.list.find(x => x.score >= IMPORTANT && x.pub >= now - 3 * 3600000);
+      const text = `${m.pts > 0 ? '🚀' : '🔻'} NQ ${m.pts > 0 ? 'up' : 'down'} ${Math.abs(m.pts).toFixed(0)} pts (${m.pct > 0 ? '+' : ''}${m.pct.toFixed(2)}%) in 15 min\nNow ${fmt(m.to)}.${top ? ` Latest big headline: ${top.title}` : ''}`;
+      if (await once(u.user_id, key, send(text, 'move'))) sent.push(key);
     }
   }
   if (u.brief && weekday && ny.time >= '07:30' && ny.time <= '09:25') {
@@ -138,18 +191,21 @@ export async function tickUser(u: AlertUser, now = Date.now()): Promise<string[]
 let lastRun = 0;
 // When nobody has alerts on, don't wake the database (Neon free plan compute) more than once an hour.
 let noUsersUntil = 0;
-export function alertSettingsChanged() { noUsersUntil = 0; }
+// the user list is kept for 30 minutes so a quiet tick does not wake the database (Neon free plan compute)
+let usersCache: { at: number; users: AlertUser[] } = { at: 0, users: [] };
+export function alertSettingsChanged() { noUsersUntil = 0; usersCache = { at: 0, users: [] }; }
 export async function tickAll(now = Date.now()): Promise<{ users: number; sent: number; errors: string[]; skipped?: string }> {
   if (now - lastRun < 60000) return { users: 0, sent: 0, errors: [], skipped: 'ran less than a minute ago' };
   if (now < noUsersUntil) return { users: 0, sent: 0, errors: [], skipped: 'no alert users (checked within the hour)' };
   lastRun = now;
-  const users = await loadUsers();
+  if (now - usersCache.at > 30 * 60000) usersCache = { at: now, users: await loadUsers() };
+  const users = usersCache.users;
   if (!users.length) { noUsersUntil = now + 3600000; return { users: 0, sent: 0, errors: [] }; }
   let sent = 0; const errors: string[] = [];
   for (const u of users) {
     try { sent += (await tickUser(u, now)).length; } catch (e) { errors.push(`user ${u.user_id}: ${(e as Error).message}`); }
   }
-  // keep the log small
-  await pool.query(`DELETE FROM alert_log WHERE sent_at < NOW() - interval '30 days'`);
+  // keep the log small (only when something was sent: the database is awake anyway)
+  if (sent) await pool.query(`DELETE FROM alert_log WHERE sent_at < NOW() - interval '30 days'`);
   return { users: users.length, sent, errors };
 }

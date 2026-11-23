@@ -39,6 +39,7 @@ import S1Practice from './components/S1Practice';
 import PatternFinder from './components/PatternFinder';
 import PracticeLog from './components/PracticeLog';
 import NewsAnalyzer from './components/NewsAnalyzer';
+import NewsPage from './components/NewsPage';
 import NewsBlackoutBanner from './components/NewsBlackoutBanner';
 import PropBreachBanner from './components/PropBreachBanner';
 import EdgeOddsCard from './components/EdgeOddsCard';
@@ -83,7 +84,7 @@ const PAGE_META: Record<string, { title: string; sub: string; icon: React.Compon
   strategy: { title: 'Strategy Rules', icon: Workflow, sub: 'Write down each strategy’s entry, exit and risk rules so you trade it the same way every time.' },
   checklist: { title: 'Entry Checklist', icon: ListChecks, sub: 'Run this before every entry. If any gate fails, there is no trade. The score decides A, B or C.' },
   risk: { title: 'Risk & Sizing', icon: ShieldCheck, sub: 'How much to risk per trade, how many contracts to trade, and when to stop for the day.' },
-  news: { title: 'News Analyzer', icon: Newspaper, sub: 'CPI, jobs, PPI, retail sales and the Fed: first-release numbers and how NQ reacted, by surprise. Research only.' },
+  news: { title: 'News', icon: Newspaper, sub: 'What is coming that can move NQ, breaking market news, and notifications on your phone.' },
   propfirms: { title: 'Prop Firms', icon: Building2, sub: 'Compare 25K and 50K evaluations side by side — rules, real cost and traps — before you buy.' },
 };
 // Pages that share one nav entry, shown as tabs
@@ -163,7 +164,19 @@ export default function App() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showAddTradeModal, setShowAddTradeModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
-  const [view, setView] = useState<string>('dashboard');
+  // ?view=news (a tapped notification opens the journal on that page)
+  const [view, setView] = useState<string>(() => {
+    try { const v = new URLSearchParams(window.location.search).get('view'); return v && /^[a-z0-9]{2,20}$/.test(v) ? v : 'dashboard'; } catch { return 'dashboard'; }
+  });
+  useEffect(() => {
+    try { if (new URLSearchParams(window.location.search).has('view')) window.history.replaceState(null, '', window.location.pathname); } catch { /* ignore */ }
+    const onMsg = (e: MessageEvent) => {
+      if (e.data?.type !== 'open-view') return;
+      try { const v = new URL(String(e.data.url), window.location.origin).searchParams.get('view'); if (v && /^[a-z0-9]{2,20}$/.test(v)) setView(v); } catch { /* ignore */ }
+    };
+    navigator.serviceWorker?.addEventListener('message', onMsg);
+    return () => navigator.serviceWorker?.removeEventListener('message', onMsg);
+  }, []);
   // Left sidebar: full, or a slim icon strip (remembered in this browser)
   const [navCollapsed, setNavCollapsed] = useState<boolean>(() => {
     try { return localStorage.getItem('jc.navCollapsed') === '1'; } catch { return false; }
@@ -214,7 +227,7 @@ export default function App() {
         { key: 'risk', label: 'Risk & Sizing', icon: ShieldCheck },
         { key: 'propfirms', label: 'Prop Firms', icon: Building2 },
         { key: 'sizelab', label: 'Size & Pass Lab', icon: Calculator },
-        ...(isAdmin ? [{ key: 'news', label: 'News Analyzer', icon: Newspaper }] : []),
+        { key: 'news', label: 'News', icon: Newspaper },
       ]
     },
   ];
@@ -717,11 +730,13 @@ export default function App() {
           {view === 'checklist' && (
             <ErrorBoundary name="Checklist"><Checklist /></ErrorBoundary>
           )}
-          {token && isAdmin && view === 'news' && (
-            <>
-              <ErrorBoundary name="Economic calendar"><EconCalendar token={token} isAdmin={isAdmin} /></ErrorBoundary>
-              <ErrorBoundary name="News Analyzer"><NewsAnalyzer token={token} account_id={selectedAccount || null} /></ErrorBoundary>
-            </>
+          {token && view === 'news' && (
+            <ErrorBoundary name="News"><NewsPage token={token} isAdmin={isAdmin} research={isAdmin ? (
+              <>
+                <ErrorBoundary name="Economic calendar"><EconCalendar token={token} isAdmin={isAdmin} /></ErrorBoundary>
+                <ErrorBoundary name="News Analyzer"><NewsAnalyzer token={token} account_id={selectedAccount || null} /></ErrorBoundary>
+              </>
+            ) : null} /></ErrorBoundary>
           )}
           {token && view === 'sizelab' && (
             <ErrorBoundary name="Size & Pass Lab"><SizeLab token={token} /></ErrorBoundary>
