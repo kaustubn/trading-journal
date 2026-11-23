@@ -1,0 +1,22 @@
+# Calls the journal's alert check every 10 minutes on US weekdays (about 6:00-19:59 New York).
+# The journal runs on a free Render plan that sleeps when idle, so it cannot run its own timer; this request wakes it
+# and it sends whatever alerts are due (app push and Telegram: news releases, breaking headlines, fast NQ moves, morning brief, rule breaks, prop limits). Each alert
+# is sent once, so extra or late runs are harmless. GitHub may start scheduled runs a few minutes late.
+name: alerts-tick
+on:
+  schedule:
+    - cron: '*/10 10-23 * * 1-5'
+  workflow_dispatch:
+permissions: {}
+jobs:
+  tick:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - name: Ask the journal to send due alerts
+        run: |
+          for i in 1 2 3; do
+            if curl -fsS --max-time 100 https://trading-journal-1qlf.onrender.com/api/alerts/tick; then exit 0; fi
+            sleep 20
+          done
+          exit 1
