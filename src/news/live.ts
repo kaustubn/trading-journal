@@ -122,6 +122,9 @@ const FEEDS: { url: string; source: string; region: Region; google?: boolean }[]
   { url: 'https://www.livemint.com/rss/markets', source: 'Mint', region: 'IN' },
   { url: 'https://www.business-standard.com/rss/markets-106.rss', source: 'Business Standard', region: 'IN' },
   { url: GN('en-IN', 'IN'), source: 'Google News India', region: 'IN', google: true },
+  // IPOs and the grey market premium (GMP)
+  { url: 'https://economictimes.indiatimes.com/markets/ipos/fpos/rssfeeds/14655708.cms', source: 'Economic Times IPO', region: 'IN' },
+  { url: 'https://news.google.com/rss/search?q=IPO+GMP+OR+%22grey+market%22+when:2d&hl=en-IN&gl=IN&ceid=IN:en', source: 'Google News IPO', region: 'IN', google: true },
   { url: 'https://www.cbc.ca/webfeed/rss/rss-business', source: 'CBC', region: 'CA' },
   { url: 'https://www.bnnbloomberg.ca/arc/outboundfeeds/rss/category/markets/?outputType=xml', source: 'BNN Bloomberg', region: 'CA' },
   { url: 'https://www.theglobeandmail.com/arc/outboundfeeds/rss/category/business/', source: 'Globe and Mail', region: 'CA' },

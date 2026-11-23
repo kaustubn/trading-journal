@@ -45,6 +45,7 @@ export function buildPrompt(src: RegionHeadline[], odds: CrowdOdds[], events: { 
     'You write a very short market news brief for a busy day trader who trades Nasdaq futures (NQ), Indian stocks (Nifty) and lives in Canada.',
     'Use ONLY the facts below. Do not invent numbers, names, causes or quotes. If a cause is not in the facts, say it is unclear.',
     'Plain English, no jargon, each bullet at most 16 words. Never tell the reader to buy or sell; describe what could happen.',
+    'For India include notable IPO news and grey market premium (GMP) signals when present, and say GMP is unofficial.',
     'When you mention a crowd expectation, quote its % from the CROWD ODDS list.',
     '',
     'Return JSON only, exactly this shape:',

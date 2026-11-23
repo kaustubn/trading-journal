@@ -24,7 +24,7 @@ const SHORT: [RegExp, string][] = [
 const TOPIC_SHORT: Record<string, string> = {
   nvidia: 'NVDA', apple: 'AAPL', microsoft: 'MSFT', amazon: 'AMZN', google: 'GOOGL', meta: 'META', tesla: 'TSLA', broadcom: 'AVGO',
   openai: 'OpenAI', amd: 'AMD', netflix: 'NFLX', fed: 'Fed', inflation: 'Inflation', jobs: 'Jobs', tariffs: 'Tariffs',
-  rbi: 'RBI', nifty: 'Nifty', rupee: 'Rupee', boc: 'BoC', tsx: 'TSX', cad: 'CAD', oil: 'Oil', adani: 'Adani', reliance: 'Reliance',
+  rbi: 'RBI', nifty: 'Nifty', rupee: 'Rupee', boc: 'BoC', tsx: 'TSX', cad: 'CAD', oil: 'Oil', adani: 'Adani', reliance: 'Reliance', ipo: 'IPO',
 };
 /** Chart label for any item: a release's short name, or a headline's topic ("NVDA", "RBI") / first words. */
 export function labelOf(e: ChartNews): string {

@@ -263,12 +263,14 @@ function Headlines({ token }: { token: string }) {
   const load = () => axios.get('/api/news/headlines', { headers: { Authorization: `Bearer ${token}` } }).then(r => setD(r.data)).catch(() => setD({ list: [], important: 5, errors: ['Could not load headlines.'] }));
   useEffect(() => { load(); const t = window.setInterval(load, 3 * 60000); return () => window.clearInterval(t); }, [token]);
   if (!d) return <div className="hb-card hb-dim">Loading…</div>;
-  const list = d.list.filter(h => (all || h.score >= d.important) && (region === 'all' || h.region === region));
+  const isIpo = (h: Hl) => h.topic === 'ipo' || h.tags.includes('ipo') || h.tags.includes('grey market');
+  const list = d.list.filter(h => region === 'IPO' ? isIpo(h) : (all || h.score >= d.important) && (region === 'all' || h.region === region));
   return (
     <div className="hb-card">
       <div className="hb-between"><div className="hb-dim">Last 36 hours from US, Indian and Canadian news. Big = central banks, inflation, jobs, tariffs, big companies, or a big move.</div>
         <label className="np-chk"><input type="checkbox" checked={all} onChange={e => setAll(e.target.checked)} /> show all market news</label></div>
-      <div className="np-regionpick" style={{ marginTop: 6 }}>{['all', 'US', 'IN', 'CA'].map(r => <button key={r} className={region === r ? 'on' : ''} onClick={() => setRegion(r)}>{r === 'all' ? 'All' : `${FLAG[r]} ${r === 'IN' ? 'India' : r === 'CA' ? 'Canada' : 'USA'}`}</button>)}</div>
+      <div className="np-regionpick" style={{ marginTop: 6 }}>{['all', 'US', 'IN', 'CA', 'IPO'].map(r => <button key={r} className={region === r ? 'on' : ''} onClick={() => setRegion(r)}>{r === 'all' ? 'All' : r === 'IPO' ? 'IPO & grey market' : `${FLAG[r]} ${r === 'IN' ? 'India' : r === 'CA' ? 'Canada' : 'USA'}`}</button>)}</div>
+      {region === 'IPO' && <div className="hb-dim" style={{ marginTop: 6 }}>Grey market premium (GMP) = the unofficial price of IPO shares before listing. It is not regulated (Sebi has asked players to stop publishing it) and often wrong on listing day.</div>}
       {!list.length && <div className="hb-dim" style={{ marginTop: 10 }}>No big headlines right now.</div>}
       {list.map(h => (
         <div key={h.title + h.pub} className={`np-hl${h.score >= d.important ? ' big' : ''}`}>

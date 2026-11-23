@@ -82,3 +82,12 @@ test('reviewed brief from Claude Code: cleaned, https links only, corrections ke
   assert.equal(r.corrections.length, 2);
   assert.equal(typeof cleanReview({ headline: 'x' }), 'string');
 });
+
+test('IPO and grey market (GMP) news: kept, tagged, India', () => {
+  const g = scoreHeadline({ title: 'Mahanadi Coalfields IPO: GMP hints at muted debut', link: '', pub: 0, source: 'ET' });
+  assert.ok(g.score >= 5, String(g.score));
+  assert.ok(g.tags.includes('grey market'));
+  assert.equal(headlineTopic(g.title), 'ipo');
+  assert.equal(headlineRegion('Lenskart grey market premium falls ahead of listing', 'US'), 'IN');
+  assert.ok(scoreHeadline({ title: 'Matangi Rubber IPO opens Dec 1: price band and lot size', link: '', pub: 0, source: 'ET' }).score >= 3);
+});

@@ -108,8 +108,10 @@ const INDIA = /\b(rbi|reserve bank of india|repo rate|sensex|nifty|bank nifty|ru
 const INDIA_CO = /\b(adani|reliance|hdfc|icici|infosys|tcs|wipro|tata|bajaj|sbi|modi|nse|bse)\b/i;
 const CANADA = /\b(bank of canada|boc|macklem|tsx|loonie|canadian dollar|cusma|usmca|bay street|canada'?s (economy|inflation|jobs|gdp))\b/i;
 const CANADA_CO = /\b(carney|shopify|rbc|td bank|enbridge|suncor|oil sands)\b/i;
+// IPOs and the grey market premium (GMP: the unofficial price of IPO shares before they list, mostly in India)
+const IPO = /\b(ipos?|gmp|grey[- ]market|gray[- ]market|listing (gains?|day|price)|subscription status|subscribed \d|anchor investors|price band|allotment)\b/i;
 const GLOBAL = /\b(oil|crude|opec|brent|gold|china|yuan|bitcoin|dollar index|yen|ecb|bank of japan)\b/i;
-const NOISE = /\b(i'?ve|i'?m|my (wife|husband|parents|kids)|how to|should i|retire(ment)?|married|mortgage|personal finance|opinion|podcast|recipe|celebrity|best .{0,20} to buy|quiz|horoscope|wedding|divorce|portfolio stocks?|multibaggers?|stocks? to (buy|watch)|buy or sell|target price|check (list|details|here)|penny stocks?|ipo gmp|dividend stocks?|share price (today|highlights|live)|stock price (history|today|live)|stock tips?|live updates)\b/i;
+const NOISE = /\b(i'?ve|i'?m|my (wife|husband|parents|kids)|how to|should i|retire(ment)?|married|mortgage|personal finance|opinion|podcast|recipe|celebrity|best .{0,20} to buy|quiz|horoscope|wedding|divorce|portfolio stocks?|multibaggers?|stocks? to (buy|watch)|buy or sell|target price|check (list|details|here)|penny stocks?|dividend stocks?|share price (today|highlights|live)|stock price (history|today|live)|stock tips?|live updates)\b/i;
 
 export interface Scored extends Headline { score: number; tags: string[] }
 /** 0+ score: macro +3 (Fed / CPI / jobs / tariffs +2 more), big tech +2, market words +1, big-move words +2, a move of 5%+ in the title +2, noise -5. */
@@ -123,6 +125,7 @@ export function scoreHeadline(h: Headline): Scored {
   if (INDIA.test(t)) { score += 3; tags.push('india'); } else if (INDIA_CO.test(t)) { score += 1; tags.push('india'); }
   if (CANADA.test(t)) { score += 3; tags.push('canada'); } else if (CANADA_CO.test(t)) { score += 1; tags.push('canada'); }
   if (GLOBAL.test(t)) { score += 1; tags.push('global'); }
+  if (IPO.test(t)) { score += /\b(gmp|grey[- ]market|gray[- ]market)\b/i.test(t) ? 5 : 3; tags.push(/\b(gmp|grey[- ]market|gray[- ]market)\b/i.test(t) ? 'grey market' : 'ipo'); }
   const pct = Math.max(0, ...[...t.matchAll(/(\d+(?:\.\d+)?)\s?%/g)].map(x => Number(x[1])));
   if (pct >= 5) { score += 2; tags.push(`${pct}%`); }
   if (NOISE.test(t)) { score -= 5; tags.push('noise'); }
@@ -176,17 +179,19 @@ const TOPICS: [RegExp, string][] = [
   [/\b(jobs report|payrolls|unemployment|jobless)\b/i, 'jobs'], [/\b(tariffs?|trade war|trade deal)\b/i, 'tariffs'],
   [/\b(rbi|reserve bank of india|repo rate)\b/i, 'rbi'], [/\b(sensex|nifty|dalal street)\b/i, 'nifty'], [/\b(rupee)\b/i, 'rupee'],
   [/\b(bank of canada|boc|macklem)\b/i, 'boc'], [/\b(tsx|bay street)\b/i, 'tsx'], [/\b(loonie|canadian dollar)\b/i, 'cad'],
+  [/\b(ipos?|gmp|grey[- ]market|gray[- ]market|listing gains?|allotment|price band)\b/i, 'ipo'],
   [/\b(oil|crude|opec|brent)\b/i, 'oil'], [/\b(adani)\b/i, 'adani'], [/\b(reliance)\b/i, 'reliance'],
 ];
 /** Short chart label for a topic ("nvidia" -> "NVDA"). */
 export const TOPIC_LABEL: Record<string, string> = {
   nvidia: 'NVDA', apple: 'AAPL', microsoft: 'MSFT', amazon: 'AMZN', google: 'GOOGL', meta: 'META', tesla: 'TSLA', broadcom: 'AVGO',
   openai: 'OpenAI', amd: 'AMD', netflix: 'NFLX', fed: 'Fed', inflation: 'Inflation', jobs: 'Jobs', tariffs: 'Tariffs',
-  rbi: 'RBI', nifty: 'Nifty', rupee: 'Rupee', boc: 'BoC', tsx: 'TSX', cad: 'CAD', oil: 'Oil', adani: 'Adani', reliance: 'Reliance',
+  rbi: 'RBI', nifty: 'Nifty', rupee: 'Rupee', boc: 'BoC', tsx: 'TSX', cad: 'CAD', oil: 'Oil', adani: 'Adani', reliance: 'Reliance', ipo: 'IPO',
 };
 /** Which country a headline is about, from its words, else the feed's country. */
 export function headlineRegion(title: string, feedRegion: 'US' | 'IN' | 'CA'): 'US' | 'IN' | 'CA' {
   if (INDIA.test(title) || (INDIA_CO.test(title) && !MEGA.test(title))) return 'IN';
+  if (/\b(gmp|grey[- ]market|gray[- ]market|price band|allotment)\b/i.test(title) || /₹/.test(title)) return 'IN';
   if (CANADA.test(title) || (CANADA_CO.test(title) && !MEGA.test(title))) return 'CA';
   if (MACRO.test(title) || MEGA.test(title) || /\b(nasdaq|s&p|dow|wall street)\b/i.test(title)) return 'US';
   return feedRegion;
