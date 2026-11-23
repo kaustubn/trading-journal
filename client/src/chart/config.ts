@@ -1,5 +1,7 @@
 // Shared definitions for the market chart workspace and its chart windows.
 import { ChartAlert, cleanAlerts } from './alerts';
+import { CPAT_DEFAULT, sanitizeCpat } from './chartPatterns';
+import { CNDL_DEFAULT, sanitizeCndl } from './candlePatterns';
 import type { Chart, KLineData, Period } from 'klinecharts';
 import type { Clock } from './time';
 import type { Theme } from './theme';
@@ -44,7 +46,7 @@ export function barEnd(key: number, tf: number, rth: boolean): number {
 }
 
 // ---------- indicators ----------
-export type IndKey = 'NQSYS' | 'PHASES' | 'EMA' | 'SMA' | 'VWAP' | 'SVP' | 'VRVP' | 'FP' | 'VA80' | 'PA' | 'BOLL' | 'VOL' | 'RSI' | 'ATR' | 'MACD';
+export type IndKey = 'NQSYS' | 'PHASES' | 'EMA' | 'SMA' | 'VWAP' | 'SVP' | 'VRVP' | 'FP' | 'VA80' | 'PA' | 'CPAT' | 'CNDL' | 'BOLL' | 'VOL' | 'RSI' | 'ATR' | 'MACD';
 export interface IndDef { label: string; name: string; main: boolean; def: number[]; hint: string; min: number; max: number; }
 export const INDS: Record<IndKey, IndDef> = {
   PHASES: { label: 'Smart money phases & patterns', name: 'JC_PHASES', main: true, def: [], hint: 'Accumulation / markup / distribution / markdown, springs, upthrusts, sweeps, breaks of structure, key candles', min: 0, max: 0 },
@@ -56,6 +58,8 @@ export const INDS: Record<IndKey, IndDef> = {
   VRVP: { label: 'Volume profile: visible range', name: 'JC_VRVP', main: true, def: [40], hint: 'Rows. Profile of the candles on screen, updates as you scroll.', min: 1, max: 1 },
   VA80: { label: 'VA80 — yesterday’s value area + 80% rule signal', name: 'JC_VA80', main: true, def: [], hint: 'Yesterday’s New York value area (pVAH / pPOC / pVAL). When the day opens outside it and a 5m close comes back inside before 13:30 ET, it marks the VA80 trade: stop 1 × ATR, target 2R. Use a 1–5 min chart.', min: 0, max: 0 },
   PA: { label: 'Price action: bar counts (H1/H2, L1/L2), wedges, double tops / bottoms, MTR, breakout pullbacks, traps, always-in', name: 'JC_PA', main: true, def: [], hint: 'Labels H1/H2 under bull-pullback bars and L1/L2 over bear-rally bars, W3 on a third push, DT / DB on double tops / bottoms, MTR = major trend reversal, BP = breakout pullback, MC1 = first pullback out of a micro channel, TRAP = failed breakout, CLX = climax, BO = breakout bar; green = buy setup, red = sell setup; faded = weak signal bar. The strip at the bottom is the always-in direction (green long, red short, grey unclear). Pair it with Mentor → Price action bar by bar.', min: 0, max: 0 },
+  CPAT: { label: 'Auto chart patterns (double top/bottom, H&S, triangles, wedges, flags, channels)', name: 'JC_CPAT', main: true, def: [], hint: 'Finds chart patterns on swing points and scores each one 0-100% by how close it is to the textbook shape; shows those at or above your similarity setting (default 75%). Works live and in Replay. The legend shows how often each pattern was followed by a move its way. Open the settings (gear) to pick patterns and change similarity, swing size, look-back and the stats window.', min: 0, max: 0 },
+  CNDL: { label: 'Candle patterns (pick patterns, N in a row, any timeframe)', name: 'JC_CNDL', main: true, def: [], hint: 'Marks the candle patterns you pick (engulfing, hammer, pin bar, doji, inside / outside, stars, tweezers, big candles...), alone or N in a row (e.g. 2 engulfing in a row), on this chart or a higher timeframe. Only finished candles count. The legend shows what followed each one. Open the settings (gear) to choose.', min: 0, max: 0 },
   FP: { label: 'Footprint (order flow)', name: 'JC_FP', main: true, def: [3], hint: 'Imbalance ratio (e.g. 3 = one side 3× the other on the diagonal). Real buy/sell volume per price from Databento trades: one New York session at a time, price shown before buying. Zoom in for the numbers.', min: 1, max: 1 },
   BOLL: { label: 'Bollinger Bands', name: 'BOLL', main: true, def: [20, 2], hint: 'Period, deviations', min: 2, max: 2 },
   VOL: { label: 'Volume', name: 'VOL', main: false, def: [], hint: 'Moving average period (empty = no average, like your TradingView)', min: 0, max: 1 },
@@ -72,6 +76,7 @@ export interface IndCfg {
   lines?: { color: string; size: number }[];
   bars?: { up: string; down: string };
   nq?: Partial<NqStyle>;
+  opts?: Record<string, any>;     // settings of the pattern indicators (CPAT / CNDL)
 }
 /** Line colours TradingView uses for each indicator's lines. */
 export const LINE_COLORS: Partial<Record<IndKey, string[]>> = {
@@ -181,7 +186,7 @@ export function syncIndicators(chart: Chart, s: Settings, tf: number) {
       const b = cfg.bars ?? (s.look === 'tv' ? VOL_BARS_TV : VOL_BARS_STD);
       styles.bars = [{ upColor: b.up, downColor: b.down, noChangeColor: b.up, style: 'fill' }];
     }
-    const spec = { name: def.name, paneId, calcParams: cfg.params, visible: !cfg.hidden, styles, extendData: { tfMin: tf, style: cfg.nq } };
+    const spec = { name: def.name, paneId, calcParams: cfg.params, visible: !cfg.hidden, styles, extendData: { tfMin: tf, style: cfg.nq, opts: cfg.opts } };
     if (cfg.on && !exists) chart.createIndicator(spec, def.main);
     else if (cfg.on) chart.overrideIndicator(spec);
     else if (exists) chart.removeIndicator({ name: def.name });
@@ -248,7 +253,7 @@ export const DEFAULTS: Settings = {
   favTools: [...TV_FAV_TOOLS], favBar: true, drawBar: true,
   levels: { pd: true, on: true, open: true, round: false },
   indicators: IND_KEYS.reduce((acc, k) => {
-    acc[k] = { on: k === 'VOL' || k === 'NQSYS', params: INDS[k].def, ...(k === 'VOL' ? { bars: { ...VOL_BARS_TV } } : {}), ...(k === 'NQSYS' ? { nq: { ...NQ_STYLE_TV } } : {}) };
+    acc[k] = { on: k === 'VOL' || k === 'NQSYS', params: INDS[k].def, ...(k === 'VOL' ? { bars: { ...VOL_BARS_TV } } : {}), ...(k === 'NQSYS' ? { nq: { ...NQ_STYLE_TV } } : {}), ...(k === 'CPAT' ? { opts: sanitizeCpat(CPAT_DEFAULT) } : {}), ...(k === 'CNDL' ? { opts: sanitizeCndl(CNDL_DEFAULT) } : {}) };
     return acc;
   }, {} as Settings['indicators']),
   layout: '1', panes: DEFAULT_PANES, active: 0, syncCrosshair: true, syncTime: true, live: true,
@@ -285,6 +290,8 @@ export function mergeSettings(saved: any): Settings {
     if (typeof i.hidden === 'boolean') s.indicators[k].hidden = i.hidden;
     if (Array.isArray(i.lines)) s.indicators[k].lines = i.lines.slice(0, 8).filter((l: any) => validColor(l?.color) && l.size >= 1 && l.size <= 4).map((l: any) => ({ color: l.color, size: l.size }));
     if (i.bars && validColor(i.bars.up) && validColor(i.bars.down)) s.indicators[k].bars = { up: i.bars.up, down: i.bars.down };
+    if (k === 'CPAT' && i.opts) s.indicators[k].opts = sanitizeCpat(i.opts);
+    if (k === 'CNDL' && i.opts) s.indicators[k].opts = sanitizeCndl(i.opts);
     if (k === 'NQSYS' && i.nq && typeof i.nq === 'object') {
       const nq: Partial<NqStyle> = { ...NQ_STYLE_TV };
       for (const ln of ['ema', 'vwap', 'va', 'ib', 'pdh', 'pdl'] as const) {

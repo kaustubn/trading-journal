@@ -11,6 +11,8 @@ import { registerProfiles } from './profiles';
 import { registerFootprint } from './footprint';
 import { registerVa80 } from './va80';
 import { registerPriceAction } from './priceAction';
+import { registerChartPatterns } from './chartPatterns';
+import { registerCandlePatterns } from './candlePatterns';
 import { sessionDay, sessionOf, SessionName, etMinutes } from './time';
 
 export interface LevelsData {
@@ -61,6 +63,8 @@ export function registerChartIndicators() {
   registerFootprint();
   registerVa80();
   registerPriceAction();
+  registerChartPatterns();
+  registerCandlePatterns();
 
   // Heikin Ashi candles (chart type), drawn over the hidden real candles
   registerIndicator<Row, number, { up: string; down: string; wickUp: string; wickDown: string; borderUp: string; borderDown: string }>({

@@ -7,6 +7,94 @@ import {
   ChartCfg, ChartType, CHART_TYPES, CHART_TV, CHART_STD, IndKey, IndCfg, INDS, LINE_COLORS, lineNames, parseParams, VOL_BARS_TV,
 } from '../chart/config';
 import { NQ_STYLE_TV, NqStyle, NqLine } from '../chart/nqsys';
+import { CPAT_DEFAULT, CpatOpts, PAT_INFO, PAT_TYPES, sanitizeCpat } from '../chart/chartPatterns';
+import { CANDLE_INFO, CANDLE_TYPES, CNDL_DEFAULT, CndlOpts, sanitizeCndl } from '../chart/candlePatterns';
+
+/** Number box that commits on blur / Enter and snaps back if the value is out of range. */
+function NumBox({ value, min, max, step, onChange }: { value: number; min: number; max: number; step?: number; onChange: (v: number) => void }) {
+  const [t, setT] = useState(String(value));
+  useEffect(() => setT(String(value)), [value]);
+  const commit = () => { const v = Number(t); if (t.trim() !== '' && Number.isFinite(v) && v >= min && v <= max) onChange(v); else setT(String(value)); };
+  return <input className="mc-input mc-w" type="number" min={min} max={max} step={step ?? 1} value={t}
+    onChange={e => setT(e.target.value)} onBlur={commit} onKeyDown={e => { if (e.key === 'Enter') commit(); }} />;
+}
+
+const biasMark = (b: number) => (b > 0 ? '▲' : b < 0 ? '▼' : '◆');
+
+function ChartPatternSettings({ opts, onChange }: { opts: CpatOpts; onChange: (o: CpatOpts) => void }) {
+  const set = (patch: Partial<CpatOpts>) => onChange(sanitizeCpat({ ...opts, ...patch }));
+  const groups = [...new Set(PAT_TYPES.map(t => PAT_INFO[t].group))];
+  const all = (v: boolean) => set({ types: Object.fromEntries(PAT_TYPES.map(t => [t, v])) });
+  return (<>
+    <div className="mc-dlg-h">Matching</div>
+    <div className="mc-dlg-row"><span>Similarity at least (%)</span><NumBox value={opts.minSim} min={50} max={100} onChange={v => set({ minSim: v })} /></div>
+    <input type="range" min={50} max={100} value={opts.minSim} onChange={e => set({ minSim: Number(e.target.value) })} style={{ width: '100%' }} />
+    <div className="mc-dlg-row"><span>Swing size (× ATR 14)</span><NumBox value={opts.sens} min={0.3} max={6} step={0.1} onChange={v => set({ sens: v })} /></div>
+    <div className="mc-dlg-row"><span>Bars to search back</span><NumBox value={opts.lookback} min={100} max={10000} step={100} onChange={v => set({ lookback: v })} /></div>
+    <div className="mc-dlg-row"><span>Stats: bars after pattern</span><NumBox value={opts.ahead} min={1} max={100} onChange={v => set({ ahead: v })} /></div>
+    <div className="mc-hint">Lower similarity = more, looser patterns. Bigger swing size = fewer, larger patterns.</div>
+    <div className="mc-dlg-h">Patterns <button className="mc-btn mc-small" onClick={() => all(true)}>All</button> <button className="mc-btn mc-small" onClick={() => all(false)}>None</button></div>
+    {groups.map(g => (
+      <div key={g}>
+        <div className="mc-dim" style={{ marginTop: 4 }}>{g}</div>
+        {PAT_TYPES.filter(t => PAT_INFO[t].group === g).map(t => (
+          <label key={t} className="mc-check"><input type="checkbox" checked={!!opts.types[t]} onChange={e => set({ types: { ...opts.types, [t]: e.target.checked } })} /> {PAT_INFO[t].label} <span className="mc-dim">{biasMark(PAT_INFO[t].bias)}</span></label>
+        ))}
+      </div>
+    ))}
+    <div className="mc-dlg-h">Show</div>
+    <label className="mc-check"><input type="checkbox" checked={opts.lines} onChange={e => set({ lines: e.target.checked })} /> Pattern lines</label>
+    <label className="mc-check"><input type="checkbox" checked={opts.labels} onChange={e => set({ labels: e.target.checked })} /> Labels with similarity %</label>
+    <label className="mc-check"><input type="checkbox" checked={opts.stats} onChange={e => set({ stats: e.target.checked })} /> Backtest stats in the legend</label>
+    <div className="mc-hint">Stats show what followed each pattern on the bars loaded. They describe the past; they are not a tested edge.</div>
+    <button className="mc-btn mc-small" onClick={() => onChange(sanitizeCpat(CPAT_DEFAULT))}>Reset to defaults</button>
+  </>);
+}
+
+const CNDL_TFS: [number, string][] = [[0, 'Chart timeframe'], [1, '1 min'], [2, '2 min'], [3, '3 min'], [5, '5 min'], [10, '10 min'], [15, '15 min'], [30, '30 min'], [60, '1 hour'], [240, '4 hours']];
+function CandlePatternSettings({ opts, onChange }: { opts: CndlOpts; onChange: (o: CndlOpts) => void }) {
+  const set = (patch: Partial<CndlOpts>) => onChange(sanitizeCndl({ ...opts, ...patch }));
+  return (<>
+    <div className="mc-dlg-h">When</div>
+    <div className="mc-dlg-row"><span>How many</span>
+      <select className="mc-input" value={opts.run} onChange={e => set({ run: Number(e.target.value) })}>
+        {[1, 2, 3, 4, 5, 6].map(n => <option key={n} value={n}>{n === 1 ? 'single' : `${n} in a row`}</option>)}
+      </select>
+    </div>
+    {opts.run > 1 && (
+      <div className="mc-dlg-row"><span>Each candle</span>
+        <select className="mc-input" value={opts.runMode} onChange={e => set({ runMode: e.target.value as CndlOpts['runMode'] })}>
+          <option value="same">same pattern every time</option>
+          <option value="any">any of the picked patterns</option>
+        </select>
+      </div>
+    )}
+    <div className="mc-dlg-row"><span>Engulfing rule</span>
+      <select className="mc-input" value={opts.engulf} onChange={e => set({ engulf: e.target.value as CndlOpts['engulf'] })}>
+        <option value="body">body covers previous body (your BBE rule)</option>
+        <option value="classic">classic (opposite colour before)</option>
+        <option value="close">closes past previous high / low</option>
+      </select>
+    </div>
+    <div className="mc-hint">NQ candles open near the last close, so 2+ engulfing in a row is rare with the body rules; "closes past previous high / low" catches strong runs.</div>
+    <div className="mc-dlg-row"><span>Timeframe</span>
+      <select className="mc-input" value={opts.tf} onChange={e => set({ tf: Number(e.target.value) })}>
+        {CNDL_TFS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+      </select>
+    </div>
+    <div className="mc-hint">A higher timeframe is built from the chart's bars, so it must be a multiple of the chart timeframe. Only finished candles count.</div>
+    <div className="mc-dlg-row"><span>Stats: candles after</span><NumBox value={opts.ahead} min={1} max={50} onChange={v => set({ ahead: v })} /></div>
+    <div className="mc-dlg-h">Candles</div>
+    {CANDLE_TYPES.map(t => (
+      <label key={t} className="mc-check"><input type="checkbox" checked={!!opts.types[t]} onChange={e => set({ types: { ...opts.types, [t]: e.target.checked } })} /> {CANDLE_INFO[t].label} <span className="mc-dim">{biasMark(CANDLE_INFO[t].bias)}</span></label>
+    ))}
+    <div className="mc-hint">At least one candle stays picked: clearing them all goes back to bullish / bearish engulfing.</div>
+    <div className="mc-dlg-h">Show</div>
+    <label className="mc-check"><input type="checkbox" checked={opts.labels} onChange={e => set({ labels: e.target.checked })} /> Labels on the chart</label>
+    <label className="mc-check"><input type="checkbox" checked={opts.stats} onChange={e => set({ stats: e.target.checked })} /> Backtest stats in the legend</label>
+    <button className="mc-btn mc-small" onClick={() => onChange(sanitizeCndl(CNDL_DEFAULT))}>Reset to defaults</button>
+  </>);
+}
 
 // ---------------------------------------------------------------- draggable window
 const POS_KEY = 'mc.float.';
@@ -146,7 +234,7 @@ export function IndicatorDialog({ k, cfg, look, onChange, onClose }: {
   const bars = cfg.bars ?? VOL_BARS_TV;
   return (
     <Floating id="ind-dialog" title={<>{def.label} <span className="mc-dim">settings</span></>} onClose={onClose} initial={{ x: 320, y: 140 }} width={340}>
-      <div className="mc-dlg-body">
+      <div className="mc-dlg-body" style={k === 'CPAT' || k === 'CNDL' ? { maxHeight: '70vh', overflowY: 'auto' } : undefined}>
         <label className="mc-check"><input type="checkbox" checked={!cfg.hidden} onChange={e => onChange({ ...cfg, hidden: !e.target.checked })} /> Visible on the chart</label>
         {def.max > 0 && (
           <label className="mc-field mc-wide">Inputs <span className="mc-dim">{def.hint}</span>
@@ -189,7 +277,9 @@ export function IndicatorDialog({ k, cfg, look, onChange, onClose }: {
           ))}
           <button className="mc-btn mc-small" onClick={() => onChange({ ...cfg, nq: { ...NQ_STYLE_TV } })}>Reset to your TradingView colours</button>
         </>)}
-        {def.max === 0 && k !== 'NQSYS' && k !== 'VOL' && <div className="mc-hint">{def.hint}</div>}
+        {k === 'CPAT' && <ChartPatternSettings opts={sanitizeCpat(cfg.opts)} onChange={o => onChange({ ...cfg, opts: o })} />}
+        {k === 'CNDL' && <CandlePatternSettings opts={sanitizeCndl(cfg.opts)} onChange={o => onChange({ ...cfg, opts: o })} />}
+        {def.max === 0 && k !== 'NQSYS' && k !== 'VOL' && k !== 'CPAT' && k !== 'CNDL' && <div className="mc-hint">{def.hint}</div>}
       </div>
     </Floating>
   );
