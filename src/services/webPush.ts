@@ -20,8 +20,19 @@ async function keys() {
     vapid = null;
     return keys();                         // read back: another instance may have won the insert
   }
-  webpush.setVapidDetails('mailto:alerts@trading-journal.invalid', vapid.publicKey, vapid.privateKey);
+  webpush.setVapidDetails(vapidSubject(), vapid.publicKey, vapid.privateKey);
   return vapid;
+}
+
+/** The VAPID "sub" claim. Apple's push service rejects the signed token (403 BadJwtToken) unless this is a real
+ *  https URL or a deliverable mailto address, so use the site's own public https address. Render sets
+ *  RENDER_EXTERNAL_URL; PUBLIC_URL overrides it. */
+export function vapidSubject(env: Record<string, string | undefined> = process.env): string {
+  for (const v of [env.PUBLIC_URL, env.RENDER_EXTERNAL_URL]) {
+    const u = String(v ?? '').trim().replace(/\/+$/, '');
+    if (/^https:\/\/[a-z0-9.-]+\.[a-z]{2,}(:\d+)?$/i.test(u) && !/localhost|\.invalid$|\.test$|\.local$/i.test(u)) return u;
+  }
+  return 'https://trading-journal-1qlf.onrender.com';
 }
 
 export async function publicKey(): Promise<string> { return (await keys()).publicKey; }
@@ -55,9 +66,13 @@ export async function pushUser(userId: number, msg: PushMsg): Promise<number> {
       ok++;
     } catch (e: any) {
       if (e?.statusCode === 404 || e?.statusCode === 410) await pool.query('DELETE FROM push_subs WHERE endpoint = $1', [s.endpoint]);
-      else errs.push(`push ${e?.statusCode ?? ''} ${e?.body ?? e?.message ?? ''}`.trim());
+      else {
+        let host = 'device'; try { host = new URL(s.endpoint).host; } catch { /* keep */ }
+        errs.push(`${host}: ${e?.statusCode ?? ''} ${String(e?.body ?? e?.message ?? '').slice(0, 120)}`.trim());
+      }
     }
   }
-  if (!ok && errs.length) throw new Error(errs[0]);
+  if (errs.length) console.warn('[push]', userId, errs.join(' | '));
+  if (!ok && errs.length) throw new Error(errs.join(' | '));
   return ok;
 }
