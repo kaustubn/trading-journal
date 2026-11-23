@@ -14,6 +14,7 @@ import { registerPriceAction } from './priceAction';
 import { registerChartPatterns } from './chartPatterns';
 import { registerCandlePatterns } from './candlePatterns';
 import { sessionDay, sessionOf, SessionName, etMinutes } from './time';
+import type { NewsMark } from './newsStore';
 
 export interface LevelsData {
   session: string; start: number; nyStart: number; end: number;
@@ -31,6 +32,7 @@ export interface BgData {
   rolls: { contract: string; from: number }[] | null; // null = hidden
   levels: LevelsData | null;
   show: { pd: boolean; on: boolean; open: boolean; round: boolean };
+  news?: NewsMark[] | null;      // economic releases: one vertical line per release time
 }
 
 type Row = Record<string, number>;
@@ -49,6 +51,16 @@ function indexAtOrAfter(data: KLineData[], ts: number): number {
     if (data[mid].timestamp < ts) lo = mid + 1; else hi = mid;
   }
   return lo;
+}
+
+/** x pixel of a moment: inside its bar by elapsed time; past the last bar by extrapolating whole bars. */
+export function newsX(data: KLineData[], ms: number, tfMs: number, lastTs: number, toPx: (i: number) => number, half: number): number | null {
+  if (!data.length) return null;
+  if (ms > lastTs + tfMs) return toPx(data.length - 1 + (ms - lastTs) / tfMs) - half;
+  const j = indexAtOrAfter(data, ms + 1) - 1;
+  if (j < 0) return null;
+  const frac = Math.min(1, Math.max(0, (ms - data[j].timestamp) / tfMs));
+  return toPx(j + frac) - half;
 }
 
 const price = (v: number) => v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -252,6 +264,38 @@ export function registerChartIndicators() {
           ctx.beginPath(); ctx.moveTo(xr, 0); ctx.lineTo(xr, height); ctx.stroke();
           ctx.fillStyle = ext.dark ? '#9598a1' : '#50535e';
           ctx.fillText(`roll → ${roll.contract}`, xr + 5, height - 6);
+        }
+      }
+
+      // News: a vertical line at each release (dashed = still to come), short name and the usual direction at the top
+      if (ext.news && ext.news.length) {
+        const tfMs = ext.tfMin * 60000;
+        const lastTs = data[data.length - 1].timestamp;
+        const xAt = (ms: number) => newsX(data, ms, tfMs, lastTs, i => xAxis.convertToPixel(i), half);
+        ctx.font = '600 10.5px -apple-system, "Segoe UI", Roboto, sans-serif';
+        ctx.textBaseline = 'top';
+        ctx.textAlign = 'left';
+        const rowEnd = [-1e9, -1e9, -1e9, -1e9];   // right edge of the last label in each of 4 label rows
+        for (const n of ext.news) {
+          const xn = xAt(n.ms);
+          if (xn === null || xn < -2 || xn > width + 2) continue;
+          const col = n.impact === 'high' ? (ext.dark ? 'rgba(239, 83, 80, 0.55)' : 'rgba(211, 47, 47, 0.5)') : (ext.dark ? 'rgba(224, 163, 58, 0.5)' : 'rgba(191, 128, 20, 0.5)');
+          const xr = Math.round(xn) + 0.5;
+          ctx.strokeStyle = col; ctx.lineWidth = 1; ctx.setLineDash(n.future ? [4, 4] : []);
+          ctx.beginPath(); ctx.moveTo(xr, 0); ctx.lineTo(xr, height); ctx.stroke();
+          ctx.setLineDash([]);
+          const arrow = n.bias === 'up' ? ' ▲' : n.bias === 'down' ? ' ▼' : '';
+          const text = n.label + arrow;
+          const w = ctx.measureText(text).width + 8;
+          let row = rowEnd.findIndex(e => xr > e + 2);     // stack labels of releases close together
+          if (row < 0) continue;                           // too crowded at this zoom: line only
+          rowEnd[row] = xr + 2 + w;
+          const y = 4 + row * 16;
+          ctx.fillStyle = ext.dark ? 'rgba(19, 23, 34, 0.85)' : 'rgba(255, 255, 255, 0.9)';
+          ctx.fillRect(xr + 2, y - 1, w, 15);
+          ctx.fillStyle = n.impact === 'high' ? (ext.dark ? '#ef5350' : '#c62828') : (ext.dark ? '#e0a33a' : '#a86d00');
+          ctx.fillText(n.label, xr + 6, y + 1);
+          if (arrow) { ctx.fillStyle = n.bias === 'up' ? '#26a69a' : '#ef5350'; ctx.fillText(arrow, xr + 6 + ctx.measureText(n.label).width, y + 1); }
         }
       }
 

@@ -687,3 +687,21 @@
 .mc-replay-menu .mc-row .mc-input { flex: 1; min-width: 0; }
 .mc-replay-menu > .mc-btn { display: inline-flex; align-items: center; gap: 6px; justify-content: center; }
 .mc-replay-msg .mc-btn { height: 18px; padding: 0 4px; margin-left: 6px; }
+
+/* news lines: details card for the release under the crosshair */
+.mc-news-card { position: absolute; top: 30px; z-index: 6; width: 310px; max-width: calc(100% - 16px); pointer-events: none;
+  background: var(--surface, #1e222d); color: var(--text, #d1d4dc); border: 1px solid var(--border, #363a45); border-radius: 8px;
+  padding: 9px 11px; font-size: 12px; line-height: 1.45; box-shadow: 0 6px 22px rgba(0, 0, 0, .35); }
+.mc-news-when { font-size: 11px; color: var(--text-dim, #9598a1); margin-bottom: 4px; }
+.mc-news-ev + .mc-news-ev { border-top: 1px solid var(--border, #363a45); margin-top: 6px; padding-top: 6px; }
+.mc-news-title { font-weight: 650; font-size: 12.5px; }
+.mc-news-title.high { color: #ef5350; }
+.mc-news-title.medium { color: #e0a33a; }
+.mc-news-vals { color: var(--text-dim, #9598a1); }
+.mc-news-vals b { color: var(--text, #d1d4dc); }
+.mc-news-line { margin-top: 2px; }
+.mc-news-this { margin-top: 6px; font-weight: 650; }
+.mc-news-this.up { color: #26a69a; }
+.mc-news-this.down { color: #ef5350; }
+.mc-news-foot { margin-top: 6px; font-size: 10.5px; color: var(--text-dim, #9598a1); }
+@media (max-width: 560px) { .mc-news-card { width: 250px; font-size: 11.5px; } }

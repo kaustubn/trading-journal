@@ -5,6 +5,10 @@ import { requireAdmin } from '../middleware/admin';
 import { parseEventsFile, FileTz, Impact } from '../shared/econCalendar';
 import { listEvents, saveEvents, coverage, reactions } from '../news/econEvents';
 import { earnings, premarket } from '../services/marketData';
+import { upcoming } from '../news/live';
+import { SCHEDULED } from '../shared/newsFeed';
+import { reactionFor, nyToUtc } from '../shared/econCalendar';
+import { ChartNews } from '../shared/chartNews';
 
 const router = Router();
 router.use(verifyToken);
@@ -25,6 +29,48 @@ router.get('/events', async (req: Request, res: Response) => {
 // GET /api/calendar/earnings[?refresh=1]
 router.get('/earnings', async (req: Request, res: Response) => {
   try { res.json(await earnings(req.query.refresh === '1')); } catch (e) { fail(res, 'earnings', e); }
+});
+
+// GET /api/calendar/chart?from=ms&to=ms&medium=1 — news lines for the market chart: imported history (with actual vs
+// forecast) plus the official upcoming list, each with the NQ reaction study row. Spans up to 400 days per call.
+router.get('/chart', async (req: Request, res: Response) => {
+  const from = Number(req.query.from), to = Number(req.query.to);
+  if (!Number.isFinite(from) || !Number.isFinite(to) || to <= from || to - from > 400 * 86400000) return res.status(400).json({ error: 'from/to: up to 400 days' });
+  const impacts: Impact[] = req.query.medium === '1' ? ['high', 'medium'] : ['high'];
+  try {
+    const t = reactions();
+    const hist = (await listEvents(from, to, impacts)).filter(e => e.currency === 'USD');
+    const out: ChartNews[] = hist.map(e => ({
+      utc: e.release_utc, title: e.title, impact: e.impact, actual: e.actual, forecast: e.forecast, previous: e.previous, surprise: e.surprise,
+      kind: /fomc|federal funds|fed /i.test(e.title) ? 'fed' : 'data', nq: reactionFor(t, e.title),
+    }));
+    const now = Date.now();
+    if (to > now - 3 * 3600000) {
+      const up = await upcoming(Math.max(from, now - 3 * 3600000), to, false);
+      const near = (ms: number) => out.some(o => Math.abs(Date.parse(o.utc) - ms) < 60000);
+      for (const e of up.events) {
+        const ms = Date.parse(e.utc);
+        if (!impacts.includes(e.impact) || near(ms)) continue;
+        const study = SCHEDULED.find(s => s.label === e.title)?.study ?? (e.kind === 'fed' ? 'FOMC Statement' : null);
+        out.push({ utc: e.utc, title: e.title, impact: e.impact, actual: null, forecast: null, previous: null, surprise: null,
+          kind: e.kind === 'fed' ? 'fed' : 'data', nq: study ? reactionFor(t, study) : null });
+      }
+      try {
+        const er = await earnings();
+        for (const x of er.events as { symbol: string; day: string; timing: string | null }[]) {
+          if (!['NVDA', 'AAPL', 'MSFT', 'AMZN', 'META', 'GOOGL', 'GOOG', 'TSLA', 'AVGO'].includes(x.symbol)) continue;
+          const [y, mo, d] = x.day.split('-').map(Number);
+          const before = /before|pre|bmo/i.test(x.timing ?? '');
+          const ms = nyToUtc(y, mo, d, before ? 8 : 16, before ? 0 : 5);
+          if (ms < from || ms >= to) continue;
+          out.push({ utc: new Date(ms).toISOString(), title: `${x.symbol} earnings (${before ? 'before the open' : 'after the close'})`, impact: 'high',
+            actual: null, forecast: null, previous: null, surprise: null, kind: 'earnings', nq: null });
+        }
+      } catch { /* earnings list is optional */ }
+    }
+    out.sort((a, b) => Date.parse(a.utc) - Date.parse(b.utc));
+    res.json({ events: out, period: t?.period ?? null });
+  } catch (e) { fail(res, 'chart', e); }
 });
 
 // GET /api/calendar/premarket

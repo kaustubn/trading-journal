@@ -721,6 +721,8 @@ export default function MarketChart({ token, focus }: { token: string; focus?: {
           <button className={s.rth ? 'on' : ''} onClick={() => !s.rth && update({ rth: true })}
             title="New York day session only, 9:30am–4pm ET (RTH)">Day 9:30–4</button>
         </div>
+        <button className={`mc-btn${s.news ? ' on' : ''}`} onClick={() => update({ news: !s.news })}
+          title="Economic news as vertical lines: past releases (solid) and upcoming ones (dashed). Hover a line for what NQ usually did after it. Medium-impact news: Levels panel.">News</button>
         <button className={`mc-btn${panel === 'levels' ? ' open' : ''}`} onClick={() => setPanel(panel === 'levels' ? null : 'levels')}>Levels</button>
         <button className={`mc-btn${panel === 'alerts' ? ' open' : ''}`} title="Alerts on a price or a drawn line (live, replay and forward test)"
           onClick={() => {
@@ -1047,6 +1049,14 @@ export default function MarketChart({ token, focus }: { token: string; focus?: {
               <label className="mc-check mc-row">
                 <input type="checkbox" checked={s.rolls} onChange={() => update({ rolls: !s.rolls })} />
                 <span>Contract roll dates</span>
+              </label>
+              <label className="mc-check mc-row">
+                <input type="checkbox" checked={s.news} onChange={() => update({ news: !s.news })} />
+                <span>News lines (high impact)</span>
+              </label>
+              <label className="mc-check mc-row">
+                <input type="checkbox" checked={s.newsMedium} onChange={() => update({ newsMedium: !s.newsMedium, news: true })} />
+                <span>Also medium-impact news</span>
               </label>
               <div className="mc-hint">Previous day = the full 6pm–5pm ET session. Levels follow the day at the right edge of each chart.</div>
             </div>

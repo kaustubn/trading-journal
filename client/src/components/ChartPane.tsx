@@ -2,7 +2,9 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import axios from 'axios';
 import { init, dispose } from 'klinecharts';
 import type { Chart, KLineData, DataLoaderGetBarsParams, DataLoadMore, Crosshair } from 'klinecharts';
-import { registerChartIndicators, BgData, LevelsData } from '../chart/indicators';
+import { registerChartIndicators, BgData, LevelsData, newsX } from '../chart/indicators';
+import { ensureNews, newsGroups, marksOf, onNews } from '../chart/newsStore';
+import { outlook, NewsGroup } from '../../../src/shared/chartNews';
 import { registerDrawingOverlays } from '../chart/overlays';
 import { chartStyles } from '../chart/theme';
 import { TZ, sessionDay } from '../chart/time';
@@ -67,6 +69,8 @@ export default function ChartPane({ index, tf, s, active, ws, onActivate }: Prop
   const levelsAt = useRef<number | null>(null);
   const levelsTimer = useRef<number | undefined>(undefined);
   const [guideX, setGuideX] = useState<number | null>(null);
+  const [newsHover, setNewsHover] = useState<{ x: number; flip: boolean; g: NewsGroup; move: number | null; price: number | null } | null>(null);
+  const newsRef = useRef<NewsGroup[]>([]);
   const [countdown, setCountdown] = useState<{ y: number; left: number; width: number; text: string; up: boolean } | null>(null);
 
   // ----- time to the candle's close, under the last price on the right scale (like TradingView) -----
@@ -107,7 +111,14 @@ export default function ChartPane({ index, tf, s, active, ws, onActivate }: Prop
       tfMin: tfRef.current, dark: st.theme === 'dark', sessions: st.sessions && !st.rth, breaks: st.chart.breaks, breaksColor: st.chart.breaksColor,
       rolls: st.rolls ? ws.meta()?.rolls ?? [] : null,
       levels: levelsRef.current, show: st.levels,
+      news: null,
     };
+    if (st.news) {
+      const eng = ws.engine, cursor = eng.active ? eng.cursor : null;
+      const data = chart.getDataList();
+      newsRef.current = newsGroups(-Infinity, Infinity, st.newsMedium, cursor);
+      extendData.news = marksOf(newsRef.current, cursor ?? Date.now(), data.length ? data[data.length - 1].close : null);
+    } else newsRef.current = [];
     chart.overrideIndicator({ name: 'JC_BG', paneId: PANE, extendData });
   }, [ws]);
 
@@ -124,6 +135,10 @@ export default function ChartPane({ index, tf, s, active, ws, onActivate }: Prop
       let at = edge + (tfm - 1) * 60000;                  // last minute of the right-most bar
       if (eng.active) at = Math.min(at, eng.cursor);      // replay: nothing after the revealed minute
       const dayAt = eng.active ? at : ws.focus?.entry ?? edge;
+      if (st.news) {
+        ensureNews(data[Math.max(0, chart.getVisibleRange().from)].timestamp - 86400000, Math.max(at, edge) + 45 * 86400000, st.newsMedium, ws.auth);
+        pushBg();   // replay: releases the cursor has passed now show their actual numbers
+      }
       ws.onChartDate(index, new Date(sessionDay(dayAt) * 86400000).toISOString().slice(0, 10));
       const wanted = tfm < 1440 && (st.levels.pd || st.levels.on || st.levels.open);
       if (!wanted) {
@@ -295,6 +310,35 @@ export default function ChartPane({ index, tf, s, active, ws, onActivate }: Prop
       others.forEach(p => p.showCrosshair(ts, price));
     };
     chart.subscribeAction('onCrosshairChange', onCross);
+    // news lines: details of the release under the crosshair
+    const onNewsCross = (d?: unknown) => {
+      const c = d as Crosshair | undefined;
+      const groups = newsRef.current;
+      if (!groups.length || typeof c?.x !== 'number') { setNewsHover(h => (h ? null : h)); return; }
+      const data = chart.getDataList();
+      if (!data.length) return;
+      const tfMs = tfRef.current * 60000, lastTs = data[data.length - 1].timestamp, bar = chart.getBarSpace();
+      const toPx = (i: number) => { const b = Math.floor(i); const p = chart.convertToPixel({ dataIndex: b }, { paneId: PANE }) as { x?: number }; return (p?.x ?? NaN) + (i - b) * bar.bar; };
+      let best: NewsGroup | null = null, bx = 0;
+      for (const g of groups) {
+        const gx = newsX(data, g.ms, tfMs, lastTs, toPx, bar.halfBar);
+        if (gx !== null && Math.abs(gx - c.x) <= 6 && (!best || Math.abs(gx - c.x) < Math.abs(bx - c.x))) { best = g; bx = gx; }
+      }
+      if (!best) { setNewsHover(h => (h ? null : h)); return; }
+      // what NQ actually did in the 15 minutes after this release (only when those minutes are on the chart and revealed)
+      let move: number | null = null;
+      const eng = ws.engine, known = eng.active ? eng.cursor : Date.now();
+      if (tfRef.current <= 15 && best.ms + 15 * 60000 <= known) {
+        const idx = (ms: number) => { let lo = 0, hi = data.length; while (lo < hi) { const m = (lo + hi) >> 1; if (data[m].timestamp <= ms) lo = m + 1; else hi = m; } return lo - 1; };
+        const before = idx(best.ms - 1), after = idx(best.ms + 15 * 60000 - 1);
+        if (before >= 0 && after > before && data[before].timestamp >= best.ms - 2 * tfMs && data[after].timestamp + tfMs <= best.ms + 15 * 60000 + 1)
+          move = data[after].close - data[before].close;
+      }
+      const width = chart.getSize(PANE, 'main' as any)?.width ?? 800;
+      setNewsHover({ x: bx, flip: bx > width - 330, g: best, move, price: data[data.length - 1].close });
+    };
+    chart.subscribeAction('onCrosshairChange', onNewsCross);
+    const offNews = onNews(() => pushBg());
     // time sync: scrolling / zooming one window moves the others to the same time
     let raf = 0;
     const onMove = () => {
@@ -375,6 +419,7 @@ export default function ChartPane({ index, tf, s, active, ws, onActivate }: Prop
       ctlRef.current = null;
       viewRef.current = null;
       ro.disconnect();
+      offNews();
       window.clearTimeout(levelsTimer.current);
       loadSeq.current++; // drop any answer still in flight
       dispose(box);
@@ -409,7 +454,7 @@ export default function ChartPane({ index, tf, s, active, ws, onActivate }: Prop
     if (a.s.log !== s.log) chart.overrideYAxis({ paneId: PANE, name: s.log ? 'logarithm' : 'normal' });
     if (a.s.indicators !== s.indicators || a.tf !== tf || a.s.look !== s.look || a.s.chart.ctype !== s.chart.ctype || (s.chart.ctype === 'heikin' && a.s.chart !== s.chart)) syncIndicators(chart, s, tf);
     pushBg();
-    if (a.s.levels !== s.levels || a.tf !== tf) { levelsAt.current = null; refreshLevels(); }
+    if (a.s.levels !== s.levels || a.tf !== tf || a.s.news !== s.news || a.s.newsMedium !== s.newsMedium) { levelsAt.current = null; refreshLevels(); }
     ctlRef.current?.setView(viewOf(s, tf));
     if (ctlRef.current) ctlRef.current.stayDrawing = s.stayDrawing;
     appliedRef.current = { s, tf };
@@ -567,6 +612,7 @@ export default function ChartPane({ index, tf, s, active, ws, onActivate }: Prop
     };
   }, [ws, index, onActivate]);
 
+  const fmtNy = (ms: number) => new Date(ms).toLocaleString('en-US', { timeZone: 'America/New_York', weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
   return (
     <div ref={rootRef} className={`mc-pane-chart${active ? ' active' : ''}${ws.measureArmed() ? ' mc-measuring' : ''}`}>
       <div ref={boxRef} className="mc-chart" />
@@ -574,6 +620,24 @@ export default function ChartPane({ index, tf, s, active, ws, onActivate }: Prop
       {countdown && (
         <div className={`mc-countdown${countdown.up ? ' up' : ' down'}`} style={{ top: countdown.y, left: countdown.left, width: countdown.width }}
           title="Time left until this candle closes">{countdown.text}</div>
+      )}
+      {newsHover && s.news && (
+        <div className={`mc-news-card${newsHover.flip ? ' flip' : ''}`} style={newsHover.flip ? { right: `calc(100% - ${newsHover.x - 8}px)` } : { left: newsHover.x + 8 }}>
+          <div className="mc-news-when">{fmtNy(newsHover.g.ms)} New York{newsHover.g.ms > (ws.engine.active ? ws.engine.cursor : Date.now()) ? ' · upcoming' : ''}</div>
+          {newsHover.g.events.slice(0, 4).map((e, i) => {
+            const o = outlook(e, newsHover.price);
+            return (
+              <div key={i} className="mc-news-ev">
+                <div className={`mc-news-title ${e.impact}`}>{e.title}</div>
+                {(e.actual || e.forecast || e.previous) && <div className="mc-news-vals">{e.actual ? <>actual <b>{e.actual}</b> · </> : null}forecast {e.forecast ?? '—'} · previous {e.previous ?? '—'}</div>}
+                {(i === 0 ? o.lines : o.lines.slice(0, 1)).map((l, k) => <div key={k} className="mc-news-line">{l}</div>)}
+              </div>
+            );
+          })}
+          {newsHover.g.events.length > 4 && <div className="mc-news-line">+{newsHover.g.events.length - 4} more at the same time</div>}
+          {newsHover.move !== null && <div className={`mc-news-this ${newsHover.move >= 0 ? 'up' : 'down'}`}>This time: NQ {newsHover.move >= 0 ? '+' : ''}{newsHover.move.toFixed(2)} pts in the 15 min after</div>}
+          <div className="mc-news-foot">From NQ's reactions to past releases. Odds, not a forecast.</div>
+        </div>
       )}
     </div>
   );
