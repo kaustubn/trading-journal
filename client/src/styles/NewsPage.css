@@ -79,3 +79,19 @@
 .np-econ-more li { margin: 3px 0; }
 .np-econ-more a { color: var(--text); }
 .np-econ-head { margin-bottom: 12px; }
+/* News calendar */
+.np-cal { max-width: 520px; }
+.np-cal-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; margin-top: 10px; }
+.np-cal-w { font-size: 11px; text-transform: uppercase; color: var(--text-dim); text-align: center; padding-bottom: 2px; }
+.np-cal-d { aspect-ratio: 1 / 0.8; min-height: 38px; border: 1px solid var(--border); background: var(--card); color: var(--text-dim); border-radius: 7px; cursor: pointer;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; font-size: 13px; padding: 0; }
+.np-cal-d.has { color: var(--text); font-weight: 600; }
+.np-cal-d.today { border-color: color-mix(in srgb, var(--accent) 60%, var(--border)); }
+.np-cal-d.on { background: color-mix(in srgb, var(--accent) 22%, var(--card)); border-color: var(--accent); color: var(--text); }
+.np-cal-dots { display: flex; gap: 3px; }
+.np-cal-dots i, .np-cal-legend i { display: inline-block; width: 6px; height: 6px; border-radius: 50%; }
+.np-cal-legend { margin-top: 8px; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; }
+i.m { background: var(--accent); } i.e { background: #2fbf71; } i.b { background: #ef5350; }
+.np-day-title { margin: 14px 0 4px; font-size: 16px; }
+.np-day-ul { margin: 4px 0; padding-left: 18px; font-size: 13px; }
+.np-day-ul li { margin: 2px 0; }

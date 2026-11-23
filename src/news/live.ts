@@ -176,18 +176,19 @@ export async function headlines(): Promise<{ list: RegionHeadline[]; important: 
 }
 
 /** Write new market-relevant headlines (score 4+) to news_items, once each; one small INSERT per refresh. */
-async function keep(list: RegionHeadline[]) {
-  const fresh = list.filter(h => h.score >= 4 && !stored.has(headlineKey(h.title)));
+async function keep(list: (Scored & { also: number; region: Region; topic?: string })[], kind: 'market' | 'economy' = 'market') {
+  const keyOf = (t: string) => (kind === 'economy' ? 'e' : '') + headlineKey(t);
+  const fresh = list.filter(h => h.score >= 4 && !stored.has(keyOf(h.title)));
   if (!fresh.length) return;
   const vals: unknown[] = [], rows: string[] = [];
   for (const h of fresh.slice(0, 80)) {
-    const k = headlineKey(h.title);
+    const k = keyOf(h.title);
     stored.add(k);
     const i = vals.length;
-    rows.push(`($${i + 1},$${i + 2},$${i + 3},$${i + 4},$${i + 5},$${i + 6},$${i + 7},$${i + 8},$${i + 9})`);
-    vals.push(k, new Date(h.pub).toISOString(), h.title.slice(0, 400), h.link || null, h.source.slice(0, 80), h.region, h.topic.slice(0, 40), h.score, 1 + h.also);
+    rows.push(`($${i + 1},$${i + 2},$${i + 3},$${i + 4},$${i + 5},$${i + 6},$${i + 7},$${i + 8},$${i + 9},$${i + 10})`);
+    vals.push(k, new Date(h.pub).toISOString(), h.title.slice(0, 400), h.link || null, h.source.slice(0, 80), h.region, (h.topic ?? headlineTopic(h.title)).slice(0, 40), h.score, 1 + h.also, kind);
   }
-  await pool.query(`INSERT INTO news_items (key, ts, title, link, source, region, topic, score, feeds) VALUES ${rows.join(',')}
+  await pool.query(`INSERT INTO news_items (key, ts, title, link, source, region, topic, score, feeds, kind) VALUES ${rows.join(',')}
     ON CONFLICT (key) DO UPDATE SET feeds = GREATEST(news_items.feeds, EXCLUDED.feeds), score = GREATEST(news_items.score, EXCLUDED.score)`, vals);
   if (stored.size > 20000) stored.clear();
 }
@@ -225,6 +226,7 @@ export async function economyNews(): Promise<{ list: EconItem[]; errors: string[
       const deduped = dedupe(all.filter(h => h.pub >= cut && h.pub <= Date.now() + 600000 && h.score >= 3)) as EconItem[];
       const list = (['US', 'IN', 'CA'] as Region[]).flatMap(r => deduped.filter(h => h.region === r).sort((a, b) => b.score + b.also - (a.score + a.also) || b.pub - a.pub).slice(0, 25));
       econ = { at: Date.now(), list: list.length || !econ.list.length ? list : econ.list, errors };
+      await keep(list, 'economy').catch(e => errors.push(`store: ${(e as Error).message}`));
     })().finally(() => { econLoading = null; });
     await econLoading;
   }
@@ -235,7 +237,7 @@ export async function economyNews(): Promise<{ list: EconItem[]; errors: string[
 export async function storedHeadlines(fromMs: number, toMs: number, minScore = 5): Promise<{ ts: string; title: string; link: string | null; source: string; region: Region; topic: string; score: number; feeds: number }[]> {
   const r = await pool.query(
     `SELECT ts, title, link, source, region, topic, score, feeds FROM news_items
-     WHERE ts >= $1 AND ts < $2 AND (score >= $3 OR (score >= $3 - 1 AND feeds >= 3)) ORDER BY ts LIMIT 3000`,
+     WHERE kind = 'market' AND ts >= $1 AND ts < $2 AND (score >= $3 OR (score >= $3 - 1 AND feeds >= 3)) ORDER BY ts LIMIT 3000`,
     [new Date(fromMs).toISOString(), new Date(toMs).toISOString(), minScore]);
   return r.rows.map(x => ({ ...x, ts: new Date(x.ts).toISOString() }));
 }
@@ -247,4 +249,23 @@ export async function nqFastMove(): Promise<ReturnType<typeof recentMove>> {
   const m = await nqMinutes();
   fast = { at: Date.now(), v: recentMove(m.t, m.c, 15) };
   return fast.v;
+}
+
+// ------------------------------------------------------------------ news calendar (one day at a time)
+/** Days with stored news in a range, counted by the reader's local date (tz = IANA zone). */
+export async function newsDays(fromMs: number, toMs: number, tz: string): Promise<{ date: string; market: number; economy: number; big: number }[]> {
+  const r = await pool.query(
+    `SELECT to_char(ts AT TIME ZONE $3, 'YYYY-MM-DD') AS date,
+            COUNT(*) FILTER (WHERE kind = 'market')::int AS market, COUNT(*) FILTER (WHERE kind = 'economy')::int AS economy,
+            COUNT(*) FILTER (WHERE score >= 7)::int AS big
+     FROM news_items WHERE ts >= $1 AND ts < $2 GROUP BY 1 ORDER BY 1`,
+    [new Date(fromMs).toISOString(), new Date(toMs).toISOString(), tz]);
+  return r.rows;
+}
+/** Everything stored for one local day. */
+export async function newsOfDay(fromMs: number, toMs: number): Promise<{ ts: string; title: string; link: string | null; source: string; region: string; topic: string; score: number; feeds: number; kind: string }[]> {
+  const r = await pool.query(
+    `SELECT ts, title, link, source, region, topic, score, feeds, kind FROM news_items WHERE ts >= $1 AND ts < $2 ORDER BY score DESC, ts DESC LIMIT 400`,
+    [new Date(fromMs).toISOString(), new Date(toMs).toISOString()]);
+  return r.rows.map(x => ({ ...x, ts: new Date(x.ts).toISOString() }));
 }

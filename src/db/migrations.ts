@@ -233,6 +233,15 @@ export const MIGRATIONS: Migration[] = [
       );
     `,
   },
+  {
+    // News calendar (2026-11-23): economy stories are kept too, next to the market headlines.
+    id: '010_news_items_kind',
+    sql: `
+      ALTER TABLE news_items ADD COLUMN IF NOT EXISTS kind VARCHAR(10) NOT NULL DEFAULT 'market';
+      CREATE INDEX IF NOT EXISTS idx_news_items_kind_ts ON news_items(kind, ts);
+      CREATE INDEX IF NOT EXISTS idx_news_briefs_created ON news_briefs(created_at);
+    `,
+  },
 ];
 
 export async function runMigrations(client: PoolClient, list: Migration[] = MIGRATIONS): Promise<string[]> {

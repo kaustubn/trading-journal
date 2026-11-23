@@ -161,7 +161,7 @@ export async function makeBrief(): Promise<BriefBody> {
     generated_at: new Date().toISOString(), engine, note,
   };
   await pool.query('INSERT INTO news_briefs (engine, body) VALUES ($1, $2)', [engine, JSON.stringify(full)]);
-  await pool.query(`DELETE FROM news_briefs WHERE created_at < NOW() - INTERVAL '30 days'`);
+  await pruneBriefs();
   latest = full;
   return full;
 }
@@ -205,4 +205,21 @@ export async function saveReview(r: ReviewedBrief): Promise<void> {
 export async function latestReview(): Promise<ReviewedBrief | null> {
   const r = await pool.query(`SELECT body FROM news_briefs WHERE engine = 'claude-review' AND created_at > NOW() - INTERVAL '24 hours' ORDER BY id DESC LIMIT 1`);
   return r.rows[0]?.body ?? null;
+}
+
+// ------------------------------------------------------------------ history
+/** Keep the last brief of every day for each kind for good; drop the in-between ones after 30 days. */
+export async function pruneBriefs(): Promise<void> {
+  await pool.query(`DELETE FROM news_briefs WHERE created_at < NOW() - INTERVAL '30 days' AND id NOT IN (
+    SELECT MAX(id) FROM news_briefs GROUP BY (CASE WHEN engine LIKE 'economy:%' THEN 'economy' ELSE engine END), DATE(created_at))`);
+}
+/** The briefs of one local day: the last automatic one of each kind and Claude's checked ones. */
+export async function briefsOfDay(fromMs: number, toMs: number): Promise<{ market: BriefBody | null; marketReviewed: BriefBody | null; economy: any; economyReviewed: any }> {
+  const r = await pool.query(
+    `SELECT DISTINCT ON (k) k, body FROM (
+       SELECT id, body, CASE WHEN engine = 'claude-review' THEN 'mr' WHEN engine = 'economy-review' THEN 'er' WHEN engine LIKE 'economy:%' THEN 'e' ELSE 'm' END AS k
+       FROM news_briefs WHERE created_at >= $1 AND created_at < $2) x ORDER BY k, id DESC`,
+    [new Date(fromMs).toISOString(), new Date(toMs).toISOString()]);
+  const by = Object.fromEntries(r.rows.map(x => [x.k, x.body]));
+  return { market: by.m ?? null, marketReviewed: by.mr ?? null, economy: by.e ?? null, economyReviewed: by.er ?? null };
 }

@@ -11,7 +11,8 @@ import { listEvents } from '../news/econEvents';
 import { upcoming, headlines } from '../news/live';
 import { getBrief, cleanReview, saveReview, latestReview } from '../news/brief';
 import { getEconomyBrief, cleanEconomyReview, saveEconomyReview, latestEconomyReview } from '../news/economyBrief';
-import { economyNews } from '../news/live';
+import { economyNews, newsDays, newsOfDay } from '../news/live';
+import { briefsOfDay } from '../news/brief';
 import { crowdOdds } from '../news/odds';
 
 const router = Router();
@@ -85,6 +86,30 @@ router.get('/economy', async (req: Request, res: Response) => {
     res.json({ brief, reviewed, items: items.list, errors: items.errors });
   } catch (e) { fail(res, 'economy', e); }
 });
+// ---- news calendar: pick a day, see its news ----
+const okTz = (tz: unknown): string | null => {
+  if (typeof tz !== 'string' || !/^[A-Za-z_]+(\/[A-Za-z0-9_+-]+){0,2}$/.test(tz)) return null;
+  try { new Intl.DateTimeFormat('en-US', { timeZone: tz }); return tz; } catch { return null; }
+};
+// GET /api/news/days?from=ms&to=ms&tz=America/Vancouver -> [{date, market, economy, big}] (up to 62 days)
+router.get('/days', async (req: Request, res: Response) => {
+  const from = Number(req.query.from), to = Number(req.query.to), tz = okTz(req.query.tz);
+  if (!Number.isFinite(from) || !Number.isFinite(to) || to <= from || to - from > 62 * 86400000 || !tz) return res.status(400).json({ error: 'from/to (up to 62 days) and tz needed' });
+  try { res.json({ days: await newsDays(from, to, tz) }); } catch (e) { fail(res, 'days', e); }
+});
+// GET /api/news/day?from=ms&to=ms -> one local day: briefs, releases, stored market and economy news
+router.get('/day', async (req: Request, res: Response) => {
+  const from = Number(req.query.from), to = Number(req.query.to);
+  if (!Number.isFinite(from) || !Number.isFinite(to) || to <= from || to - from > 26 * 3600000) return res.status(400).json({ error: 'from/to: one day' });
+  try {
+    const [items, briefs, events] = await Promise.all([
+      newsOfDay(from, to), briefsOfDay(from, to),
+      listEvents(from, to, ['high', 'medium']).then(l => l.filter(e => e.currency === 'USD')).catch(() => []),
+    ]);
+    res.json({ items, briefs, events });
+  } catch (e) { fail(res, 'day', e); }
+});
+
 // GET /api/news/odds -> open prediction markets on market-moving outcomes (Polymarket)
 router.get('/odds', async (_req: Request, res: Response) => {
   try { res.json(await crowdOdds()); } catch (e) { fail(res, 'odds', e); }

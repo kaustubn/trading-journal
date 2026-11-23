@@ -8,13 +8,13 @@
 // Top card: turn on app notifications on this device (Web Push) and choose what to get.
 import { ReactNode, useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
-import { Bell, BellOff, CalendarClock, Newspaper, FlaskConical, Sparkles, RefreshCw, CheckCircle2, Landmark } from 'lucide-react';
+import { Bell, BellOff, CalendarClock, Newspaper, FlaskConical, Sparkles, RefreshCw, CheckCircle2, Landmark, CalendarDays, ChevronLeft, ChevronRight } from 'lucide-react';
 import '../styles/Habits.css';
 import '../styles/NewsPage.css';
 
 interface Ev { id: string; utc: string; ny_date: string; ny_time: string; title: string; kind: string; impact: 'high' | 'medium'; why: string; nq: { absMed15: number; up15: number } | null; source: string }
 interface Hl { title: string; link: string; pub: number; source: string; score: number; tags: string[]; also: number; region?: 'US' | 'IN' | 'CA'; topic?: string }
-type Tab = 'brief' | 'economy' | 'upcoming' | 'headlines' | 'research';
+type Tab = 'brief' | 'economy' | 'calendar' | 'upcoming' | 'headlines' | 'research';
 interface Brief {
   headline: string; happened: { text: string; src: number[] }[]; why: string[]; now: string[]; next: string[];
   regions: { US?: string; India?: string; Canada?: string }; impact: { NQ?: string; Nifty?: string; CAD?: string }; watch: string[];
@@ -92,7 +92,7 @@ function Notifications({ token }: { token: string }) {
       <div className="hb-between">
         <div className="np-notify-h">{on ? <Bell size={18} /> : <BellOff size={18} />}
           <div><b>{on ? 'Notifications on for this device' : 'Get notified on this device'}</b>
-            <div className="hb-dim">Big releases {s.lead_min}–{Math.max(0, s.lead_min - 10)} min before, breaking market news, and fast NQ moves. Checked every 10 min on weekdays, about 3:00 to 17:00 BC.</div></div>
+            <div className="hb-dim">Big releases {s.lead_min}–{Math.max(0, s.lead_min - 10)} min before, breaking market news, and fast NQ moves. Checked every 10 min on weekdays (about 3:00 to 17:00 BC), every 2 hours at night and on weekends.</div></div>
         </div>
         <div className="hb-row">
           {on ? (<><button className="hb-btn" onClick={test}>Test</button><button className="hb-btn" onClick={() => setOpen(!open)}>Choose</button><button className="hb-btn" disabled={busy} onClick={turnOff}>Turn off</button></>)
@@ -271,6 +271,123 @@ function EconomyTab({ token }: { token: string }) {
   );
 }
 
+interface DayItem { ts: string; title: string; link: string | null; source: string; region: string; topic: string; score: number; feeds: number; kind: string }
+interface DayEvent { release_utc: string; title: string; impact: string; actual: string | null; forecast: string | null; previous: string | null; surprise: string | null; ny_time: string; nq: { line: string } | null }
+const LOCAL_TZ = (() => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'; } catch { return 'UTC'; } })();
+const ymd = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+/** Pick a day on a month calendar and read that day's news: briefs, economy, releases, headlines. */
+function NewsCalendar({ token }: { token: string }) {
+  const auth = { headers: { Authorization: `Bearer ${token}` } };
+  const today = new Date();
+  const [month, setMonth] = useState(() => new Date(today.getFullYear(), today.getMonth(), 1));
+  const [days, setDays] = useState<Record<string, { market: number; economy: number; big: number }>>({});
+  const [sel, setSel] = useState(ymd(today));
+  const [d, setD] = useState<{ items: DayItem[]; briefs: { market: Brief | null; marketReviewed: (Brief & { corrections?: string[] }) | null; economy: EconBrief | null; economyReviewed: EconBrief | null }; events: DayEvent[] } | null | undefined>(undefined);
+  const [region, setRegion] = useState('all');
+  const [kind, setKind] = useState('all');
+  useEffect(() => {
+    const from = month.getTime(), to = new Date(month.getFullYear(), month.getMonth() + 1, 1).getTime();
+    axios.get('/api/news/days', { ...auth, params: { from, to, tz: LOCAL_TZ } })
+      .then(r => setDays(Object.fromEntries((r.data.days as any[]).map(x => [x.date, x])))).catch(() => setDays({}));
+  }, [month, token]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    const [y, m, dd] = sel.split('-').map(Number);
+    const from = new Date(y, m - 1, dd).getTime(), to = new Date(y, m - 1, dd + 1).getTime();
+    setD(undefined);
+    axios.get('/api/news/day', { ...auth, params: { from, to } }).then(r => setD(r.data)).catch(() => setD(null));
+  }, [sel, token]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const first = (month.getDay() + 6) % 7;                    // Monday first
+  const nDays = new Date(month.getFullYear(), month.getMonth() + 1, 0).getDate();
+  const cells = [...Array(first).fill(null), ...Array.from({ length: nDays }, (_, i) => i + 1)];
+  const isIpo = (h: DayItem) => h.topic === 'ipo';
+  const items = (d?.items ?? []).filter(h => (kind === 'all' || h.kind === kind) && (region === 'all' ? true : region === 'IPO' ? isIpo(h) : h.region === region));
+  const mb = d?.briefs.marketReviewed ?? d?.briefs.market ?? null;
+  const eb = d?.briefs.economyReviewed ?? d?.briefs.economy ?? null;
+  const t = (iso: string) => new Date(iso).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  return (
+    <>
+      <div className="hb-card np-cal">
+        <div className="hb-between">
+          <button className="hb-btn" onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() - 1, 1))} aria-label="Previous month"><ChevronLeft size={14} /></button>
+          <b>{month.toLocaleDateString([], { month: 'long', year: 'numeric' })}</b>
+          <button className="hb-btn" onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() + 1, 1))} aria-label="Next month"><ChevronRight size={14} /></button>
+        </div>
+        <div className="np-cal-grid">
+          {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(w => <div key={w} className="np-cal-w">{w}</div>)}
+          {cells.map((n, i) => {
+            if (n === null) return <div key={`b${i}`} />;
+            const key = ymd(new Date(month.getFullYear(), month.getMonth(), n));
+            const c = days[key];
+            return (
+              <button key={key} className={`np-cal-d${key === sel ? ' on' : ''}${key === ymd(today) ? ' today' : ''}${c ? ' has' : ''}`} onClick={() => setSel(key)}
+                title={c ? `${c.market} market · ${c.economy} economy stories` : 'No stored news'}>
+                <span>{n}</span>
+                {c && <span className="np-cal-dots">{c.market > 0 && <i className="m" />}{c.economy > 0 && <i className="e" />}{c.big > 0 && <i className="b" />}</span>}
+              </button>
+            );
+          })}
+        </div>
+        <div className="hb-dim np-cal-legend"><i className="m" /> market news <i className="e" /> economy news <i className="b" /> very big story · Your local time ({LOCAL_TZ}). History starts Nov 23, 2026.</div>
+      </div>
+
+      <h3 className="np-day-title">{new Date(sel + 'T12:00:00').toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}</h3>
+      {d === undefined ? <div className="hb-card hb-dim">Loading the day…</div> : d === null ? <div className="hb-card hb-dim">Could not load this day.</div> : (
+        <>
+          {mb ? <BriefCard b={mb} reviewed={d.briefs.marketReviewed ? (d.briefs.marketReviewed.corrections ?? []) : undefined} /> : <div className="hb-card hb-dim">No market brief saved for this day.</div>}
+          {eb && (
+            <div className="np-econ">
+              {([['US', 'USA', 'US'], ['India', 'India', 'IN'], ['Canada', 'Canada', 'CA']] as const).map(([k, name, r]) => {
+                const c = eb.countries[k];
+                return c ? (
+                  <div key={k} className="hb-card np-econ-col">
+                    <div className="np-econ-flag">{FLAG[r]} {name} economy</div>
+                    <div className="np-econ-h">{c.headline}</div>
+                    {c.happened.length > 0 && <ul className="np-day-ul">{c.happened.map((h, i) => <li key={i}>{h.text}</li>)}</ul>}
+                    {c.why.length > 0 && <div className="hb-dim"><b>Why:</b> {c.why.join(' ')}</div>}
+                    {c.next.length > 0 && <div className="hb-dim"><b>Next:</b> {c.next.join(' ')}</div>}
+                    {c.people && <div className="np-econ-people">{c.people}</div>}
+                  </div>
+                ) : null;
+              })}
+            </div>
+          )}
+          {d.events.length > 0 && (
+            <div className="hb-card">
+              <h3 style={{ margin: '0 0 6px' }}>Releases that day</h3>
+              {d.events.map((e, i) => (
+                <div key={i} className="np-ev">
+                  <div className="np-time">{e.ny_time}<span>New York</span></div>
+                  <div className="np-what">
+                    <div><span className={`np-imp ${e.impact}`} />{e.title}</div>
+                    <div className="hb-dim">{e.actual ? <>actual <b>{e.actual}</b> · </> : null}forecast {e.forecast ?? '—'} · previous {e.previous ?? '—'}{e.surprise ? ` · ${e.surprise} forecast` : ''}</div>
+                    {e.nq && <div className="hb-dim">{e.nq.line}</div>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          <div className="hb-card">
+            <div className="hb-between">
+              <h3 style={{ margin: 0 }}>Headlines ({items.length})</h3>
+              <div className="np-regionpick">{[['all', 'All'], ['market', 'Market'], ['economy', 'Economy']].map(([k, l]) => <button key={k} className={kind === k ? 'on' : ''} onClick={() => setKind(k)}>{l}</button>)}</div>
+            </div>
+            <div className="np-regionpick" style={{ marginTop: 6 }}>{['all', 'US', 'IN', 'CA', 'IPO'].map(r => <button key={r} className={region === r ? 'on' : ''} onClick={() => setRegion(r)}>{r === 'all' ? 'All' : r === 'IPO' ? 'IPO & grey market' : `${FLAG[r]} ${r === 'IN' ? 'India' : r === 'CA' ? 'Canada' : 'USA'}`}</button>)}</div>
+            {!items.length && <div className="hb-dim" style={{ marginTop: 8 }}>No stored headlines for this day{region !== 'all' || kind !== 'all' ? ' with these filters' : ''}.</div>}
+            {items.map(h => (
+              <div key={h.kind + h.title} className={`np-hl${h.score >= 7 ? ' big' : ''}`}>
+                <div><span className="np-flag">{FLAG[h.region] ?? ''}</span>{h.link ? <a href={h.link} target="_blank" rel="noopener noreferrer">{h.title}</a> : h.title}</div>
+                <div className="hb-dim">{t(h.ts)} · {h.source} · {h.kind === 'economy' ? 'economy' : 'market'}{h.feeds > 1 ? ` · ${h.feeds} outlets` : ''}</div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </>
+  );
+}
+
 function BriefTab({ token }: { token: string }) {
   const auth = { headers: { Authorization: `Bearer ${token}` } };
   const [b, setB] = useState<Brief | null | undefined>(undefined);
@@ -354,7 +471,7 @@ function Headlines({ token }: { token: string }) {
 export default function NewsPage({ token, isAdmin, research }: { token: string; isAdmin: boolean; research?: ReactNode }) {
   const [tab, setTab] = useState<Tab>(() => { try { return (localStorage.getItem('np.tab2') as Tab) || 'brief'; } catch { return 'brief'; } });
   const pick = (t: Tab) => { setTab(t); try { localStorage.setItem('np.tab2', t); } catch { /* ignore */ } };
-  const tabs: [Tab, string, ReactNode][] = [['brief', 'Brief', <Sparkles size={15} />], ['economy', 'Economy', <Landmark size={15} />], ['upcoming', 'Upcoming', <CalendarClock size={15} />], ['headlines', 'Headlines', <Newspaper size={15} />],
+  const tabs: [Tab, string, ReactNode][] = [['brief', 'Brief', <Sparkles size={15} />], ['economy', 'Economy', <Landmark size={15} />], ['calendar', 'Calendar', <CalendarDays size={15} />], ['upcoming', 'Upcoming', <CalendarClock size={15} />], ['headlines', 'Headlines', <Newspaper size={15} />],
     ...(isAdmin ? [['research', 'Research', <FlaskConical size={15} />] as [Tab, string, ReactNode]] : [])];
   return (
     <div className="np">
@@ -362,6 +479,7 @@ export default function NewsPage({ token, isAdmin, research }: { token: string; 
       <div className="np-tabs">{tabs.map(([t, l, ic]) => <button key={t} className={tab === t ? 'on' : ''} onClick={() => pick(t)}>{ic}{l}</button>)}</div>
       {tab === 'brief' && <BriefTab token={token} />}
       {tab === 'economy' && <EconomyTab token={token} />}
+      {tab === 'calendar' && <NewsCalendar token={token} />}
       {tab === 'upcoming' && <Upcoming token={token} />}
       {tab === 'headlines' && <Headlines token={token} />}
       {tab === 'research' && isAdmin && research}
