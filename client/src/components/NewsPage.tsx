@@ -8,13 +8,13 @@
 // Top card: turn on app notifications on this device (Web Push) and choose what to get.
 import { ReactNode, useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
-import { Bell, BellOff, CalendarClock, Newspaper, FlaskConical, Sparkles, RefreshCw, CheckCircle2 } from 'lucide-react';
+import { Bell, BellOff, CalendarClock, Newspaper, FlaskConical, Sparkles, RefreshCw, CheckCircle2, Landmark } from 'lucide-react';
 import '../styles/Habits.css';
 import '../styles/NewsPage.css';
 
 interface Ev { id: string; utc: string; ny_date: string; ny_time: string; title: string; kind: string; impact: 'high' | 'medium'; why: string; nq: { absMed15: number; up15: number } | null; source: string }
 interface Hl { title: string; link: string; pub: number; source: string; score: number; tags: string[]; also: number; region?: 'US' | 'IN' | 'CA'; topic?: string }
-type Tab = 'brief' | 'upcoming' | 'headlines' | 'research';
+type Tab = 'brief' | 'economy' | 'upcoming' | 'headlines' | 'research';
 interface Brief {
   headline: string; happened: { text: string; src: number[] }[]; why: string[]; now: string[]; next: string[];
   regions: { US?: string; India?: string; Canada?: string }; impact: { NQ?: string; Nifty?: string; CAD?: string }; watch: string[];
@@ -203,6 +203,74 @@ function BriefCard({ b, reviewed, onRefresh, busy }: { b: Brief; reviewed?: stri
   );
 }
 
+interface EconCountry { headline: string; happened: { text: string; src: number[] }[]; why: string[]; now: string[]; next: string[]; people: string }
+interface EconBrief { countries: { US?: EconCountry; India?: EconCountry; Canada?: EconCountry }; sources: Brief['sources']; generated_at: string; engine: string; note?: string; corrections?: string[] }
+
+function EconomyTab({ token }: { token: string }) {
+  const auth = { headers: { Authorization: `Bearer ${token}` } };
+  const [d, setD] = useState<{ brief: EconBrief | null; reviewed: EconBrief | null; items: Hl[] } | null | undefined>(undefined);
+  const [busy, setBusy] = useState(false);
+  const [showSrc, setShowSrc] = useState(false);
+  const load = (refresh = false) => {
+    setBusy(true);
+    axios.get('/api/news/economy', { ...auth, params: { refresh: refresh ? 1 : undefined } }).then(r => setD(r.data)).catch(() => setD(null)).finally(() => setBusy(false));
+  };
+  useEffect(() => { load(); const t = window.setInterval(() => load(), 20 * 60000); return () => window.clearInterval(t); }, [token]); // eslint-disable-line react-hooks/exhaustive-deps
+  if (d === undefined) return <div className="hb-card hb-dim">Reading the economy news… (first time can take 20 seconds)</div>;
+  if (!d || !d.brief) return <div className="hb-card hb-dim">No economy summary yet. <button className="hb-btn" onClick={() => load(true)}>Make one now</button></div>;
+  const b = d.reviewed ?? d.brief;
+  const reviewed = !!d.reviewed;
+  const srcOf = (n: number) => b.sources.find(x => x.i === n);
+  const Sec = ({ title, items }: { title: string; items: string[] }) => (items.length ? <div className="np-bsec"><h4>{title}</h4><ul>{items.map((x, i) => <li key={i}>{x}</li>)}</ul></div> : null);
+  const cols = [['US', 'USA', 'US'], ['India', 'India', 'IN'], ['Canada', 'Canada', 'CA']] as const;
+  return (
+    <>
+      <div className="hb-card np-brief np-econ-head">
+        <div className="hb-between">
+          <div className="np-bhead">{reviewed ? <CheckCircle2 size={16} /> : <Landmark size={16} />} The economy, not the markets: jobs, prices, growth, budgets, trade, housing</div>
+          <button className="hb-btn" disabled={busy} onClick={() => load(true)} title="Make a fresh summary (at most every 10 minutes)"><RefreshCw size={13} /> {busy ? 'Updating…' : 'Refresh'}</button>
+        </div>
+        {reviewed && <div className="np-revtag">Checked by Claude · {new Date(b.generated_at).toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' })}</div>}
+        {reviewed && (b.corrections?.length ?? 0) > 0 && <div className="np-corr"><b>What I corrected or added:</b><ul>{b.corrections!.map((c, i) => <li key={i}>{c}</li>)}</ul></div>}
+      </div>
+      <div className="np-econ">
+        {cols.map(([k, name, r]) => {
+          const c = b.countries[k];
+          const more = d.items.filter(h => h.region === r).slice(0, 6);
+          return (
+            <div key={k} className="hb-card np-econ-col">
+              <div className="np-econ-flag">{FLAG[r]} {name}</div>
+              {!c ? <div className="hb-dim">No big economy news in the last 2 days.</div> : (
+                <>
+                  <div className="np-econ-h">{c.headline}</div>
+                  <div className="np-bsec"><h4>What happened</h4><ul>{c.happened.map((h, i) => (
+                    <li key={i}>{h.text}{h.src.map(n => { const sx = srcOf(n); return sx ? <a key={n} className="np-cite" href={sx.link ?? undefined} target="_blank" rel="noopener noreferrer" title={`${sx.source}: ${sx.title}`}>{n}</a> : null; })}</li>
+                  ))}</ul></div>
+                  <Sec title="Why" items={c.why} />
+                  <Sec title="Now" items={c.now} />
+                  <Sec title="What's likely next" items={c.next} />
+                  {c.people && <div className="np-econ-people"><b>For people and businesses:</b> {c.people}</div>}
+                </>
+              )}
+              {more.length > 0 && (
+                <details className="np-econ-more"><summary>More {name} economy news ({more.length})</summary>
+                  <ul>{more.map(h => <li key={h.title}>{h.link ? <a href={h.link} target="_blank" rel="noopener noreferrer">{h.title}</a> : h.title} <span className="hb-dim">· {h.source} · {ago(h.pub)}</span></li>)}</ul>
+                </details>
+              )}
+            </div>
+          );
+        })}
+      </div>
+      <div className="hb-dim np-bfoot">
+        {new Date(b.generated_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })} · {reviewed ? 'checked and corrected by Claude' : b.engine === 'basic' ? 'plain summary' : `AI summary (${b.engine})`} from {b.sources.length} economy headlines, refreshed every 2 hours.
+        {!reviewed && b.note ? <> {b.note}</> : null}
+        {' '}<button className="np-link" onClick={() => setShowSrc(!showSrc)}>{showSrc ? 'Hide' : 'Show'} the headlines used</button>
+      </div>
+      {showSrc && <ol className="np-srcs hb-card">{b.sources.map(sx => <li key={sx.i} value={sx.i}>{FLAG[sx.region] ?? ''} {sx.link ? <a href={sx.link} target="_blank" rel="noopener noreferrer">{sx.title}</a> : sx.title} <span className="hb-dim">· {sx.source} · {ago(Date.parse(sx.ts))}</span></li>)}</ol>}
+    </>
+  );
+}
+
 function BriefTab({ token }: { token: string }) {
   const auth = { headers: { Authorization: `Bearer ${token}` } };
   const [b, setB] = useState<Brief | null | undefined>(undefined);
@@ -286,13 +354,14 @@ function Headlines({ token }: { token: string }) {
 export default function NewsPage({ token, isAdmin, research }: { token: string; isAdmin: boolean; research?: ReactNode }) {
   const [tab, setTab] = useState<Tab>(() => { try { return (localStorage.getItem('np.tab2') as Tab) || 'brief'; } catch { return 'brief'; } });
   const pick = (t: Tab) => { setTab(t); try { localStorage.setItem('np.tab2', t); } catch { /* ignore */ } };
-  const tabs: [Tab, string, ReactNode][] = [['brief', 'Brief', <Sparkles size={15} />], ['upcoming', 'Upcoming', <CalendarClock size={15} />], ['headlines', 'Headlines', <Newspaper size={15} />],
+  const tabs: [Tab, string, ReactNode][] = [['brief', 'Brief', <Sparkles size={15} />], ['economy', 'Economy', <Landmark size={15} />], ['upcoming', 'Upcoming', <CalendarClock size={15} />], ['headlines', 'Headlines', <Newspaper size={15} />],
     ...(isAdmin ? [['research', 'Research', <FlaskConical size={15} />] as [Tab, string, ReactNode]] : [])];
   return (
     <div className="np">
       <Notifications token={token} />
       <div className="np-tabs">{tabs.map(([t, l, ic]) => <button key={t} className={tab === t ? 'on' : ''} onClick={() => pick(t)}>{ic}{l}</button>)}</div>
       {tab === 'brief' && <BriefTab token={token} />}
+      {tab === 'economy' && <EconomyTab token={token} />}
       {tab === 'upcoming' && <Upcoming token={token} />}
       {tab === 'headlines' && <Headlines token={token} />}
       {tab === 'research' && isAdmin && research}

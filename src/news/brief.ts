@@ -21,9 +21,9 @@ export interface BriefBody {
   generated_at: string; engine: string; note?: string;
 }
 
-const clip = (s: unknown, n: number) => String(s ?? '').replace(/\s+/g, ' ').trim().slice(0, n);
-const list = (v: unknown, n: number, len: number) => (Array.isArray(v) ? v : []).map(x => clip(x, len)).filter(Boolean).slice(0, n);
-const nyTime = (ms: number) => new Date(ms).toLocaleString('en-US', { timeZone: 'America/New_York', weekday: 'short', hour: 'numeric', minute: '2-digit' });
+export const clip = (s: unknown, n: number) => String(s ?? '').replace(/\s+/g, ' ').trim().slice(0, n);
+export const list = (v: unknown, n: number, len: number) => (Array.isArray(v) ? v : []).map(x => clip(x, len)).filter(Boolean).slice(0, n);
+export const nyTime = (ms: number) => new Date(ms).toLocaleString('en-US', { timeZone: 'America/New_York', weekday: 'short', hour: 'numeric', minute: '2-digit' });
 export const oddsLine = (o: CrowdOdds) => `${o.title}: ${o.outcomes.map(x => `${x.label === 'Yes' ? 'yes' : x.label} ${x.pct}%`).join(', ')}`;
 
 /** The newest headlines worth explaining: strongest first, a few per country, one per topic. */
@@ -87,7 +87,7 @@ export function cleanBrief(raw: any, nSources: number): Omit<BriefBody, 'sources
   };
 }
 
-async function gemini(prompt: string): Promise<any> {
+export async function gemini(prompt: string): Promise<any> {
   const key = process.env.GEMINI_API_KEY;
   if (!key) throw new Error('no key');
   const models = [process.env.GEMINI_MODEL || 'gemini-2.5-flash', 'gemini-2.0-flash'];
@@ -185,7 +185,7 @@ export async function getBrief(force = false): Promise<BriefBody | null> {
 // corrected brief here. It is shown above the automatic one, with what was corrected, until a newer review replaces it.
 export interface ReviewedBrief extends BriefBody { corrections: string[]; reviewed_by: string }
 
-const httpsOrNull = (v: unknown) => (typeof v === 'string' && /^https:\/\/[^\s<>"]{4,600}$/.test(v) ? v : null);
+export const httpsOrNull = (v: unknown) => (typeof v === 'string' && /^https:\/\/[^\s<>"]{4,600}$/.test(v) ? v : null);
 /** Check what Claude Code sent; returns an error message or the cleaned brief. */
 export function cleanReview(b: any): ReviewedBrief | string {
   const sources = (Array.isArray(b?.sources) ? b.sources : []).slice(0, 40).map((s: any, k: number) => ({

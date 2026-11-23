@@ -133,6 +133,23 @@ export function scoreHeadline(h: Headline): Scored {
 }
 export const IMPORTANT = 5;
 
+// ------------------------------------------------------------------ the real economy (not markets)
+// Jobs, prices, growth, budgets, trade, housing, wages, energy and policy: what changes life and business in a country.
+const ECON_CORE = /\b(econom(y|ic|ies)|gdp|growth|recession|inflation|prices?|cost of living|jobs?|unemployment|employment|hiring|layoffs?|wages?|salar(y|ies)|minimum wage|budget|deficit|debt|tax(es)?|gst|spending|subsid(y|ies)|tariffs?|trade|exports?|imports?|manufacturing|factory|industr(y|ial)|retail sales|consumer|housing|home (prices|sales)|rents?|interest rates?|repo rate|central bank|monetary policy|fiscal|energy|fuel|petrol|diesel|electricity|food prices|agricultur(e|al)|farm(ers)?|monsoon|strikes?|immigration|population|productivity|investment|fdi|currency|rupee|loonie|stimulus|welfare|pension|census|poverty)\b/i;
+const ECON_GOV = /\b(ottawa|carney|premiers?|provinc(e|es|ial)|interprovincial|government|parliament|congress|senate|white house|treasury|finance minister|ministry|prime minister|budget|policy|statistics canada|statcan|bureau of labor|bls|mospi|niti aayog|rbi|bank of canada|federal reserve|fed|imf|world bank|oecd)\b/i;
+const MARKET_ONLY = /\b(shares?|stocks?|sensex|nifty|nasdaq|s&p|dow|tsx|ipos?|gmp|grey market|mutual funds?|portfolio|target price|multibagger|crypto|bitcoin|earnings call|q[1-4] results?)\b/i;
+/** Economy score: economic topics +3, government / central bank +1, a big number move +1; stock-market-only stories and
+ *  personal-finance noise are pushed down so this list explains the country, not the market. */
+export function scoreEconomy(h: Headline): Scored {
+  const t = h.title; let score = 0; const tags: string[] = [];
+  if (ECON_CORE.test(t)) { score += 3; tags.push('economy'); }
+  if (ECON_GOV.test(t)) { score += 1; tags.push('policy'); }
+  if (/\b\d+(\.\d+)?\s?%|\b(record|highest|lowest|biggest|surges?|plunges?|slows?|jumps?|falls?|rises?|cuts?|hikes?)\b/i.test(t)) score += 1;
+  if (MARKET_ONLY.test(t)) { score -= 2; tags.push('market'); }
+  if (NOISE.test(t)) { score -= 5; tags.push('noise'); }
+  return { ...h, score, tags };
+}
+
 const words = (s: string) => new Set(s.toLowerCase().replace(/[^a-z0-9% ]+/g, ' ').split(' ').filter(w => w.length > 2));
 /** Same story from several feeds -> one entry (the earliest), with how many feeds carried it. */
 export function dedupe(list: Scored[]): (Scored & { also: number })[] {

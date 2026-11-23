@@ -10,6 +10,8 @@ import { summarize } from '../news/summary';
 import { listEvents } from '../news/econEvents';
 import { upcoming, headlines } from '../news/live';
 import { getBrief, cleanReview, saveReview, latestReview } from '../news/brief';
+import { getEconomyBrief, cleanEconomyReview, saveEconomyReview, latestEconomyReview } from '../news/economyBrief';
+import { economyNews } from '../news/live';
 import { crowdOdds } from '../news/odds';
 
 const router = Router();
@@ -73,6 +75,16 @@ router.get('/brief', async (req: Request, res: Response) => {
     res.json({ brief, reviewed });
   } catch (e) { fail(res, 'brief', e); }
 });
+// GET /api/news/economy[?refresh=1] -> per-country economy brief (+ Claude's checked version) and the economy headlines
+let econForced = 0;
+router.get('/economy', async (req: Request, res: Response) => {
+  try {
+    const force = req.query.refresh === '1' && Date.now() - econForced > 10 * 60000;
+    if (force) econForced = Date.now();
+    const [brief, reviewed, items] = await Promise.all([getEconomyBrief(force), latestEconomyReview().catch(() => null), economyNews()]);
+    res.json({ brief, reviewed, items: items.list, errors: items.errors });
+  } catch (e) { fail(res, 'economy', e); }
+});
 // GET /api/news/odds -> open prediction markets on market-moving outcomes (Polymarket)
 router.get('/odds', async (_req: Request, res: Response) => {
   try { res.json(await crowdOdds()); } catch (e) { fail(res, 'odds', e); }
@@ -82,6 +94,14 @@ router.use(requireAdmin);
 
 // POST /api/news/brief/review {headline, happened, why, now, next, regions, impact, watch, sources, odds, corrections}
 // The owner's daily check from Claude Code: a corrected brief shown above the automatic one for 24 hours.
+router.post('/economy/review', async (req: Request, res: Response) => {
+  try {
+    const r = cleanEconomyReview(req.body);
+    if (typeof r === 'string') return res.status(400).json({ error: r });
+    await saveEconomyReview(r);
+    res.json({ ok: true, at: r.generated_at });
+  } catch (e) { fail(res, 'economy review', e); }
+});
 router.post('/brief/review', async (req: Request, res: Response) => {
   try {
     const r = cleanReview(req.body);

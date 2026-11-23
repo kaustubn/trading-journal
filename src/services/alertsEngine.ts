@@ -13,6 +13,7 @@ import pool from '../db';
 import { decrypt } from '../utils/crypto';
 import { upcoming, headlines, nqFastMove } from '../news/live';
 import { getBrief } from '../news/brief';
+import { getEconomyBrief } from '../news/economyBrief';
 import { IMPORTANT, headlineTopic } from '../shared/newsFeed';
 import { pushUser } from './webPush';
 import { utcToNy } from '../shared/econCalendar';
@@ -204,6 +205,7 @@ export async function tickAll(now = Date.now()): Promise<{ users: number; sent: 
   // every tick: collect headlines (kept for the chart's history) and refresh the AI brief when it is 30+ min old
   void getBrief().catch(e => console.error('[tick] brief', (e as Error).message));
   void headlines().catch(() => undefined);
+  void getEconomyBrief().catch(e => console.error('[tick] economy', (e as Error).message));
   if (now < noUsersUntil) return { users: 0, sent: 0, errors: [], skipped: 'no alert users (checked within the hour)' };
   lastRun = now;
   if (now - usersCache.at > 30 * 60000) usersCache = { at: now, users: await loadUsers() };

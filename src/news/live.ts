@@ -7,7 +7,7 @@
 // Requests identify themselves honestly and stay few; ForexFactory is never fetched.
 import {
   SCHEDULED, parseFredCalendar, parseFomc, parseRss, scoreHeadline, dedupe, IMPORTANT, recentMove, Scored,
-  headlineRegion, splitPublisher, headlineTopic, headlineKey,
+  headlineRegion, splitPublisher, headlineTopic, headlineKey, scoreEconomy,
 } from '../shared/newsFeed';
 import pool from '../db';
 import { utcToNy, nyToUtc, reactionFor, movePts } from '../shared/econCalendar';
@@ -190,6 +190,45 @@ async function keep(list: RegionHeadline[]) {
   await pool.query(`INSERT INTO news_items (key, ts, title, link, source, region, topic, score, feeds) VALUES ${rows.join(',')}
     ON CONFLICT (key) DO UPDATE SET feeds = GREATEST(news_items.feeds, EXCLUDED.feeds), score = GREATEST(news_items.score, EXCLUDED.score)`, vals);
   if (stored.size > 20000) stored.clear();
+}
+
+// ------------------------------------------------------------------ the real economy, per country
+const ECON_FEEDS: { url: string; source: string; region: Region; google?: boolean }[] = [
+  { url: 'https://www.cnbc.com/id/20910258/device/rss/rss.html', source: 'CNBC Economy', region: 'US' },
+  { url: 'https://news.google.com/rss/search?q=US+economy+OR+inflation+OR+jobs+OR+tariffs+OR+%22federal+budget%22+when:2d&hl=en-US&gl=US&ceid=US:en', source: 'Google News US economy', region: 'US', google: true },
+  { url: 'https://economictimes.indiatimes.com/news/economy/rssfeeds/1373380680.cms', source: 'Economic Times Economy', region: 'IN' },
+  { url: 'https://www.livemint.com/rss/economy', source: 'Mint Economy', region: 'IN' },
+  { url: 'https://www.business-standard.com/rss/economy-102.rss', source: 'Business Standard Economy', region: 'IN' },
+  { url: 'https://www.theglobeandmail.com/arc/outboundfeeds/rss/category/business/economy/', source: 'Globe and Mail Economy', region: 'CA' },
+  { url: 'https://www.cbc.ca/webfeed/rss/rss-canada', source: 'CBC Canada', region: 'CA' },
+  { url: 'https://www.cbc.ca/webfeed/rss/rss-business', source: 'CBC Business', region: 'CA' },
+  { url: 'https://news.google.com/rss/search?q=Canada+economy+OR+inflation+OR+jobs+OR+%22Bank+of+Canada%22+OR+tariffs+OR+housing+OR+budget+when:2d&hl=en-CA&gl=CA&ceid=CA:en', source: 'Google News Canada economy', region: 'CA', google: true },
+];
+export type EconItem = Scored & { also: number; region: Region };
+let econ: { at: number; list: EconItem[]; errors: string[] } = { at: 0, list: [], errors: [] };
+let econLoading: Promise<void> | null = null;
+/** Economy news of the last 48 hours per country (not markets), refreshed at most every 10 minutes. */
+export async function economyNews(): Promise<{ list: EconItem[]; errors: string[]; at: string }> {
+  if (Date.now() - econ.at > 10 * 60000) {
+    if (!econLoading) econLoading = (async () => {
+      const errors: string[] = []; const all: (Scored & { region: Region })[] = [];
+      await Promise.all(ECON_FEEDS.map(async (f, i) => {
+        try {
+          for (const h of await feedItems(f, i)) {
+            const sp = f.google ? splitPublisher(h.title) : { title: h.title, publisher: null };
+            const it = { ...h, title: sp.title, source: sp.publisher ? `${sp.publisher} (Google News)` : f.source };
+            all.push({ ...scoreEconomy(it), region: f.region });
+          }
+        } catch (e) { errors.push(`${f.source}: ${(e as Error).message}`); }
+      }));
+      const cut = Date.now() - 48 * 3600000;
+      const deduped = dedupe(all.filter(h => h.pub >= cut && h.pub <= Date.now() + 600000 && h.score >= 3)) as EconItem[];
+      const list = (['US', 'IN', 'CA'] as Region[]).flatMap(r => deduped.filter(h => h.region === r).sort((a, b) => b.score + b.also - (a.score + a.also) || b.pub - a.pub).slice(0, 25));
+      econ = { at: Date.now(), list: list.length || !econ.list.length ? list : econ.list, errors };
+    })().finally(() => { econLoading = null; });
+    await econLoading;
+  }
+  return { list: econ.list, errors: econ.errors, at: new Date(econ.at).toISOString() };
 }
 
 /** Stored headlines between two times (chart history), strongest first per 15 minutes. */
