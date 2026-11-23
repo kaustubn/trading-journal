@@ -832,6 +832,7 @@ export default function MarketChart({ token, focus }: { token: string; focus?: {
             <SessionTimerBar token={token} setups={Array.from(new Set(engine.trades.map(t => t.setup).filter(Boolean))) as string[]}
               context={() => ({
                 replayDate: engine.cursor ? new Date(engine.cursor).toLocaleDateString('en-CA', { timeZone: 'America/New_York' }) : null,
+                replayTime: engine.cursor ? Number(engine.cursor) : null,
                 instrument: 'NQ', timeframe: tfLabel(ws.panes.get(activeIdx)?.tf() ?? 1),
               })} />
           )}

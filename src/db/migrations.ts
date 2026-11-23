@@ -184,6 +184,11 @@ export const MIGRATIONS: Migration[] = [
       ALTER TABLE alert_settings ADD COLUMN IF NOT EXISTS bigmove_pct NUMERIC(4, 2) NOT NULL DEFAULT 0.6;
     `,
   },
+  {
+    // Practice Log (2026-11-23): which market sessions (Asia / London / NY AM ...) the replayed candles were in.
+    id: '007_bt_market_sessions',
+    sql: `ALTER TABLE bt_sessions ADD COLUMN IF NOT EXISTS mkt_sessions VARCHAR(80);`,
+  },
 ];
 
 export async function runMigrations(client: PoolClient, list: Migration[] = MIGRATIONS): Promise<string[]> {

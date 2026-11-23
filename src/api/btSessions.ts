@@ -4,6 +4,7 @@ import { Router, Request, Response } from 'express';
 import pool from '../db';
 import { verifyToken, userIdFromToken } from '../middleware/auth';
 import { acceptBeat, lockState, LOCK_SEC, STALE_SEC, rescaleMinutes, Status } from '../services/btSessionClock';
+import { mergeSessions, cleanSessions } from '../shared/marketSessions';
 
 const router = Router();
 
@@ -14,7 +15,7 @@ const PAGES = ['marketchart', 's1practice'];
 const TAGS = ['trend', 'range', 'news'];
 const COLS = `id, page, started_at, ended_at, status, active_sec, idle_sec, pause_sec, setup_tag, instrument, timeframe,
   to_char(hist_from, 'YYYY-MM-DD') AS hist_from, to_char(hist_to, 'YYYY-MM-DD') AS hist_to, trades_logged, last_seq,
-  last_beat_at, lock_tab, lock_until, edited, note`;
+  last_beat_at, lock_tab, lock_until, edited, note, mkt_sessions`;
 
 const str = (v: unknown, max: number): string | null => (typeof v === 'string' && v.trim() ? v.trim().slice(0, max) : null);
 const fail = (res: Response, where: string, e: unknown) => { console.error(`[bt-sessions] ${where}`, (e as Error).message); res.status(500).json({ error: 'Server error' }); };
@@ -55,10 +56,12 @@ async function applyBeat(userId: number, id: number, body: any): Promise<{ statu
          last_seq = $6, last_beat_at = $7, lock_tab = $8, lock_until = $7::timestamptz + make_interval(secs => $9), status = $10,
          hist_from = CASE WHEN $11::date IS NULL THEN hist_from ELSE LEAST(COALESCE(hist_from, $11::date), $11::date) END,
          hist_to   = CASE WHEN $12::date IS NULL THEN hist_to   ELSE GREATEST(COALESCE(hist_to, $12::date), $12::date) END,
-         setup_tag = COALESCE($13, setup_tag), instrument = COALESCE($14, instrument), timeframe = COALESCE($15, timeframe)
+         setup_tag = COALESCE($13, setup_tag), instrument = COALESCE($14, instrument), timeframe = COALESCE($15, timeframe),
+         mkt_sessions = $16
        WHERE id = $1 AND user_id = $2 RETURNING ${COLS}`,
       [id, userId, res.add.active, res.add.idle, res.add.pause, beat.seq, now.toISOString(), beat.tabId, LOCK_SEC, status,
-        from, to, str(body?.setupTag, 100), str(body?.instrument, 20), str(body?.timeframe, 10)]);
+        from, to, str(body?.setupTag, 100), str(body?.instrument, 20), str(body?.timeframe, 10),
+        mergeSessions(s.mkt_sessions, body?.replaySessions)]);
     for (const m of res.minutes) {
       await client.query(
         `INSERT INTO bt_session_minutes (session_id, minute_utc, active_sec) VALUES ($1, $2, $3)
@@ -184,11 +187,13 @@ router.patch('/:id', async (req: Request, res: Response) => {
          active_sec = COALESCE($6, active_sec), idle_sec = COALESCE($7, idle_sec), pause_sec = COALESCE($8, pause_sec),
          setup_tag = CASE WHEN $9::boolean THEN $10 ELSE setup_tag END, instrument = COALESCE($11, instrument),
          timeframe = COALESCE($12, timeframe), hist_from = COALESCE($13::date, hist_from), hist_to = COALESCE($14::date, hist_to),
-         note = CASE WHEN $15::boolean THEN $16 ELSE note END, edited = true
+         note = CASE WHEN $15::boolean THEN $16 ELSE note END,
+         mkt_sessions = CASE WHEN $17::boolean THEN $18 ELSE mkt_sessions END, edited = true
        WHERE id = $1 AND user_id = $2 RETURNING ${COLS}`,
       [id, req.userId, started ? started.toISOString() : null, ended !== undefined, ended ? (ended as Date).toISOString() : null,
         active ?? null, idle ?? null, pause ?? null, b.setup_tag !== undefined, str(b.setup_tag, 100), str(b.instrument, 20),
-        str(b.timeframe, 10), b.hist_from ?? null, b.hist_to ?? null, b.note !== undefined, str(b.note, 2000)]);
+        str(b.timeframe, 10), b.hist_from ?? null, b.hist_to ?? null, b.note !== undefined, str(b.note, 2000),
+        b.mkt_sessions !== undefined, cleanSessions(b.mkt_sessions).join(', ') || null]);
     if (active !== undefined && active !== cur.rows[0].active_sec) {
       const mins = await client.query(`SELECT extract(epoch FROM minute_utc) * 1000 AS minute, active_sec AS sec FROM bt_session_minutes WHERE session_id = $1 ORDER BY minute_utc`, [id]);
       let next = rescaleMinutes(mins.rows.map(m => ({ minute: Number(m.minute), sec: Number(m.sec) })), active);

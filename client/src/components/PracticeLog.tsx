@@ -4,6 +4,7 @@ import axios from 'axios';
 import { Download, Pencil, Trash2, X } from 'lucide-react';
 import { kpis, heatmap, timePerSetup, filterSessions, sessionsCsv, SessionRow, DayRow, addDays } from '../../../shared/practiceStats';
 import { fmtDuration } from '../utils/sessionTimer';
+import { MARKET_SESSIONS, cleanSessions } from '../../../src/shared/marketSessions';
 import { EmptyState } from './ui';
 import { Timer } from 'lucide-react';
 import '../styles/PracticeLog.css';
@@ -26,7 +27,7 @@ export default function PracticeLog({ token }: { token: string }) {
   const [s, setS] = useState<Stats | null>(null);
   const [err, setErr] = useState('');
   const [reload, setReload] = useState(0);
-  const [f, setF] = useState({ from: '', to: '', setup: '', instrument: '' });
+  const [f, setF] = useState({ from: '', to: '', setup: '', instrument: '', session: '' });
   const [edit, setEdit] = useState<SessionRow | null>(null);
   const [page, setPage] = useState(0);
 
@@ -187,10 +188,11 @@ export default function PracticeLog({ token }: { token: string }) {
           <label>To <input type="date" value={f.to} onChange={e => setF({ ...f, to: e.target.value })} /></label>
           <label>Setup <select value={f.setup} onChange={e => setF({ ...f, setup: e.target.value })}><option value="">All</option>{setups.map(x => <option key={x}>{x}</option>)}</select></label>
           <label>Instrument <select value={f.instrument} onChange={e => setF({ ...f, instrument: e.target.value })}><option value="">All</option>{instruments.map(x => <option key={x}>{x}</option>)}</select></label>
+          <label>Session <select value={f.session} onChange={e => setF({ ...f, session: e.target.value })}><option value="">All</option>{MARKET_SESSIONS.map(x => <option key={x}>{x}</option>)}</select></label>
         </div>
         <div className="pl-table-wrap">
           <table className="pl-table">
-            <thead><tr><th>Started</th><th>Ended</th><th className="r">Active</th><th className="r">Idle</th><th className="r">Paused</th><th>Setup</th><th>TF</th><th>Days tested</th><th className="r">Trades</th><th /></tr></thead>
+            <thead><tr><th>Started</th><th>Ended</th><th className="r">Active</th><th className="r">Idle</th><th className="r">Paused</th><th>Symbol</th><th>Session</th><th>Setup</th><th>TF</th><th>Days tested</th><th className="r">Trades</th><th /></tr></thead>
             <tbody>
               {shown.map(r => (
                 <tr key={r.id}>
@@ -199,6 +201,8 @@ export default function PracticeLog({ token }: { token: string }) {
                   <td className="r strong">{fmtDuration(r.active_sec)}</td>
                   <td className="r">{fmtDuration(r.idle_sec)}</td>
                   <td className="r">{fmtDuration(r.pause_sec)}</td>
+                  <td className="nowrap strong">{r.instrument || ''}</td>
+                  <td className="pl-sess">{r.mkt_sessions || <span className="pl-dim" title="Recorded from replay sessions started after Nov 23, 2026. Click the pencil to add it by hand.">—</span>}</td>
                   <td>{r.setup_tag || ''}</td>
                   <td>{r.timeframe || ''}</td>
                   <td className="nowrap">{r.hist_from ? (r.hist_from === r.hist_to ? r.hist_from : `${r.hist_from} → ${r.hist_to}`) : ''}</td>
@@ -241,8 +245,9 @@ function EditSession({ row, token, onClose, onSaved }: { row: SessionRow; token:
   const [v, setV] = useState({
     started_at: toLocalInput(row.started_at), ended_at: toLocalInput(row.ended_at),
     active: String(Math.round(row.active_sec / 60)), idle: String(Math.round(row.idle_sec / 60)), pause: String(Math.round(row.pause_sec / 60)),
-    setup_tag: row.setup_tag || '', timeframe: row.timeframe || '', hist_from: row.hist_from || '', hist_to: row.hist_to || '', note: row.note || '',
+    setup_tag: row.setup_tag || '', instrument: row.instrument || '', timeframe: row.timeframe || '', hist_from: row.hist_from || '', hist_to: row.hist_to || '', note: row.note || '',
   });
+  const [sess, setSess] = useState<string[]>(cleanSessions(row.mkt_sessions ?? ''));
   const [err, setErr] = useState('');
   const save = async () => {
     const mins = (x: string) => { const n = Number(x); return Number.isFinite(n) && n >= 0 ? Math.round(n * 60) : NaN; };
@@ -250,7 +255,7 @@ function EditSession({ row, token, onClose, onSaved }: { row: SessionRow; token:
       started_at: v.started_at ? new Date(v.started_at).toISOString() : undefined,
       ended_at: v.ended_at ? new Date(v.ended_at).toISOString() : undefined,
       active_sec: mins(v.active), idle_sec: mins(v.idle), pause_sec: mins(v.pause),
-      setup_tag: v.setup_tag, timeframe: v.timeframe || undefined, hist_from: v.hist_from || undefined, hist_to: v.hist_to || undefined, note: v.note,
+      setup_tag: v.setup_tag, instrument: v.instrument.trim().toUpperCase() || undefined, mkt_sessions: sess, timeframe: v.timeframe || undefined, hist_from: v.hist_from || undefined, hist_to: v.hist_to || undefined, note: v.note,
     };
     if ([body.active_sec, body.idle_sec, body.pause_sec].some(x => Number.isNaN(x))) { setErr('Minutes must be numbers, 0 or more.'); return; }
     try { await axios.patch(`/api/bt-sessions/${row.id}`, body, { headers: { Authorization: `Bearer ${token}` } }); onSaved(); }
@@ -270,11 +275,19 @@ function EditSession({ row, token, onClose, onSaved }: { row: SessionRow; token:
           {field('active', 'Active minutes', 'number')}
           {field('idle', 'Idle minutes', 'number')}
           {field('pause', 'Paused minutes', 'number')}
+          {field('instrument', 'Symbol')}
           {field('setup_tag', 'Setup')}
           {field('timeframe', 'Timeframe')}
           {field('hist_from', 'Tested from', 'date')}
           {field('hist_to', 'Tested to', 'date')}
           {field('note', 'Note')}
+        </div>
+        <div className="pl-sess-pick" role="group" aria-label="Market sessions practised">
+          <span>Sessions practised (New York time)</span>
+          {MARKET_SESSIONS.map(x => (
+            <label key={x}><input type="checkbox" checked={sess.includes(x)}
+              onChange={e => setSess(cleanSessions(e.target.checked ? [...sess, x] : sess.filter(y => y !== x)))} /> {x}</label>
+          ))}
         </div>
         {err && <p className="pl-err">{err}</p>}
         <div className="pl-modal-foot"><button className="pl-btn" onClick={onClose}>Cancel</button><button className="pl-btn primary" onClick={save}>Save</button></div>

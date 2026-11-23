@@ -1,6 +1,7 @@
 // Backtest session timer (browser side). The server decides what counts (src/services/btSessionClock.ts);
 // this class measures seconds locally, sends them every 30 s, and survives refreshes, hidden tabs and offline spells.
 import axios from 'axios';
+import { marketSession } from '../../../src/shared/marketSessions';
 
 export type TimerStatus = 'starting' | 'running' | 'paused' | 'idle' | 'stopped' | 'conflict' | 'error';
 
@@ -20,7 +21,7 @@ export interface TimerView {
   message: string;
 }
 
-export interface TimerContext { setupTag?: string | null; instrument?: string | null; timeframe?: string | null; replayDate?: string | null }
+export interface TimerContext { setupTag?: string | null; instrument?: string | null; timeframe?: string | null; replayDate?: string | null; replayTime?: number | null }
 
 export const IDLE_AFTER_SEC = 5 * 60;      // no activity for 5 min -> idle
 export const AUTO_STOP_IDLE_SEC = 60 * 60; // idle for an hour -> the session ends
@@ -62,6 +63,7 @@ export class SessionTimer {
   private tick?: number;
   private listeners = new Set<(v: TimerView) => void>();
   private dates: { from: string | null; to: string | null } = { from: null, to: null };
+  private sessions = new Set<string>();        // market sessions of the replayed candles since the last beat
 
   constructor(opts: { token: string; page: string; context: () => TimerContext }) {
     this.token = opts.token; this.page = opts.page; this.ctx = opts.context;
@@ -132,7 +134,8 @@ export class SessionTimer {
     if (this.manualPause) { this.pending.pause++; this.status = 'paused'; }
     else if ((Date.now() - this.lastActivity) / 1000 > IDLE_AFTER_SEC) { this.pending.idle++; this.idleRun++; this.status = 'idle'; }
     else { this.pending.active++; this.status = 'running'; }
-    const d = this.ctx().replayDate;
+    const c0 = this.ctx(), d = c0.replayDate;
+    if (c0.replayTime != null && this.status === 'running') { const ms = marketSession(c0.replayTime); if (ms) this.sessions.add(ms); }
     if (d) { this.dates.from = !this.dates.from || d < this.dates.from ? d : this.dates.from; this.dates.to = !this.dates.to || d > this.dates.to ? d : this.dates.to; }
     this.save();
     this.emit();
@@ -150,7 +153,7 @@ export class SessionTimer {
     return {
       tabId: this.tab, seq, activeSec: this.pending.active, idleSec: this.pending.idle, pauseSec: this.pending.pause,
       status: this.manualPause ? 'paused' : this.status === 'idle' ? 'idle' : 'running',
-      replayFrom: this.dates.from, replayTo: this.dates.to,
+      replayFrom: this.dates.from, replayTo: this.dates.to, replaySessions: [...this.sessions],
       setupTag: c.setupTag || undefined, instrument: c.instrument || undefined, timeframe: c.timeframe || undefined,
     };
   }
@@ -170,6 +173,7 @@ export class SessionTimer {
         this.pending = { active: Math.max(0, this.pending.active - sent.active), idle: Math.max(0, this.pending.idle - sent.idle), pause: Math.max(0, this.pending.pause - sent.pause) };
         this.session = r.data.session;
         this.dates = { from: null, to: null };
+        for (const x of body.replaySessions) this.sessions.delete(x);
         this.save();
       }
     } catch (e: any) {

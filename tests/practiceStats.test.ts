@@ -58,3 +58,29 @@ test('timePerSetup groups and sorts; filters and CSV', () => {
   const csv = sessionsCsv([sess({ note: 'said "hi"' })], local);
   assert.ok(csv.split('\n')[1].includes('"said ""hi"""'));
 });
+
+test('market sessions: New York clock time of the replayed candle, winter and summer', () => {
+  const { marketSession, mergeSessions, cleanSessions } = require('../src/shared/marketSessions');
+  const ny = (iso: string) => Date.parse(iso);
+  assert.equal(marketSession(ny('2026-11-19T14:35:00Z')), 'NY AM');      // 9:35 EST
+  assert.equal(marketSession(ny('2026-11-19T17:10:00Z')), 'NY lunch');   // 12:10
+  assert.equal(marketSession(ny('2026-11-19T18:30:00Z')), 'NY PM');      // 13:30
+  assert.equal(marketSession(ny('2026-11-19T13:00:00Z')), 'Pre-market'); // 8:00
+  assert.equal(marketSession(ny('2026-11-19T08:00:00Z')), 'London');     // 3:00
+  assert.equal(marketSession(ny('2026-11-19T23:30:00Z')), 'Asia');       // 18:30
+  assert.equal(marketSession(ny('2026-11-19T06:00:00Z')), 'Asia');       // 1:00
+  assert.equal(marketSession(ny('2026-11-19T21:15:00Z')), 'After hours');// 16:15
+  assert.equal(marketSession(ny('2026-07-15T13:35:00Z')), 'NY AM');      // 9:35 EDT
+  assert.equal(marketSession(NaN), null);
+  assert.equal(mergeSessions('NY PM', ['NY AM', 'junk', 'NY PM']), 'NY AM, NY PM');
+  assert.equal(mergeSessions(null, []), null);
+  assert.deepEqual(cleanSessions('asia, London ,x'), ['Asia', 'London']);
+});
+
+test('practice filter + CSV: market session column', () => {
+  const row: SessionRow = { id: 1, started_at: '2026-11-21T19:00:00Z', ended_at: null, status: 'stopped', active_sec: 60, idle_sec: 0, pause_sec: 0,
+    setup_tag: null, instrument: 'NQ', timeframe: '1m', hist_from: null, hist_to: null, trades_logged: 0, edited: false, note: null, mkt_sessions: 'London, NY AM' };
+  assert.equal(filterSessions([row], { session: 'NY AM' }, d => d.slice(0, 10)).length, 1);
+  assert.equal(filterSessions([row], { session: 'Asia' }, d => d.slice(0, 10)).length, 0);
+  assert.ok(sessionsCsv([row], x => x).split('\n')[1].includes('"London, NY AM"') || sessionsCsv([row], x => x).includes('London, NY AM'));
+});

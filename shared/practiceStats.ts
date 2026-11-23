@@ -5,7 +5,7 @@ export interface SessionRow {
   id: number; started_at: string; ended_at: string | null; status: string;
   active_sec: number; idle_sec: number; pause_sec: number; setup_tag: string | null;
   instrument: string | null; timeframe: string | null; hist_from: string | null; hist_to: string | null;
-  trades_logged: number; edited: boolean; note: string | null; page?: string;
+  trades_logged: number; edited: boolean; note: string | null; page?: string; mkt_sessions?: string | null;
 }
 
 const DAY = 86400000;
@@ -96,7 +96,7 @@ export function timePerSetup(sessions: SessionRow[]): { setup: string; sec: numb
   return [...m.entries()].map(([setup, v]) => ({ setup, ...v })).sort((a, b) => b.sec - a.sec);
 }
 
-export interface SessionFilter { from?: string; to?: string; setup?: string; instrument?: string }
+export interface SessionFilter { from?: string; to?: string; setup?: string; instrument?: string; session?: string }
 /** `startedLocal` turns a session's UTC start into a local date (the page passes one that uses the browser zone). */
 export function filterSessions(rows: SessionRow[], f: SessionFilter, startedLocal: (iso: string) => string): SessionRow[] {
   return rows.filter(s => {
@@ -105,6 +105,7 @@ export function filterSessions(rows: SessionRow[], f: SessionFilter, startedLoca
     if (f.to && d > f.to) return false;
     if (f.setup && (s.setup_tag || '(no setup)') !== f.setup) return false;
     if (f.instrument && (s.instrument || '') !== f.instrument) return false;
+    if (f.session && !(s.mkt_sessions || '').split(', ').includes(f.session)) return false;
     return true;
   });
 }
@@ -112,9 +113,9 @@ export function filterSessions(rows: SessionRow[], f: SessionFilter, startedLoca
 const csvCell = (v: unknown) => `"${(v == null ? '' : String(v)).replace(/"/g, '""')}"`;
 export function sessionsCsv(rows: SessionRow[], local: (iso: string) => string): string {
   const head = ['id', 'start (local)', 'end (local)', 'start (UTC)', 'end (UTC)', 'active min', 'idle min', 'paused min', 'setup', 'instrument',
-    'timeframe', 'tested from', 'tested to', 'trades logged', 'edited', 'note'];
+    'timeframe', 'market sessions', 'tested from', 'tested to', 'trades logged', 'edited', 'note'];
   const lines = rows.map(s => [s.id, local(s.started_at), s.ended_at ? local(s.ended_at) : '', s.started_at, s.ended_at ?? '',
     (s.active_sec / 60).toFixed(1), (s.idle_sec / 60).toFixed(1), (s.pause_sec / 60).toFixed(1), s.setup_tag, s.instrument, s.timeframe,
-    s.hist_from, s.hist_to, s.trades_logged, s.edited ? 'yes' : '', s.note].map(csvCell).join(','));
+    s.mkt_sessions ?? '', s.hist_from, s.hist_to, s.trades_logged, s.edited ? 'yes' : '', s.note].map(csvCell).join(','));
   return [head.map(csvCell).join(','), ...lines].join('\n');
 }
