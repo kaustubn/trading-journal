@@ -46,3 +46,17 @@
   .gl-inputs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .gl-card { padding: 12px; }
 }
+.gl-amt { display: flex; gap: 6px; }
+.gl-amt input { flex: 1; }
+.gl-amt select { background: var(--card); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 6px; font-size: 13px; }
+.gl-conv { margin: 8px 0 0; }
+.gl-conv b { color: var(--text); }
+.gl-daygrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; margin-bottom: 8px; }
+.gl-day { border: 1px solid var(--border); border-radius: 10px; padding: 12px; display: flex; flex-direction: column; gap: 3px; background: var(--card); }
+.gl-day span { font-size: 12.5px; color: var(--text-dim); }
+.gl-day strong { font-size: 24px; font-variant-numeric: tabular-nums; }
+.gl-day em { font-style: normal; font-size: 12px; color: var(--text-dim); }
+.gl-day.green { border-color: color-mix(in srgb, #2fbf71 45%, var(--border)); }
+.gl-day.green strong { color: #2fbf71; }
+.gl-day.red { border-color: color-mix(in srgb, var(--red, #ef5350) 45%, var(--border)); }
+.gl-day.red strong { color: var(--red, #ef5350); }

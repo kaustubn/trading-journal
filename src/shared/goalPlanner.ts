@@ -15,6 +15,10 @@ export interface Baseline {
   lotPv: number | null;              // money per point for one size step
   typicalLots: number | null;        // median size, in size steps
   avgDayPnl: number | null;
+  greenDayRate: number | null;       // share of trading days that closed green (0..1)
+  dayProfitFactor: number | null;    // money made on green days / money lost on red days
+  avgGreenDay: number | null; avgRedDay: number | null;   // red day as a positive loss
+  profitFactor: number | null;       // per trade
 }
 
 const median = (a: number[]) => { if (!a.length) return NaN; const s = [...a].sort((x, y) => x - y); const m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
@@ -40,6 +44,8 @@ export function baseline(trades: TradeLite[]): Baseline {
     lotPv: Number.isFinite(unitPv) ? unitPv * sizeStep : null,
     typicalLots: qtys.length ? Math.max(1, Math.round(median(qtys) / sizeStep)) : null,
     avgDayPnl: days ? [...byDay.values()].reduce((s, x) => s + x, 0) / days : null,
+    ...dayStats([...byDay.values()]),
+    profitFactor: losses.length ? wins.reduce((s, t) => s + t.pnl, 0) / -losses.reduce((s, t) => s + t.pnl, 0) : null,
   };
 }
 
@@ -177,3 +183,29 @@ export function progress(goal: number, earned: number, daysLeft: number, daysTot
   const status = earned >= goal ? 'done' : daysLeft <= 0 ? 'missed' : earned >= expected ? 'ahead' : 'behind';
   return { pct, needPerDay, status: status as 'done' | 'missed' | 'ahead' | 'behind' };
 }
+
+function dayStats(dayPnl: number[]) {
+  const green = dayPnl.filter(x => x > 0), red = dayPnl.filter(x => x < 0);
+  const won = green.reduce((s, x) => s + x, 0), lost = -red.reduce((s, x) => s + x, 0);
+  return {
+    greenDayRate: dayPnl.length ? green.length / dayPnl.length : null,
+    dayProfitFactor: lost > 0 ? won / lost : null,
+    avgGreenDay: green.length ? won / green.length : null,
+    avgRedDay: red.length ? lost / red.length : null,
+  };
+}
+
+/** Money per green day and the most per red day that reach `goal` over `days` trading days, if green days come
+ *  `greenRate` of the time and the profit factor (money won / money lost) is `pf`:
+ *  won - lost = goal and won = pf * lost  ->  lost = goal / (pf - 1), won = pf * goal / (pf - 1). */
+export function dayTargets(goal: number, days: number, greenRate: number, pf: number) {
+  if (!(goal > 0) || !(days >= 1) || !(greenRate > 0 && greenRate < 1) || !(pf > 0)) return null;
+  if (pf <= 1) return { ok: false as const, why: 'With a profit factor of 1 or less you lose money or break even, so no daily target reaches the goal.' };
+  const greenDays = greenRate * days, redDays = (1 - greenRate) * days;
+  const lost = goal / (pf - 1), won = pf * lost;
+  return { ok: true as const, greenDays, redDays, won, lost, perGreenDay: won / greenDays, perRedDay: lost / redDays };
+}
+
+/** Convert between currencies with CAD rates (CAD value of 1 unit of each). */
+export const convert = (amount: number, from: string, to: string, cad: Record<string, number>) =>
+  (cad[from] && cad[to] ? (amount * cad[from]) / cad[to] : NaN);

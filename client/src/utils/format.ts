@@ -8,7 +8,7 @@ export function num(value: unknown): number {
 }
 
 export function curSymbol(code?: string): string {
-  return code === 'USD' ? '$' : '₹';
+  return code === 'USD' ? '$' : code === 'CAD' ? 'C$' : '₹';
 }
 
 // Active currency symbol for the selected account — set in App on account change.

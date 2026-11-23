@@ -4,8 +4,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
 import { Flag, Trash2 } from 'lucide-react';
-import { baseline as emptyBaseline, Baseline, STYLES, styleLevels, estimateWinRate, plan, tradingDays, progress, PlanResult } from '../../../src/shared/goalPlanner';
-import { money, currencySymbol } from '../utils/format';
+import { baseline as emptyBaseline, Baseline, STYLES, styleLevels, estimateWinRate, plan, tradingDays, progress, PlanResult, dayTargets, convert } from '../../../src/shared/goalPlanner';
+import { money, currencySymbol, curSymbol } from '../utils/format';
 import { EmptyState } from './ui';
 import '../styles/Goals.css';
 
@@ -38,12 +38,16 @@ export default function GoalsPage({ token, account_id }: { token: string; accoun
   const [edits, setEdits] = useState<Record<string, PlanEdit>>({});
   const [chosen, setChosen] = useState('');
   const [saving, setSaving] = useState(false);
+  const [fx, setFx] = useState<{ cad: Record<string, number>; live: boolean } | null>(null);
+  const [cur, setCur] = useState('CAD');           // currency the goal is typed in (Kay withdraws in CAD)
+  const [keep, setKeep] = useState('100');         // % of profit you keep (prop firm profit split)
+  const [day, setDay] = useState({ green: '', pf: '' });
 
   useEffect(() => {
     if (!account_id) return;
     setErr(''); setB(null); setEdits({}); setChosen('');
     axios.get(`/api/goals/baseline/${account_id}`, auth).then(r => {
-      setB(r.data.baseline); setAcct(r.data.account); setSymbol(r.data.symbol);
+      setB(r.data.baseline); setAcct(r.data.account); setSymbol(r.data.symbol); setFx(r.data.fx ?? null); setDay({ green: '', pf: '' });
       const a: Acct = r.data.account;
       setAs({ winRate: '', lotPv: r.data.baseline.lotPv ? String(+r.data.baseline.lotPv.toFixed(2)) : '',
         costPerLot: a.costPerTrade ? String(a.costPerTrade) : '0',
@@ -59,7 +63,20 @@ export default function GoalsPage({ token, account_id }: { token: string; accoun
   const base = b ?? emptyBaseline([]);
   const fallbackStop = symbol && /^M?ES$/.test(symbol) ? 5 : symbol && /^M?NQ$/.test(symbol) ? 15 : 10;
   const days = tradingDays(today(), end);
-  const goal = numOr(amount, 0) ?? 0;
+  const acctCur = acct?.currency || 'INR';
+  const entered = numOr(amount, 0) ?? 0;
+  const keepPct = Math.min(100, Math.max(1, numOr(keep, 100) ?? 100));
+  const goal = (() => {                             // what the account itself has to make, in its own currency
+    const gross = entered / (keepPct / 100);
+    if (cur === acctCur) return gross;
+    const v = fx ? convert(gross, cur, acctCur, fx.cad) : NaN;
+    return Number.isFinite(v) ? v : 0;
+  })();
+  const inCur = (v: number, c: string) => money(v, 0, curSymbol(c));
+  const toCad = (v: number) => (fx ? convert(v, acctCur, 'CAD', fx.cad) : NaN);
+  const greenRate = (() => { const t = numOr(day.green, null); return t != null ? t / 100 : b?.greenDayRate ?? null; })();
+  const pfDay = numOr(day.pf, null) ?? b?.dayProfitFactor ?? null;
+  const dt = greenRate != null && pfDay != null ? dayTargets(goal, days, greenRate, pfDay) : null;
   const lotPv = numOr(as.lotPv, null);
   const sizeName = base.sizeStep > 1 ? `lot (${base.sizeStep} qty)` : 'contract';
 
@@ -81,10 +98,11 @@ export default function GoalsPage({ token, account_id }: { token: string; accoun
     const row = rows.find(x => x.s.key === chosen);
     if (!account_id || !(goal > 0) || days < 1) { setErr('Enter a goal amount and a date in the future.'); return; }
     setSaving(true); setErr('');
+    const withdraw = { amount: entered, currency: cur, keepPct, accountCurrency: acctCur };
     const p = row ? { style: row.s.key, name: row.s.name, targetPts: +row.e.targetPts, stopPts: +row.e.stopPts, tradesPerDay: +row.e.tradesPerDay,
-      lots: row.r.lots, sizeName, winRate: row.w, pReach: row.r.pReach, riskPerTrade: row.r.riskPerTrade } : null;
+      lots: row.r.lots, sizeName, winRate: row.w, pReach: row.r.pReach, riskPerTrade: row.r.riskPerTrade, withdraw } : { withdraw };
     try {
-      await axios.post('/api/goals', { account_id, title: title || null, amount: goal, start_date: today(), end_date: end, plan: p }, auth);
+      await axios.post('/api/goals', { account_id, title: title || null, amount: Math.round(goal * 100) / 100, start_date: today(), end_date: end, plan: p }, auth);
       setAmount(''); setTitle(''); setChosen(''); setReload(x => x + 1);
     } catch (e: any) { setErr(e?.response?.data?.error || 'Could not save the goal.'); }
     setSaving(false);
@@ -109,7 +127,7 @@ export default function GoalsPage({ token, account_id }: { token: string; accoun
             return (
               <div className="gl-goal" key={g.id}>
                 <div className="gl-between">
-                  <strong>{g.title || `Make ${money(g.amount, 0)}`}</strong>
+                  <strong>{g.title || (g.plan?.withdraw ? `Withdraw ${inCur(g.plan.withdraw.amount, g.plan.withdraw.currency)}` : `Make ${money(g.amount, 0)}`)}</strong>
                   <span className={`gl-pill ${pr.status}`}>{{ done: 'Reached', missed: 'Missed', ahead: 'On pace', behind: 'Behind pace' }[pr.status]}</span>
                 </div>
                 <div className="gl-bar"><div style={{ width: `${Math.max(0, Math.min(100, pr.pct * 100))}%` }} /></div>
@@ -117,7 +135,8 @@ export default function GoalsPage({ token, account_id }: { token: string; accoun
                   {money(g.pnl, 0)} of {money(g.amount, 0)} ({Math.round(pr.pct * 100)}%) · {g.trades} trades · {g.start_date} → {g.end_date} · {left} trading days left
                   {pr.needPerDay != null && pr.status !== 'done' && <> · need {money(pr.needPerDay, 0)}/day</>}
                 </div>
-                {g.plan && <div className="gl-dim">Plan: {g.plan.name} — {g.plan.lots} {g.plan.sizeName}{g.plan.lots === 1 ? '' : 's'}, target {pts(g.plan.targetPts)}, stop {pts(g.plan.stopPts)}, {g.plan.tradesPerDay} trade{g.plan.tradesPerDay === 1 ? '' : 's'}/day</div>}
+                {g.plan?.withdraw && g.plan.withdraw.currency !== acctCur && <div className="gl-dim">Withdrawal {inCur(g.plan.withdraw.amount, g.plan.withdraw.currency)}{g.plan.withdraw.keepPct < 100 ? ` (you keep ${g.plan.withdraw.keepPct}%)` : ''} = {money(g.amount, 0)} profit in this account at the rate on the day you set it.</div>}
+                {g.plan?.name && <div className="gl-dim">Plan: {g.plan.name} — {g.plan.lots} {g.plan.sizeName}{g.plan.lots === 1 ? '' : 's'}, target {pts(g.plan.targetPts)}, stop {pts(g.plan.stopPts)}, {g.plan.tradesPerDay} trade{g.plan.tradesPerDay === 1 ? '' : 's'}/day</div>}
                 <button className="gl-icon" onClick={() => del(g)} aria-label="Delete goal" title="Delete"><Trash2 size={14} /></button>
               </div>
             );
@@ -128,7 +147,12 @@ export default function GoalsPage({ token, account_id }: { token: string; accoun
       <section className="gl-card">
         <h3>New goal</h3>
         <div className="gl-form">
-          <label>Amount to make ({cs})<input inputMode="decimal" value={amount} onChange={e => setAmount(e.target.value)} placeholder="e.g. 2000" /></label>
+          <label>Amount to withdraw<span className="gl-amt">
+            <input inputMode="decimal" value={amount} onChange={e => setAmount(e.target.value)} placeholder="e.g. 2000" />
+            <select value={cur} onChange={e => setCur(e.target.value)} aria-label="Currency">
+              {[...new Set(['CAD', acctCur])].map(c => <option key={c} value={c}>{c}</option>)}
+            </select></span></label>
+          <label>You keep (% of profit)<input inputMode="decimal" value={keep} onChange={e => setKeep(e.target.value)} title="Prop firms usually pay out 80–90% of the profit. Your own account: 100." /></label>
           <label>By<input type="date" value={end} min={plusDays(1)} onChange={e => setEnd(e.target.value)} /></label>
           <label>Name (optional)<input value={title} maxLength={100} onChange={e => setTitle(e.target.value)} placeholder="e.g. December payout" /></label>
         </div>
@@ -137,6 +161,12 @@ export default function GoalsPage({ token, account_id }: { token: string; accoun
           {acct?.profitTarget ? <button className="gl-chip" onClick={() => setAmount(String(acct.profitTarget))}>Use prop target ({money(acct.profitTarget, 0)})</button> : null}
           <span className="gl-dim">{days} trading days{goal > 0 && days > 0 ? ` · ${money(goal / days, 0)} a day` : ''}</span>
         </div>
+        {entered > 0 && (cur !== acctCur || keepPct < 100) && (
+          <p className="gl-dim gl-conv">
+            {inCur(entered, cur)} to withdraw{keepPct < 100 ? ` at a ${keepPct}% split` : ''} = <b>{goal > 0 ? money(goal, 0) : '—'}</b> profit needed in this {acctCur} account
+            {cur !== acctCur && fx ? <> · 1 {cur} = {curSymbol(acctCur)}{(convert(1, cur, acctCur, fx.cad)).toFixed(acctCur === 'INR' ? 2 : 4)}{fx.live ? ' (today)' : ' (approximate: live rate unavailable)'}</> : null}
+          </p>
+        )}
       </section>
 
       <section className="gl-card">
@@ -150,6 +180,8 @@ export default function GoalsPage({ token, account_id }: { token: string; accoun
               <Stat k="Avg win" v={pts(base.avgWinPts)} />
               <Stat k="Avg loss" v={pts(base.avgLossPts)} />
               <Stat k="Trades a day" v={base.tradesPerDay == null ? '—' : base.tradesPerDay.toFixed(1)} />
+              <Stat k="Green days" v={pctTxt(base.greenDayRate)} />
+              <Stat k="Profit factor (trades)" v={base.profitFactor == null ? '—' : base.profitFactor.toFixed(2)} />
               <Stat k="Usual size" v={base.typicalLots == null ? '—' : `${base.typicalLots} ${sizeName}${base.typicalLots === 1 ? '' : 's'}`} />
             </div>
             {base.trades < 10 && <p className="gl-warn">Fewer than 10 closed trades here, so your win rate can't be measured yet. Type a win rate below to try plans.</p>}
@@ -168,6 +200,39 @@ export default function GoalsPage({ token, account_id }: { token: string; accoun
           </>
         )}
       </section>
+
+      {b && (
+        <section className="gl-card">
+          <h3>What your days need to look like <span className="gl-dim">from your green-day rate and profit factor</span></h3>
+          <div className="gl-form">
+            <label>Green days (% of days)<input inputMode="decimal" value={day.green} placeholder={b.greenDayRate != null ? String(Math.round(b.greenDayRate * 100)) : 'e.g. 55'} onChange={e => setDay({ ...day, green: e.target.value })} /></label>
+            <label>Profit factor by day (money won ÷ money lost)<input inputMode="decimal" value={day.pf} placeholder={b.dayProfitFactor != null ? b.dayProfitFactor.toFixed(2) : 'e.g. 1.5'} onChange={e => setDay({ ...day, pf: e.target.value })} /></label>
+          </div>
+          {!(goal > 0) || days < 1 ? <p className="gl-dim">Enter an amount and a date above.</p>
+            : greenRate == null || pfDay == null ? <p className="gl-warn">Not enough trading days on this account to measure these. Type a green-day % and a profit factor.</p>
+            : !dt ? <p className="gl-warn">Green days must be between 1% and 99%, and the profit factor more than 0.</p>
+            : !dt.ok ? <p className="gl-warn">{dt.why}</p>
+            : (
+              <>
+                <div className="gl-daygrid">
+                  <div className="gl-day green">
+                    <span>On each green day make at least</span>
+                    <strong>{money(dt.perGreenDay, 0)}</strong>
+                    <em>about {Math.round(dt.greenDays)} of {days} days{Number.isFinite(toCad(dt.perGreenDay)) && acctCur !== 'CAD' ? ` · ${inCur(toCad(dt.perGreenDay), 'CAD')}` : ''}</em>
+                    {b.avgGreenDay != null && <em>your average green day now: {money(b.avgGreenDay, 0)}</em>}
+                  </div>
+                  <div className="gl-day red">
+                    <span>On each red day lose at most</span>
+                    <strong>{money(dt.perRedDay, 0)}</strong>
+                    <em>about {Math.round(dt.redDays)} of {days} days{Number.isFinite(toCad(dt.perRedDay)) && acctCur !== 'CAD' ? ` · ${inCur(toCad(dt.perRedDay), 'CAD')}` : ''}</em>
+                    {b.avgRedDay != null && <em>your average red day now: -{money(b.avgRedDay, 0)}</em>}
+                  </div>
+                </div>
+                <p className="gl-dim">Total won on green days {money(dt.won, 0)} − total lost on red days {money(dt.lost, 0)} = {money(goal, 0)}. A day profit factor of {pfDay.toFixed(2)} means you make {pfDay.toFixed(2)}× what you lose. Blank boxes use your last 120 days ({Math.round((b.greenDayRate ?? 0) * 100)}% green days{b.dayProfitFactor != null ? `, day profit factor ${b.dayProfitFactor.toFixed(2)}` : ''}).</p>
+              </>
+            )}
+        </section>
+      )}
 
       {b && (
         <section className="gl-card">

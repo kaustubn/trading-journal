@@ -72,3 +72,28 @@ test('styles scale from your usual stop; progress pace', () => {
   assert.equal(progress(1000, 1200, 2, 10).status, 'done');
   assert.equal(progress(1000, 100, 0, 10).status, 'missed');
 });
+
+test('day targets: green-day rate + profit factor -> money per green day and the most per red day', () => {
+  const { dayTargets } = require('../src/shared/goalPlanner');
+  // goal 2000 in 10 days, 60% green days, PF 2 -> lost 2000, won 4000; 6 green days 666.67, 4 red days 500
+  const t = dayTargets(2000, 10, 0.6, 2);
+  assert.ok(t.ok);
+  assert.ok(Math.abs(t.perGreenDay - 4000 / 6) < 1e-9);
+  assert.equal(t.perRedDay, 500);
+  assert.equal(t.won - t.lost, 2000);
+  assert.equal(dayTargets(2000, 10, 0.6, 1).ok, false);
+  assert.equal(dayTargets(2000, 10, 0, 2), null);
+});
+
+test('baseline day stats and currency conversion', () => {
+  const { convert } = require('../src/shared/goalPlanner');
+  const b = baseline([nq(400, 1, 'a'), nq(-200, 1, 'a'), nq(-300, 1, 'b'), nq(600, 1, 'c')]);   // days: +200, -300, +600
+  assert.ok(Math.abs(b.greenDayRate! - 2 / 3) < 1e-9);
+  assert.ok(Math.abs(b.dayProfitFactor! - 800 / 300) < 1e-9);
+  assert.equal(b.avgGreenDay, 400); assert.equal(b.avgRedDay, 300);
+  assert.equal(b.profitFactor, 1000 / 500);
+  const cad = { CAD: 1, USD: 1.4, INR: 0.016 };
+  assert.ok(Math.abs(convert(1000, 'CAD', 'USD', cad) - 714.2857) < 1e-3);
+  assert.ok(Math.abs(convert(1000, 'CAD', 'INR', cad) - 62500) < 1e-6);
+  assert.ok(Number.isNaN(convert(1, 'EUR', 'CAD', cad)));
+});

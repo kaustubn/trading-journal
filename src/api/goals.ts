@@ -9,6 +9,7 @@ import { Router, Request, Response } from 'express';
 import pool from '../db';
 import { verifyToken } from '../middleware/auth';
 import { pointValue } from '../utils/pointValue';
+import { cadRates } from '../services/marketData';
 import { baseline, TradeLite } from '../shared/goalPlanner';
 
 const router = Router();
@@ -40,7 +41,9 @@ router.get('/baseline/:account_id', async (req: Request, res: Response) => {
       symbols.set(s, (symbols.get(s) ?? 0) + 1);
     }
     const num = (v: unknown) => (v == null || !Number.isFinite(Number(v)) ? null : Number(v));
+    const fx = await cadRates();
     res.json({
+      fx: { cad: fx.rates, live: fx.live, at: new Date(fx.at).toISOString() },
       baseline: baseline(trades),
       symbol: [...symbols.entries()].sort((x, y) => y[1] - x[1])[0]?.[0] ?? null,
       account: {

@@ -153,3 +153,19 @@ export async function nqMinutes(): Promise<{ t: number[]; c: (number | null)[] }
   const { bars } = await yahoo('NQ=F', '1d', '1m');
   return { t: bars.t, c: bars.c };
 }
+
+// ---- exchange rates to CAD (Kay withdraws in Canadian dollars), cached 6 hours ----
+let fx: { at: number; rates: { USD: number; INR: number; CAD: number }; live: boolean } | null = null;
+/** How many CAD one unit of each currency is worth. Falls back to rough rates when Yahoo is unreachable. */
+export async function cadRates(): Promise<{ rates: { USD: number; INR: number; CAD: number }; live: boolean; at: number }> {
+  if (fx && Date.now() - fx.at < 6 * 3600000) return fx;
+  try {
+    const [usdcad, usdinr] = await Promise.all([yahoo('USDCAD=X', '5d', '1d'), yahoo('INR=X', '5d', '1d')]);
+    const a = Number(usdcad.meta?.regularMarketPrice), b = Number(usdinr.meta?.regularMarketPrice);
+    if (!(a > 0.5 && a < 3) || !(b > 30 && b < 300)) throw new Error('rate out of range');
+    fx = { at: Date.now(), rates: { USD: a, INR: a / b, CAD: 1 }, live: true };
+  } catch {
+    fx = { at: Date.now() - 5.5 * 3600000, rates: fx?.rates ?? { USD: 1.38, INR: 0.0157, CAD: 1 }, live: false };   // retry in 30 min
+  }
+  return fx;
+}
