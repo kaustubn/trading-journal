@@ -346,7 +346,14 @@ export function ChartSettingsDialog({ cfg, onChange, onClose }: { cfg: ChartCfg;
               <option value="solid">Solid</option><option value="dashed">Dashed</option>
             </select>
           </div>
-          <div className="mc-dlg-row">{chk('breaks', 'Session breaks')}{col('breaksColor')}</div>
+          <div className="mc-dlg-row">{chk('breaks', 'Session breaks')}{col('breaksColor')}
+            <select className="mc-input mc-w" value={cfg.breaksWidth ?? 1} onChange={e => set({ breaksWidth: Number(e.target.value) })} aria-label="Session break width">
+              {[1, 2, 3].map(w => <option key={w} value={w}>{w}px</option>)}
+            </select>
+            <select className="mc-input mc-w" value={cfg.breaksStyle ?? 'dashed'} onChange={e => set({ breaksStyle: e.target.value as ChartCfg['breaksStyle'] })} aria-label="Session break style">
+              <option value="dashed">Dashed</option><option value="dotted">Dotted</option><option value="solid">Solid</option>
+            </select>
+          </div>
         </>)}
         <div className="mc-row mc-row-end">
           <button className="mc-btn mc-small" onClick={() => onChange({ ...CHART_TV })} title="Your TradingView chart settings">Your TradingView</button>

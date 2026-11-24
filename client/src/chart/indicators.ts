@@ -27,8 +27,10 @@ export interface BgData {
   tfMin: number;
   dark: boolean;
   sessions: boolean;
-  breaks?: boolean;    // TradingView-style session breaks (line at each 6pm ET open) instead of shading
+  breaks?: boolean;    // TradingView-style session breaks: a line where each trading day starts
   breaksColor?: string;
+  breaksStyle?: 'dashed' | 'dotted' | 'solid';
+  breaksWidth?: number;
   rolls: { contract: string; from: number }[] | null; // null = hidden
   levels: LevelsData | null;
   show: { pd: boolean; on: boolean; open: boolean; round: boolean };
@@ -194,7 +196,7 @@ export function registerChartIndicators() {
       ctx.save();
 
       // Session breaks: a dashed line where each trading day starts (after the daily halt)
-      if (ext.sessions && ext.breaks && intraday) {
+      if (ext.breaks && intraday) {
         // super-light vertical lines: the 6pm ET session open (after the daily halt) and,
         // on 1h and below, the New York open (9:30) and close (16:00)
         const line = (xb: number, color: string, dash: number[]) => {
@@ -204,11 +206,17 @@ export function registerChartIndicators() {
         const dark = ext.dark;
         for (let i = Math.max(1, from); i < to; i++) {
           const t = data[i].timestamp;
-          if (t - data[i - 1].timestamp > 30 * 60000 + ext.tfMin * 60000) {
-            line(Math.round(x(i) - half) + 0.5, ext.breaksColor ?? 'rgba(0, 0, 0, 0.22)', []);
+          if (t - data[i - 1].timestamp > 30 * 60000 + ext.tfMin * 60000 || sessionDay(t) !== sessionDay(data[i - 1].timestamp)) {
+            const st = ext.breaksStyle ?? 'dashed', w = Math.max(1, Math.min(4, ext.breaksWidth ?? 1));
+            ctx.lineWidth = w;
+            const xb = Math.round(x(i) - half) + (w % 2 ? 0.5 : 0);
+            ctx.strokeStyle = ext.breaksColor ?? 'rgba(0, 0, 0, 0.6)';
+            ctx.setLineDash(st === 'solid' ? [] : st === 'dotted' ? [w, 3 * w] : [6 * w, 4 * w]);
+            ctx.beginPath(); ctx.moveTo(xb, 0); ctx.lineTo(xb, height); ctx.stroke();
+            ctx.lineWidth = 1;
             continue;
           }
-          if (ext.tfMin <= 60) {
+          if (ext.sessions && ext.tfMin <= 60) {
             const m = etMinutes(t), mp = etMinutes(data[i - 1].timestamp);
             const crossed = (lv: number) => (mp < lv && m >= lv) || (m >= lv && mp > m);
             if (crossed(570) || crossed(960)) line(Math.round(x(i) - half) + 0.5, dark ? 'rgba(255, 255, 255, 0.10)' : 'rgba(0, 0, 0, 0.13)', [2, 4]);

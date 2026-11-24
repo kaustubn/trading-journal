@@ -718,6 +718,8 @@ export default function MarketChart({ token, focus }: { token: string; focus?: {
         </button>
         <button className={`mc-btn${s.sessions ? ' on' : ''}`} onClick={() => update({ sessions: !s.sessions })}
           title="Shade Asia (6pm–2am), London (2–9:30am) and New York (9:30am–4pm ET). Shown on 1h and below.">Sessions</button>
+        <button className={`mc-btn${s.chart.breaks ? ' on' : ''}`} onClick={() => update({ chart: { ...s.chart, breaks: !s.chart.breaks } })}
+          title="Session breaks (like TradingView): a dashed line where each trading day starts. Colour, width and style: chart settings (gear).">Breaks</button>
         <div className="mc-seg mc-session-seg" title="Which hours the candles show">
           <button className={!s.rth ? 'on' : ''} onClick={() => s.rth && update({ rth: false })}
             title="Full 23-hour session, 6pm–5pm ET (ETH): overnight + day">24h</button>

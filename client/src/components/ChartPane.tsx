@@ -118,6 +118,7 @@ export default function ChartPane({ index, tf, s, active, ws, onActivate }: Prop
     if (!chart) return;
     const extendData: BgData = {
       tfMin: tfRef.current, dark: st.theme === 'dark', sessions: st.sessions && !st.rth, breaks: st.chart.breaks, breaksColor: st.chart.breaksColor,
+      breaksStyle: st.chart.breaksStyle, breaksWidth: st.chart.breaksWidth,
       rolls: st.rolls ? ws.meta()?.rolls ?? [] : null,
       levels: levelsRef.current, show: st.levels,
       news: null,

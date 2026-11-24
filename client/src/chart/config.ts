@@ -112,6 +112,7 @@ export interface ChartCfg {
   crossColor: string; crossWidth: number; crossStyle: 'solid' | 'dashed';
   textColor: string; axisColor: string; fontSize: number;
   priceLine: boolean; countdown: boolean; breaks: boolean; breaksColor: string;
+  breaksStyle: 'dashed' | 'dotted' | 'solid'; breaksWidth: number;   // TradingView-style session breaks
   legendOHLC: boolean; legendChange: boolean; legendVolume: boolean;
   indTitles: boolean; indArgs: boolean; indValues: boolean;
 }
@@ -123,7 +124,7 @@ export const CHART_TV: ChartCfg = {
   bg: '#9c9c9c', grid: false, gridColor: 'rgba(0, 0, 0, 0.08)',
   crossColor: 'rgba(255, 255, 255, 1)', crossWidth: 2, crossStyle: 'solid',
   textColor: 'rgba(0, 0, 0, 1)', axisColor: 'rgba(0, 0, 0, 1)', fontSize: 12,
-  priceLine: true, countdown: true, breaks: true, breaksColor: 'rgba(0, 0, 0, 0.22)',
+  priceLine: true, countdown: true, breaks: true, breaksColor: 'rgba(0, 0, 0, 0.6)', breaksStyle: 'dashed', breaksWidth: 1,
   legendOHLC: true, legendChange: true, legendVolume: true,
   indTitles: true, indArgs: false, indValues: false,
 };
@@ -135,7 +136,7 @@ export const CHART_STD: ChartCfg = {
   bg: '#131722', grid: true, gridColor: 'rgba(42, 46, 57, 0.6)',
   crossColor: '#9598a1', crossWidth: 1, crossStyle: 'dashed',
   textColor: '#787b86', axisColor: '#2a2e39', fontSize: 11,
-  priceLine: true, countdown: true, breaks: false, breaksColor: 'rgba(255, 255, 255, 0.12)',
+  priceLine: true, countdown: true, breaks: false, breaksColor: 'rgba(120, 123, 134, 0.6)', breaksStyle: 'dashed', breaksWidth: 1,
   legendOHLC: true, legendChange: true, legendVolume: true,
   indTitles: true, indArgs: true, indValues: true,
 };
@@ -150,6 +151,9 @@ function mergeChart(saved: any, base: ChartCfg): ChartCfg {
     if (typeof d === 'boolean' && typeof v === 'boolean') (c as any)[k] = v;
     else if (typeof d === 'number' && typeof v === 'number' && v >= 1 && v <= 20) (c as any)[k] = v;
     else if (k === 'crossStyle' && (v === 'solid' || v === 'dashed')) c.crossStyle = v;
+    else if (k === 'breaksStyle') { if (v === 'solid' || v === 'dashed' || v === 'dotted') c.breaksStyle = v; }
+    // the old, barely visible defaults become the clearer TradingView-like ones
+    else if (k === 'breaksColor' && (v === 'rgba(0, 0, 0, 0.22)' || v === 'rgba(255, 255, 255, 0.12)')) continue;
     else if (typeof d === 'string' && k !== 'crossStyle' && validColor(v)) (c as any)[k] = v;
   }
   return c;
