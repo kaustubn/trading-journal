@@ -713,3 +713,30 @@
 .mc-legend-btn:hover { color: var(--text, #d1d4dc); border-color: var(--accent, #2962ff); }
 .mc-legend-btn.closed { padding: 0 6px; }
 .mc-news-title.headline { color: #ce93d8; }
+
+/* replay bar, TradingView style */
+.mc-replay-row { background: #1e222d; border-color: #2a2e39; border-radius: 6px; padding: 3px 6px; gap: 2px; color: #d1d4dc; }
+.mc-tvbtn { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 9px; border: 0; border-radius: 4px; background: transparent;
+  color: #d1d4dc; font-size: 13px; cursor: pointer; white-space: nowrap; }
+.mc-tvbtn:hover:not(:disabled), .mc-tvbtn.open { background: #2a2e39; color: #fff; }
+.mc-tvbtn:disabled { opacity: .4; cursor: default; }
+.mc-tvicon { padding: 0 7px; }
+.mc-tvplay { color: #fff; }
+.mc-tvsel { font-weight: 500; }
+.mc-tvbtn.mc-live-on { color: #f23645; }
+.mc-replay-row .mc-sep { width: 1px; height: 20px; background: #363a45; margin: 0 4px; }
+.mc-tvmenu { width: 250px; max-width: calc(100vw - 24px); background: #1e222d; border: 1px solid #2a2e39; border-radius: 8px; box-shadow: 0 8px 26px rgba(0,0,0,.45);
+  padding: 6px; display: flex; flex-direction: column; gap: 2px; color: #d1d4dc; }
+.mc-tvmenu-small { width: 170px; }
+.mc-tvmenu-h { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: #787b86; padding: 6px 8px 4px; }
+.mc-tvmenu-i { display: flex; align-items: center; gap: 10px; width: 100%; height: 34px; padding: 0 10px; border: 0; border-radius: 6px; background: transparent;
+  color: #d1d4dc; font-size: 14px; text-align: left; cursor: pointer; }
+.mc-tvmenu-i:hover:not(:disabled), .mc-tvmenu-i.on { background: #2a2e39; color: #fff; }
+.mc-tvmenu-i:disabled { opacity: .4; cursor: default; }
+.mc-tvmenu-date { display: flex; gap: 4px; padding: 2px 6px 6px 36px; }
+.mc-tvmenu-date .mc-input { min-width: 0; flex: 1; }
+.mc-tvmenu-sep { height: 1px; background: #2a2e39; margin: 4px 2px; }
+.mc-tvmenu-row { display: flex; gap: 4px; padding: 2px 4px; }
+.mc-tvmenu .mc-field { padding: 2px 4px; }
+.mc-replay > .mc-tvmenu { align-self: flex-start; }
+.mc-replay > .mc-tvmenu-small { align-self: center; }

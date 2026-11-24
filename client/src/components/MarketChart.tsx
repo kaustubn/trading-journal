@@ -847,6 +847,7 @@ export default function MarketChart({ token, focus }: { token: string; focus?: {
             <ReplayBar engine={engine} clock={s.clock} accounts={accounts} accountId={replayAcct}
               onAccount={setReplayAcct} onRetry={t => saveTradeRef.current(t)} onExit={exitReplay} coach={coachHooks}
               onJump={startReplay} onPick={() => { setPanel(null); setReplayPick(true); }}
+              tfLabel={tfLabel(ws.panes.get(activeIdx)?.tf() ?? 1)} dataRange={meta ? { first: meta.first, last: meta.last } : undefined}
               atr={(() => {
                 const p = ws.panes.get(activeIdx); const d = p?.chart.getDataList();
                 if (!p || !d || d.length < 16) return null;
