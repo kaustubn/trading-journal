@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { OctagonAlert, GripVertical, ChevronDown, ChevronUp, ArrowLeftToLine, ArrowRightToLine, Dices, Flag, StepForward, StepBack, Play, Pause, CalendarDays } from 'lucide-react';
+import { OctagonAlert, GripVertical, ChevronDown, ChevronUp, ChevronRight, ArrowLeftToLine, ArrowRightToLine, Dices, Flag, StepForward, StepBack, Play, Pause, CalendarDays } from 'lucide-react';
 import { ReplayEngine, OrderInput, Side, ClosedTrade, rOf, OrderType } from '../chart/replay';
 import { Contract, fmtPrice, fmtUsd, signed } from '../chart/drawings';
 import { Clock, fmtWall, wallToUtc, etMinutes, etOffset } from '../chart/time';
@@ -131,6 +131,9 @@ export default function ReplayBar({ engine: e, clock, accounts, accountId, onAcc
   // ---- drag the bar anywhere over the chart (position kept for next time) ----
   const [pos, setPos] = useState(loadPos);
   const boxRef = useRef<HTMLDivElement>(null);
+  // short version: click the grip (play, step, buy / sell and the open position only)
+  const [mini, setMini] = useState(() => { try { return localStorage.getItem('mc.replay.mini') === '1'; } catch { return false; } });
+  const toggleMini = () => setMini(m => { try { localStorage.setItem('mc.replay.mini', m ? '0' : '1'); } catch { /* ignore */ } return !m; });
   const startDrag = (ev: React.PointerEvent) => {
     const box = boxRef.current, parent = box?.offsetParent as HTMLElement | null;
     if (!box || !parent) return;
@@ -138,14 +141,17 @@ export default function ReplayBar({ engine: e, clock, accounts, accountId, onAcc
     const r = box.getBoundingClientRect(), pr = parent.getBoundingClientRect();
     const baseL = r.left - pos.x, baseT = r.top - pos.y;           // where the bar sits with no offset
     const lim = { x0: pr.left - baseL, x1: pr.right - (baseL + r.width), y0: pr.top - baseT, y1: pr.bottom - (baseT + r.height) };
-    const sx = ev.clientX - pos.x, sy = ev.clientY - pos.y;
-    let last = pos;
+    const sx = ev.clientX - pos.x, sy = ev.clientY - pos.y, x0 = ev.clientX, y0 = ev.clientY;
+    let last = pos, moved = false;
     const move = (m: PointerEvent) => {
+      if (!moved && Math.hypot(m.clientX - x0, m.clientY - y0) < 4) return;
+      moved = true;
       last = { x: Math.min(lim.x1, Math.max(lim.x0, m.clientX - sx)), y: Math.min(lim.y1, Math.max(lim.y0, m.clientY - sy)) };
       setPos(last);
     };
     const up = () => {
       window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up);
+      if (!moved) { toggleMini(); return; }
       try { localStorage.setItem(POS_KEY, JSON.stringify(last)); } catch { /* ignore */ }
     };
     window.addEventListener('pointermove', move); window.addEventListener('pointerup', up);
@@ -348,7 +354,7 @@ export default function ReplayBar({ engine: e, clock, accounts, accountId, onAcc
   const tightStop = atr && atr.value > 0 && form.stopPts > 0 && form.stopPts < 0.75 * atr.value;
 
   return (
-    <div className={`mc-replay${pos.x === 0 && pos.y === 0 ? ' docked' : ''}`} ref={boxRef} style={{ transform: `translate(calc(-50% + ${pos.x}px), ${pos.y}px)` }} onMouseDown={ev => ev.stopPropagation()}>
+    <div className={`mc-replay${pos.x === 0 && pos.y === 0 ? ' docked' : ''}${mini ? ' mini' : ''}`} ref={boxRef} style={{ transform: `translate(calc(-50% + ${pos.x}px), ${pos.y}px)` }} onMouseDown={ev => ev.stopPropagation()}>
       {ticket && (
         <form className="mc-ticket" onSubmit={submit} noValidate>
           <div className="mc-panel-title">{ticket === 'long' ? 'Buy' : 'Sell'} {otype === 'market' ? 'at market' : otype}{price !== null ? ` · ${fmtPrice(price)}` : ''}</div>
@@ -555,36 +561,36 @@ export default function ReplayBar({ engine: e, clock, accounts, accountId, onAcc
         </div>
       )}
       <div className="mc-replay-row">
-        <span className="mc-grip" onPointerDown={startDrag} onDoubleClick={resetPos} title="Drag to move the replay bar over the chart (double-click: dock it back under the chart)"><GripVertical size={14} /></span>
-        <button className={`mc-tvbtn mc-tvsel${menu ? ' open' : ''}`} disabled={jumping} onClick={openMenu}
+        <span className="mc-grip" onPointerDown={startDrag} onDoubleClick={resetPos} title={mini ? 'Click: full replay bar · drag: move · double-click: dock under the chart' : 'Click: short replay bar · drag: move over the chart · double-click: dock under the chart'}><GripVertical size={14} /></span>
+        <button className={`mc-tvbtn mc-tvsel mc-rfull${menu ? ' open' : ''}`} disabled={jumping} onClick={openMenu}
           title="Select starting point: a bar, a date, the first available date or a random bar">
           <ArrowLeftToLine size={16} /> Select bar {menu ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
         </button>
-        <span className="mc-sep" />
-        <button className="mc-tvbtn mc-tvicon" disabled={e.busy || e.playing} onClick={() => e.stepBack()} title="Step back (←)"><StepBack size={16} /></button>
+        <span className="mc-sep mc-rfull" />
+        <button className="mc-tvbtn mc-tvicon mc-rfull" disabled={e.busy || e.playing} onClick={() => e.stepBack()} title="Step back (←)"><StepBack size={16} /></button>
         <button className="mc-tvbtn mc-tvicon mc-tvplay" disabled={e.ended} onClick={() => (e.playing ? e.pause() : e.play())} title={e.playing ? 'Pause (Space)' : 'Play (Space)'}>
           {e.playing ? <Pause size={17} /> : <Play size={17} />}
         </button>
         <button className="mc-tvbtn mc-tvicon" disabled={e.busy || e.playing || e.ended} onClick={() => e.stepForward()} title="Forward (→)"><StepForward size={16} /></button>
-        <button className={`mc-tvbtn${pop === 'speed' ? ' open' : ''}`} onClick={() => { setPop(pop === 'speed' ? null : 'speed'); setMenu(false); }}
+        <button className={`mc-tvbtn mc-rfull${pop === 'speed' ? ' open' : ''}`} onClick={() => { setPop(pop === 'speed' ? null : 'speed'); setMenu(false); }}
           title={e.live ? 'Forward test speed: market time per real second' : 'Replay speed'}>{e.live ? `${e.liveSpeed}x` : speedLabel(e.speed)}</button>
-        <button className={`mc-tvbtn${pop === 'interval' ? ' open' : ''}${e.live ? ' mc-live-on' : ''}`} onClick={() => { setPop(pop === 'interval' ? null : 'interval'); setMenu(false); }}
+        <button className={`mc-tvbtn mc-rfull${pop === 'interval' ? ' open' : ''}${e.live ? ' mc-live-on' : ''}`} onClick={() => { setPop(pop === 'interval' ? null : 'interval'); setMenu(false); }}
           title="Update interval: each step reveals 1 minute, or one candle of the chart's timeframe; Live = forward test">{intervalLabel}</button>
-        <span className="mc-sep" />
-        <button className="mc-tvbtn mc-tvicon" onClick={onExit} title={p ? 'Jump to real-time: leave replay (closes the open position at the current price)' : 'Jump to real-time: leave replay'}><ArrowRightToLine size={16} /></button>
-        <span className="mc-dim mc-replay-time" title={e.cursor ? `${fmtWall(e.live ? e.nowMs - 1000 : e.cursor + 60000, clock, e.live)} ${clock}` : ''}>
+        <span className="mc-sep mc-rfull" />
+        <button className="mc-tvbtn mc-tvicon mc-rfull" onClick={onExit} title={p ? 'Jump to real-time: leave replay (closes the open position at the current price)' : 'Jump to real-time: leave replay'}><ArrowRightToLine size={16} /></button>
+        <span className="mc-dim mc-replay-time mc-rfull" title={e.cursor ? `${fmtWall(e.live ? e.nowMs - 1000 : e.cursor + 60000, clock, e.live)} ${clock}` : ''}>
           {e.cursor ? fmtWall(e.live ? e.nowMs - 1000 : e.cursor + 60000, clock, e.live).slice(5) : ''}
         </span>
-        <span className="mc-sep" />
+        <span className="mc-sep mc-rfull" />
         {p ? (
           <>
             <span className={p.side === 'long' ? 'mc-up' : 'mc-down'}>{p.side === 'long' ? 'Long' : 'Short'} {p.qty} {p.contract} @ {fmtPrice(p.entry)}</span>
             <span className={e.openPnl >= 0 ? 'mc-up' : 'mc-down'}>
               {fmtUsd(e.openPnl)}{price !== null ? ` (${signed(rOf(p, price), 2)}R)` : ''}
             </span>
-            <button className="mc-btn mc-small" onClick={() => setErr(e.scaleIn(1) ?? '')} title="Add 1 contract at the current price (A)">+1</button>
-            <button className="mc-btn mc-small" disabled={p.qty < 2} onClick={() => setErr(e.scaleOut(Math.floor(p.qty / 2)) ?? '')} title="Close half (H)">½</button>
-            <button className="mc-btn mc-small" onClick={() => setErr(e.breakEven() ?? '')} title="Move the stop to break-even (E)">BE</button>
+            <button className="mc-btn mc-small mc-rfull" onClick={() => setErr(e.scaleIn(1) ?? '')} title="Add 1 contract at the current price (A)">+1</button>
+            <button className="mc-btn mc-small mc-rfull" disabled={p.qty < 2} onClick={() => setErr(e.scaleOut(Math.floor(p.qty / 2)) ?? '')} title="Close half (H)">½</button>
+            <button className="mc-btn mc-small mc-rfull" onClick={() => setErr(e.breakEven() ?? '')} title="Move the stop to break-even (E)">BE</button>
             <button className="mc-btn mc-small" onClick={() => e.closeAtMarket()} title="Close everything at the current price (F)">Close</button>
           </>
         ) : (
@@ -599,14 +605,15 @@ export default function ReplayBar({ engine: e, clock, accounts, accountId, onAcc
             <button className="mc-btn mc-small" onClick={() => e.cancelOrder(o.id)} title="Cancel the order">✕</button>
           </span>
         ))}
-        <span className="mc-sep" />
-        <button className={`mc-btn mc-small${showTrades ? ' open' : ''}`} onClick={() => { setShowTrades(!showTrades); setTicket(null); setStage(null); }}
+        <span className="mc-sep mc-rfull" />
+        <button className={`mc-btn mc-small mc-rfull${showTrades ? ' open' : ''}`} onClick={() => { setShowTrades(!showTrades); setTicket(null); setStage(null); }}
           title="Trades taken in this replay session">
           {e.trades.length ? `${e.trades.length} · ${fmtUsd(total)}` : '0 trades'}
           {failed.length ? <span className="mc-bad"> · {failed.length} not saved</span> : null}
         </button>
         {accountId === null && <button className="mc-btn mc-small mc-bad" onClick={openMenu} title="Pick the journal account replay trades are saved to">Save to…</button>}
-        <button className="mc-btn mc-small" onClick={onExit} title={p ? 'Exit replay (closes the open position at the current price)' : 'Exit replay'}>✕</button>
+        {mini && <button className="mc-tvbtn mc-tvicon" onClick={toggleMini} title="Open the full replay bar"><ChevronRight size={16} /></button>}
+        <button className="mc-btn mc-small mc-rfull" onClick={onExit} title={p ? 'Exit replay (closes the open position at the current price)' : 'Exit replay'}>✕</button>
       </div>
       {err && !ticket && <div className="mc-replay-msg mc-bad">{err} <button className="mc-btn mc-small" onClick={() => setErr('')} title="Hide">✕</button></div>}
       {e.message && <div className="mc-replay-msg">{e.message}</div>}

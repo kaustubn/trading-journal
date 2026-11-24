@@ -746,3 +746,5 @@
 .mc-stage:has(.mc-replay.docked) { background: #131722; }
 .mc-replay.docked { bottom: 5px; }
 .mc-replay.docked .mc-replay-row { box-shadow: none; }
+.mc-replay.mini .mc-rfull { display: none !important; }
+.mc-replay.mini .mc-replay-row { gap: 2px; padding: 3px 4px; }
