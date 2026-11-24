@@ -103,20 +103,62 @@ export class DrawingController {
   private measureFrom: Partial<Point> | null = null;
   private unsubscribe: () => void;
 
+  /** The one drawing that can be dragged: the selected one, after the click that selected it was released. */
+  private armed: string | null = null;
+  private onChange: () => void;
+
   constructor(
     private chart: Chart,
     private view: DrawView,
     private store: DrawingStore,
-    private onChange: () => void,
+    onChange: () => void,
   ) {
+    // every state change also re-checks the two drawing rules (chart frozen while placing, only the selected drawing moves)
+    this.onChange = () => { this.syncInteraction(); onChange(); };
     this.unsubscribe = store.subscribe(() => {
       if (this.selected && !store.drawings.some(d => d.id === this.selected)) this.selected = null;
       this.sync();
       this.onChange();
     });
     if (store.loaded) this.sync();
+    this.listen();
   }
-  dispose() { this.unsubscribe(); }
+  dispose() { this.unsubscribe(); DrawingController.all.delete(this); this.chart.setScrollEnabled(true); }
+
+  /** Like TradingView: the chart does not pan while a drawing is being placed, and a drawing can only be dragged once
+   *  it is selected (so pressing on a drawing to pan the chart never moves it). */
+  private scrollOff = false;
+  private syncInteraction() {
+    const placing = !!this.draftId || !!this.manual;
+    if (placing !== this.scrollOff) { this.scrollOff = placing; this.chart.setScrollEnabled(!placing); }
+    const want = this.selected && this.selected !== this.draftId ? this.selected : null;
+    if (want === this.armed) return;
+    const prev = this.armed;
+    this.armed = null;
+    if (prev) this.setLock(prev);
+    if (!want) return;
+    // arm once the mouse button that made the selection is up (a press-and-drag on an unselected drawing pans nothing
+    // and moves nothing; the next press moves it)
+    const arm = () => { if (this.selected === want && !this.armed) { this.armed = want; this.setLock(want); } };
+    if (this.pressing) window.addEventListener('mouseup', () => window.setTimeout(arm, 0), { once: true, capture: true });
+    else arm();
+  }
+  private setLock(id: string) {
+    const d = this.store.drawings.find(x => x.id === id);
+    if (!d || !this.chart.getOverlays({ id }).length) return;
+    this.chart.overrideOverlay({ id, lock: !!d.locked || this.view.lockAll || this.armed !== id } as unknown as Partial<OverlayCreate>);
+  }
+  /** True while a mouse button is down on the page (set by window listeners below). */
+  private pressing = false;
+  private static listening = false;
+  private static all = new Set<DrawingController>();
+  private listen() {
+    DrawingController.all.add(this);
+    if (DrawingController.listening) return;
+    DrawingController.listening = true;
+    window.addEventListener('mousedown', () => DrawingController.all.forEach(c => { c.pressing = true; }), true);
+    window.addEventListener('mouseup', () => window.setTimeout(() => DrawingController.all.forEach(c => { c.pressing = false; }), 0), true);
+  }
 
   private create(spec: OverlayCreate<Drawing>) {
     return this.chart.createOverlay(spec as unknown as OverlayCreate);
@@ -420,13 +462,13 @@ export class DrawingController {
       return {
         id: d.id, name: TOOLS[d.tool].overlay, groupId: GROUP, paneId: PANE, points,
         extendData: { ...d, anchor: { t: points[0].timestamp, p: points[0].value } } as Drawing,
-        lock: !!d.locked || lockAll, visible: !hidden && !d.hidden, mode: 'normal', zLevel: this.z.get(d.id) ?? 0,
+        lock: !!d.locked || lockAll || this.armed !== d.id, visible: !hidden && !d.hidden, mode: 'normal', zLevel: this.z.get(d.id) ?? 0,
       };
     }
     return {
       id: d.id, name: TOOLS[d.tool].overlay, groupId: GROUP, paneId: PANE,
       points: d.points.map(p => ({ timestamp: barTime(p.t, tf, rth), value: p.p })),
-      extendData: d, lock: !!d.locked || lockAll, visible: !hidden && !d.hidden, mode: MODE[magnet],
+      extendData: d, lock: !!d.locked || lockAll || this.armed !== d.id, visible: !hidden && !d.hidden, mode: MODE[magnet],
       zLevel: this.z.get(d.id) ?? 0,
     };
   }
