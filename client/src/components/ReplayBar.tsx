@@ -348,7 +348,7 @@ export default function ReplayBar({ engine: e, clock, accounts, accountId, onAcc
   const tightStop = atr && atr.value > 0 && form.stopPts > 0 && form.stopPts < 0.75 * atr.value;
 
   return (
-    <div className="mc-replay" ref={boxRef} style={{ transform: `translate(calc(-50% + ${pos.x}px), ${pos.y}px)` }} onMouseDown={ev => ev.stopPropagation()}>
+    <div className={`mc-replay${pos.x === 0 && pos.y === 0 ? ' docked' : ''}`} ref={boxRef} style={{ transform: `translate(calc(-50% + ${pos.x}px), ${pos.y}px)` }} onMouseDown={ev => ev.stopPropagation()}>
       {ticket && (
         <form className="mc-ticket" onSubmit={submit} noValidate>
           <div className="mc-panel-title">{ticket === 'long' ? 'Buy' : 'Sell'} {otype === 'market' ? 'at market' : otype}{price !== null ? ` · ${fmtPrice(price)}` : ''}</div>
@@ -555,7 +555,7 @@ export default function ReplayBar({ engine: e, clock, accounts, accountId, onAcc
         </div>
       )}
       <div className="mc-replay-row">
-        <span className="mc-grip" onPointerDown={startDrag} onDoubleClick={resetPos} title="Drag to move the replay bar (double-click: back to the middle)"><GripVertical size={14} /></span>
+        <span className="mc-grip" onPointerDown={startDrag} onDoubleClick={resetPos} title="Drag to move the replay bar over the chart (double-click: dock it back under the chart)"><GripVertical size={14} /></span>
         <button className={`mc-tvbtn mc-tvsel${menu ? ' open' : ''}`} disabled={jumping} onClick={openMenu}
           title="Select starting point: a bar, a date, the first available date or a random bar">
           <ArrowLeftToLine size={16} /> Select bar {menu ? <ChevronUp size={13} /> : <ChevronDown size={13} />}

@@ -740,3 +740,9 @@
 .mc-tvmenu .mc-field { padding: 2px 4px; }
 .mc-replay > .mc-tvmenu { align-self: flex-start; }
 .mc-replay > .mc-tvmenu-small { align-self: center; }
+
+/* replay bar docked under the chart like TradingView: the charts end above it, so the volume pane stays visible */
+.mc-stage:has(.mc-replay.docked) .mc-grid { bottom: 44px; }
+.mc-stage:has(.mc-replay.docked) { background: #131722; }
+.mc-replay.docked { bottom: 5px; }
+.mc-replay.docked .mc-replay-row { box-shadow: none; }
