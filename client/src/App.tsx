@@ -41,6 +41,7 @@ import PracticeLog from './components/PracticeLog';
 import NewsAnalyzer from './components/NewsAnalyzer';
 import NewsPage from './components/NewsPage';
 import GoalsPage from './components/GoalsPage';
+import UpdateBanner from './components/UpdateBanner';
 import NewsBlackoutBanner from './components/NewsBlackoutBanner';
 import PropBreachBanner from './components/PropBreachBanner';
 import EdgeOddsCard from './components/EdgeOddsCard';
@@ -457,6 +458,7 @@ export default function App() {
 
   return (
     <div className="app">
+      <UpdateBanner />
       <header className="header">
         <div className="header-left">
           <button className="hdr-icon mobile-only" onClick={() => setMobileNavOpen(o => !o)}
