@@ -748,3 +748,24 @@
 .mc-replay.docked .mc-replay-row { box-shadow: none; }
 .mc-replay.mini .mc-rfull { display: none !important; }
 .mc-replay.mini .mc-replay-row { gap: 2px; padding: 3px 4px; }
+
+/* chart tabs, like browser tabs */
+.mc-tabs { display: flex; align-items: flex-end; gap: 2px; padding: 6px 8px 0; background: #0f1219; border-bottom: 1px solid var(--mc-border);
+  overflow-x: auto; scrollbar-width: none; flex: none; }
+.mc-tabs::-webkit-scrollbar { display: none; }
+.mc-tab { position: relative; display: flex; align-items: center; gap: 6px; min-width: 90px; max-width: 200px; height: 30px; padding: 0 6px 0 12px;
+  border-radius: 8px 8px 0 0; background: transparent; color: var(--mc-dim, #9598a1); font-size: 12.5px; cursor: pointer; user-select: none; flex: none; }
+.mc-tab:hover:not(.on) { background: rgba(255, 255, 255, 0.05); color: var(--mc-text, #d1d4dc); }
+.mc-tab.on { background: var(--mc-panel, #1e222d); color: var(--mc-text, #d1d4dc); font-weight: 600; box-shadow: 0 -1px 0 var(--mc-accent, #2962ff) inset; }
+.mc-tab:not(.on) + .mc-tab:not(.on)::before { content: ''; position: absolute; left: -1px; top: 8px; bottom: 8px; width: 1px; background: var(--mc-border); }
+.mc-tab-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mc-tab-x { border: 0; background: transparent; color: inherit; width: 20px; height: 20px; border-radius: 50%; font-size: 15px; line-height: 1; cursor: pointer; opacity: .65; }
+.mc-tab-x:hover:not(:disabled) { background: rgba(255, 255, 255, 0.12); opacity: 1; }
+.mc-tab-x:disabled { opacity: .25; cursor: default; }
+.mc-tab-edit { width: 100%; min-width: 60px; background: transparent; border: 1px solid var(--mc-accent, #2962ff); border-radius: 4px; color: inherit; font: inherit; padding: 1px 4px; }
+.mc-tab-add { flex: none; width: 28px; height: 28px; margin: 0 0 2px 4px; border: 0; border-radius: 50%; background: transparent; color: var(--mc-dim, #9598a1);
+  font-size: 18px; line-height: 1; cursor: pointer; }
+.mc-tab-add:hover:not(:disabled) { background: rgba(255, 255, 255, 0.08); color: var(--mc-text, #d1d4dc); }
+.mc-tab-add:disabled { opacity: .3; cursor: default; }
+.mc-light .mc-tabs { background: #e9ebf0; }
+.mc-light .mc-tab.on { background: #fff; color: #131722; }

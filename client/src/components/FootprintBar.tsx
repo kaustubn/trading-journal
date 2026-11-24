@@ -75,7 +75,7 @@ export default function FootprintBar({ auth, day, onDay, onLoaded, replay }: {
   }
 
   return (
-    <Floating id="fp-bar" bare initial={{ x: 200, y: 64 }} className="mc-fp-float">
+    <Floating id="fp-bar" bare initial={{ x: 200, y: 102 }} className="mc-fp-float">
       <div className="mc-fp">
         <b>Footprint</b>
         <input className="mc-input mc-small" type="date" value={day} onChange={e => e.target.value && onDay(e.target.value)} title="New York session to show" />

@@ -24,7 +24,7 @@ import type { KLineData } from 'klinecharts';
 import type { OrderInput } from '../chart/replay';
 import {
   TFS, tfLabel, parseTfInput, INDS, IND_KEYS, IndKey, parseParams, Settings, DEFAULTS, mergeSettings,
-  Meta, BarsResp, toK, FocusTrade, ChartType, CHART_TYPES, LAYOUTS, LayoutMode, layoutCount, PaneSource, applyTvPreset, applyStdPreset, snapshotOf, applySnapshot,
+  Meta, BarsResp, toK, FocusTrade, ChartType, CHART_TYPES, LAYOUTS, LayoutMode, layoutCount, PaneSource, applyTvPreset, applyStdPreset, snapshotOf, applySnapshot, switchTab, addTab, closeTab, renameTab,
 } from '../chart/config';
 import '../styles/MarketChart.css';
 import SessionTimerBar from './SessionTimerBar';
@@ -85,6 +85,7 @@ export default function MarketChart({ token, focus }: { token: string; focus?: {
   const [treeOpen, setTreeOpen] = useState(false);
   const [layoutName, setLayoutName] = useState('');
   const [renaming, setRenaming] = useState<number | null>(null);
+  const [tabEdit, setTabEdit] = useState<string | null>(null);
   const indActionRef = useRef<(name: string, feature: string) => void>(() => {});
   const toggleLegendRef = useRef<() => void>(() => {});
   const [ftDate, setFtDate] = useState('');
@@ -680,6 +681,34 @@ export default function MarketChart({ token, focus }: { token: string; focus?: {
 
   return (
     <div ref={rootRef} className={`mc-root mc-${s.theme} mc-look-${s.look}${full ? ' mc-full' : ''}`}>
+      <div className="mc-tabs" role="tablist" aria-label="Chart tabs">
+        {s.tabs.map(t => {
+          const on = t.id === s.tabActive;
+          const blocked = !on && !!engine.position;
+          return (
+            <div key={t.id} role="tab" aria-selected={on} className={`mc-tab${on ? ' on' : ''}`}
+              title={blocked ? 'Close the open replay position before switching charts' : on ? 'Double-click to rename' : `Open ${t.name}`}
+              onClick={() => { if (!on && !blocked) update(cur => switchTab(cur, t.id)); }}
+              onDoubleClick={() => setTabEdit(t.id)}
+              onAuxClick={ev => { if (ev.button === 1 && s.tabs.length > 1 && !(on && engine.position)) update(cur => closeTab(cur, t.id)); }}>
+              {tabEdit === t.id ? (
+                <input className="mc-tab-edit" autoFocus defaultValue={t.name} maxLength={24}
+                  onClick={ev => ev.stopPropagation()}
+                  onKeyDown={ev => { if (ev.key === 'Enter') (ev.target as HTMLInputElement).blur(); if (ev.key === 'Escape') setTabEdit(null); }}
+                  onBlur={ev => { const v = ev.target.value; setTabEdit(null); update(cur => renameTab(cur, t.id, v)); }} />
+              ) : <span className="mc-tab-name">{t.name}</span>}
+              {s.tabs.length > 1 && (
+                <button className="mc-tab-x" aria-label={`Close ${t.name}`} title="Close tab (middle-click works too)"
+                  disabled={on && !!engine.position}
+                  onClick={ev => { ev.stopPropagation(); update(cur => closeTab(cur, t.id)); }}>×</button>
+              )}
+            </div>
+          );
+        })}
+        <button className="mc-tab-add" disabled={s.tabs.length >= 12 || !!engine.position}
+          title={engine.position ? 'Close the open replay position first' : 'New tab (a copy of this chart)'}
+          onClick={() => update(cur => addTab(cur))}>+</button>
+      </div>
       <div className="mc-top">
         <span className="mc-sym">NQ</span>
         <span className="mc-sym-sub">E-mini Nasdaq-100 · CME</span>

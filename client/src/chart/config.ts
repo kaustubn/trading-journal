@@ -223,6 +223,8 @@ export interface Settings {
   indicators: Record<IndKey, IndCfg>;
   chart: ChartCfg;                 // candles, background, grid, crosshair, scales, status line
   saved: { name: string; data: LayoutSnapshot }[];  // the trader's own layouts
+  tabs: ChartTab[];        // chart tabs along the top, like browser tabs (each keeps its own layout)
+  tabActive: string;
   magnet: Magnet; drawHidden: boolean; drawLocked: boolean;
   stayDrawing: boolean;    // a drawing tool stays on after each drawing until right-click / Esc
   favTools: Tool[];        // favourites toolbar (Kay's TradingView favourites)
@@ -270,6 +272,8 @@ export const DEFAULTS: Settings = {
   look: 'tv',
   chart: { ...CHART_TV },
   saved: [],
+  tabs: [{ id: 't1', name: 'Chart 1', data: null }],
+  tabActive: 't1',
   toolTpl: { ...TV_TOOL_TPL },
   coach: DEFAULT_RULES,
 };
@@ -311,6 +315,14 @@ export function mergeSettings(saved: any): Settings {
     }
   }
   s.chart = mergeChart(saved.chart, s.look === 'journal' && !saved.chart ? CHART_STD : CHART_TV);
+  if (Array.isArray(saved.tabs)) {
+    const tabs = saved.tabs
+      .filter((t: any) => t && typeof t.id === 'string' && /^[A-Za-z0-9_-]{1,24}$/.test(t.id) && typeof t.name === 'string')
+      .slice(0, 12)
+      .map((t: any) => ({ id: t.id, name: t.name.trim().slice(0, 24) || 'Chart', data: t.data && typeof t.data === 'object' ? t.data : null }));
+    if (tabs.length) s.tabs = tabs.filter((t: ChartTab, i: number, a: ChartTab[]) => a.findIndex(x => x.id === t.id) === i);
+  }
+  s.tabActive = s.tabs.some(t => t.id === saved.tabActive) ? saved.tabActive : s.tabs[0].id;
   if (Array.isArray(saved.saved)) {
     s.saved = saved.saved
       .filter((l: any) => l && typeof l.name === 'string' && l.name.trim() && l.data && typeof l.data === 'object')
@@ -364,8 +376,42 @@ export function applyStdPreset(cur: Settings): Settings {
 }
 /** Apply a saved layout's snapshot on top of the current settings. */
 export function applySnapshot(cur: Settings, data: Partial<LayoutSnapshot>): Settings {
-  return mergeSettings({ ...cur, ...data, saved: cur.saved });
+  return mergeSettings({ ...cur, ...data, saved: cur.saved, tabs: cur.tabs, tabActive: cur.tabActive });
 }
+
+// ---------- chart tabs ----------
+export interface ChartTab { id: string; name: string; data: LayoutSnapshot | null }
+const tabId = () => `t${Date.now().toString(36)}${Math.floor(Math.random() * 1296).toString(36)}`;
+/** Switch to another tab: the current chart is kept in the tab being left, the other tab's chart is loaded. */
+export function switchTab(cur: Settings, id: string): Settings {
+  if (id === cur.tabActive || !cur.tabs.some(t => t.id === id)) return cur;
+  const tabs = cur.tabs.map(t => (t.id === cur.tabActive ? { ...t, data: snapshotOf(cur) } : t));
+  const target = tabs.find(t => t.id === id)!;
+  const next = target.data ? applySnapshot({ ...cur, tabs }, target.data) : { ...cur, tabs };
+  return { ...next, tabs, tabActive: id };
+}
+/** A new tab next to the current one, starting as a copy of the current chart. */
+export function addTab(cur: Settings): Settings {
+  if (cur.tabs.length >= 12) return cur;
+  const id = tabId();
+  const n = cur.tabs.length + 1;
+  const tabs = cur.tabs.map(t => (t.id === cur.tabActive ? { ...t, data: snapshotOf(cur) } : t));
+  const at = tabs.findIndex(t => t.id === cur.tabActive) + 1;
+  tabs.splice(at, 0, { id, name: `Chart ${n}`, data: snapshotOf(cur) });
+  return { ...cur, tabs, tabActive: id };
+}
+/** Close a tab (the last one stays); closing the open tab opens its neighbour. */
+export function closeTab(cur: Settings, id: string): Settings {
+  if (cur.tabs.length <= 1) return cur;
+  const i = cur.tabs.findIndex(t => t.id === id);
+  if (i < 0) return cur;
+  if (id !== cur.tabActive) return { ...cur, tabs: cur.tabs.filter(t => t.id !== id) };
+  const neighbour = cur.tabs[i + 1] ?? cur.tabs[i - 1];
+  const moved = switchTab(cur, neighbour.id);
+  return { ...moved, tabs: moved.tabs.filter(t => t.id !== id) };
+}
+export const renameTab = (cur: Settings, id: string, name: string): Settings =>
+  ({ ...cur, tabs: cur.tabs.map(t => (t.id === id ? { ...t, name: name.trim().slice(0, 24) || t.name } : t)) });
 
 // ---------- data ----------
 export interface BarsResp { bars: [number, number, number, number, number, number][]; older: boolean; newer: boolean; }

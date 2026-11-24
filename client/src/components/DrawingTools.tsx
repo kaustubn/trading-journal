@@ -256,7 +256,7 @@ export function DrawEditBar({ ctl, tplOf, onTemplate, onAlert, hasAlert }: {
 export function FavBar({ ctl, tools, onClose }: { ctl: DrawingController | null; tools: Tool[]; onClose: () => void }) {
   const active = ctl?.active ?? null;
   return (
-    <Floating id="fav-bar" bare initial={{ x: 140, y: 120 }} className="mc-fav-float">
+    <Floating id="fav-bar" bare initial={{ x: 140, y: 158 }} className="mc-fav-float">
       <div className="mc-fav" role="toolbar" aria-label="Favourite drawing tools">
         {tools.map(t => (
           <button key={t} className={`mc-dbtn${active === t ? ' on' : ''}`} disabled={!ctl?.loaded}
