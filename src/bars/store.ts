@@ -167,7 +167,9 @@ export interface Levels {
   start: number;              // 6pm ET open
   nyStart: number;            // 9:30am ET
   end: number;                // 5pm ET close
-  prev: { date: string; h: number; l: number; c: number } | null; // previous full session
+  prev: { date: string; o: number; h: number; l: number; c: number } | null; // previous full session
+  /** The previous session split into Asia (6pm-2am ET), London (2-9:30am) and New York (9:30am-4pm): open, high, low, close. */
+  prevSessions: Partial<Record<'asia' | 'london' | 'ny', { o: number; h: number; l: number; c: number }>> | null;
   open: number | null;        // session open (6pm ET)
   nyOpen: number | null;      // 9:30am ET open
   overnight: { h: number; l: number } | null; // 6pm -> 9:30am ET
@@ -190,19 +192,34 @@ export async function getLevels(sym: number, at: Date): Promise<Levels | null> {
             (SELECT o FROM bars_1m WHERE sym = $1 AND ts >= p.ny AND ts < p.s1 AND ts <= $2 ORDER BY ts LIMIT 1) AS ny_open,
             (SELECT max(h) FROM bars_1m WHERE sym = $1 AND ts >= p.s0 AND ts < p.ny AND ts <= $2) AS on_h,
             (SELECT min(l) FROM bars_1m WHERE sym = $1 AND ts >= p.s0 AND ts < p.ny AND ts <= $2) AS on_l,
-            d.h AS pd_h, d.l AS pd_l, d.c AS pd_c, ${local('d.ts')}::date::text AS pd_date
+            d.o AS pd_o, d.h AS pd_h, d.l AS pd_l, d.c AS pd_c, ${local('d.ts')}::date::text AS pd_date
        FROM p
        LEFT JOIN LATERAL (
-         SELECT ts, h, l, c FROM bars_agg
+         SELECT ts, o, h, l, c FROM bars_agg
           WHERE sym = $1 AND tf = 1440 AND ts < ${DAILY_TS('p.sd')} ORDER BY ts DESC LIMIT 1) d ON true`,
     [sym, at]);
   const x = r.rows[0];
   if (!x) return null;
   const px = (v: any) => (v === null || v === undefined ? null : Number(v) / 100);
   const ms = (d: any) => new Date(d).getTime();
+  // previous session by part (one small grouped read of that day's 1-minute bars)
+  let prevSessions: Levels['prevSessions'] = null;
+  if (x.pd_date) {
+    const s = await pool.query(
+      `SELECT k, (array_agg(o ORDER BY ts))[1] AS o, max(h) AS h, min(l) AS l, (array_agg(c ORDER BY ts DESC))[1] AS c FROM (
+         SELECT ts, o, h, l, c,
+                CASE WHEN ts < ($2::date + time '02:00') AT TIME ZONE '${ET}' THEN 'asia'
+                     WHEN ts < ($2::date + time '09:30') AT TIME ZONE '${ET}' THEN 'london' ELSE 'ny' END AS k
+           FROM bars_1m
+          WHERE sym = $1 AND ts >= (($2::date - 1) + time '18:00') AT TIME ZONE '${ET}' AND ts < ($2::date + time '16:00') AT TIME ZONE '${ET}') q
+       GROUP BY k`, [sym, x.pd_date]);
+    prevSessions = {};
+    for (const r2 of s.rows) prevSessions[r2.k as 'asia' | 'london' | 'ny'] = { o: px(r2.o)!, h: px(r2.h)!, l: px(r2.l)!, c: px(r2.c)! };
+  }
   return {
     session: x.sd, start: ms(x.s0), nyStart: ms(x.ny), end: ms(x.s1),
-    prev: x.pd_h === null ? null : { date: x.pd_date, h: px(x.pd_h)!, l: px(x.pd_l)!, c: px(x.pd_c)! },
+    prev: x.pd_h === null ? null : { date: x.pd_date, o: px(x.pd_o)!, h: px(x.pd_h)!, l: px(x.pd_l)!, c: px(x.pd_c)! },
+    prevSessions,
     open: px(x.open), nyOpen: px(x.ny_open),
     overnight: x.on_h === null ? null : { h: px(x.on_h)!, l: px(x.on_l)! },
   };

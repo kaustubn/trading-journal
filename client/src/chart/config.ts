@@ -219,7 +219,7 @@ export interface PaneCfg { tf: number; src: PaneSource; }
 export interface Settings {
   clock: Clock; theme: Theme;
   sessions: boolean; rth: boolean; log: boolean; rolls: boolean;
-  levels: { pd: boolean; on: boolean; open: boolean; round: boolean };
+  levels: { pd: boolean; on: boolean; open: boolean; round: boolean; pdo: boolean; pAsia: boolean; pLondon: boolean; pNy: boolean; ohlc: string };
   indicators: Record<IndKey, IndCfg>;
   chart: ChartCfg;                 // candles, background, grid, crosshair, scales, status line
   saved: { name: string; data: LayoutSnapshot }[];  // the trader's own layouts
@@ -261,7 +261,7 @@ export const DEFAULTS: Settings = {
   sessions: true, rth: false, log: false, rolls: true,
   magnet: 'off', drawHidden: false, drawLocked: false, notesOpen: false, stayDrawing: true,
   favTools: [...TV_FAV_TOOLS], favBar: true, drawBar: true,
-  levels: { pd: true, on: true, open: true, round: false },
+  levels: { pd: true, on: true, open: true, round: false, pdo: false, pAsia: false, pLondon: false, pNy: false, ohlc: 'OHLC' },
   indicators: IND_KEYS.reduce((acc, k) => {
     acc[k] = { on: k === 'VOL' || k === 'NQSYS', params: INDS[k].def, ...(k === 'VOL' ? { bars: { ...VOL_BARS_TV } } : {}), ...(k === 'NQSYS' ? { nq: { ...NQ_STYLE_TV } } : {}), ...(k === 'CPAT' ? { opts: sanitizeCpat(CPAT_DEFAULT) } : {}), ...(k === 'CNDL' ? { opts: sanitizeCndl(CNDL_DEFAULT) } : {}) };
     return acc;
@@ -290,9 +290,10 @@ export function mergeSettings(saved: any): Settings {
     if (typeof saved[k] === 'boolean') s[k] = saved[k];
   }
   if (saved.magnet === 'off' || saved.magnet === 'weak' || saved.magnet === 'strong') s.magnet = saved.magnet;
-  for (const k of ['pd', 'on', 'open', 'round'] as const) {
+  for (const k of ['pd', 'on', 'open', 'round', 'pdo', 'pAsia', 'pLondon', 'pNy'] as const) {
     if (typeof saved.levels?.[k] === 'boolean') s.levels[k] = saved.levels[k];
   }
+  if (['OHLC', 'HL', 'OC'].includes(saved.levels?.ohlc)) s.levels.ohlc = saved.levels.ohlc;
   for (const k of IND_KEYS) {
     const i = saved.indicators?.[k];
     if (!i) continue;

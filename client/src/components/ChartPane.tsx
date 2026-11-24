@@ -150,7 +150,7 @@ export default function ChartPane({ index, tf, s, active, ws, onActivate }: Prop
         pushBg();   // replay: releases the cursor has passed now show their actual numbers
       }
       ws.onChartDate(index, new Date(sessionDay(dayAt) * 86400000).toISOString().slice(0, 10));
-      const wanted = tfm < 1440 && (st.levels.pd || st.levels.on || st.levels.open);
+      const wanted = tfm < 1440 && (st.levels.pd || st.levels.on || st.levels.open || st.levels.pdo || st.levels.pAsia || st.levels.pLondon || st.levels.pNy);
       if (!wanted) {
         levelsAt.current = null;
         if (levelsRef.current) { levelsRef.current = null; pushBg(); }

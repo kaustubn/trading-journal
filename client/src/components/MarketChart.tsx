@@ -655,7 +655,7 @@ export default function MarketChart({ token, focus }: { token: string; focus?: {
     update(cur => ({ ...cur, indicators: { ...cur.indicators, [key]: { ...cur.indicators[key], params } } }));
     setParamText(p => { const n = { ...p }; delete n[key]; return n; });
   };
-  const setLevel = (k: keyof Settings['levels']) => update(cur => ({ ...cur, levels: { ...cur.levels, [k]: !cur.levels[k] } }));
+  const setLevel = (k: Exclude<keyof Settings['levels'], 'ohlc'>) => update(cur => ({ ...cur, levels: { ...cur.levels, [k]: !cur.levels[k] } }));
   const setLayout = (mode: LayoutMode) => update(cur => ({ ...cur, layout: mode, active: Math.min(cur.active, layoutCount(mode) - 1) }));
 
   // after "Footprint" is picked as the chart type, the charts are rebuilt: widen the candles then
@@ -1082,6 +1082,23 @@ export default function MarketChart({ token, focus }: { token: string; focus?: {
                 </label>
               ))}
               <label className="mc-check mc-row">
+                <input type="checkbox" checked={s.levels.pdo} onChange={() => setLevel('pdo')} />
+                <span>Previous day open (PDO)</span>
+              </label>
+              <div className="mc-panel-sub">Previous day by session (New York time)</div>
+              {([['pAsia', 'Asia (6pm–2am)'], ['pLondon', 'London (2–9:30am)'], ['pNy', 'New York (9:30am–4pm)']] as const).map(([k, label]) => (
+                <label key={k} className="mc-check mc-row">
+                  <input type="checkbox" checked={s.levels[k]} onChange={() => setLevel(k)} />
+                  <span>{label}</span>
+                </label>
+              ))}
+              <label className="mc-row mc-check">
+                <span>Show</span>
+                <select className="mc-input" value={s.levels.ohlc} onChange={e => update(cur => ({ ...cur, levels: { ...cur.levels, ohlc: e.target.value } }))}>
+                  <option value="OHLC">Open, high, low, close</option><option value="HL">High and low</option><option value="OC">Open and close</option>
+                </select>
+              </label>
+              <label className="mc-check mc-row">
                 <input type="checkbox" checked={s.rolls} onChange={() => update({ rolls: !s.rolls })} />
                 <span>Contract roll dates</span>
               </label>
@@ -1097,7 +1114,7 @@ export default function MarketChart({ token, focus }: { token: string; focus?: {
                 <input type="checkbox" checked={s.newsHeadlines !== false} onChange={() => update({ newsHeadlines: s.newsHeadlines === false, news: true })} />
                 <span>Breaking headlines (USA, India, Canada), purple</span>
               </label>
-              <div className="mc-hint">Previous day = the full 6pm–5pm ET session. Levels follow the day at the right edge of each chart.</div>
+              <div className="mc-hint">Previous day = the full 6pm–5pm ET session. Overnight (ON) = 6pm–9:30am ET of today's session. Session lines: pAsia / pLon / pNY + O, H, L, C. Levels follow the day at the right edge of each chart.</div>
             </div>
           )}
 

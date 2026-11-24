@@ -18,7 +18,8 @@ import type { NewsMark } from './newsStore';
 
 export interface LevelsData {
   session: string; start: number; nyStart: number; end: number;
-  prev: { date: string; h: number; l: number; c: number } | null;
+  prev: { date: string; o?: number; h: number; l: number; c: number } | null;
+  prevSessions?: Partial<Record<'asia' | 'london' | 'ny', { o: number; h: number; l: number; c: number }>> | null;
   open: number | null; nyOpen: number | null;
   overnight: { h: number; l: number } | null;
 }
@@ -33,7 +34,7 @@ export interface BgData {
   breaksWidth?: number;
   rolls: { contract: string; from: number }[] | null; // null = hidden
   levels: LevelsData | null;
-  show: { pd: boolean; on: boolean; open: boolean; round: boolean };
+  show: { pd: boolean; on: boolean; open: boolean; round: boolean; pdo?: boolean; pAsia?: boolean; pLondon?: boolean; pNy?: boolean; ohlc?: string };
   news?: NewsMark[] | null;      // economic releases: one vertical line per release time
 }
 
@@ -43,7 +44,7 @@ const SESSION_FILL: Record<'dark' | 'light', Record<Exclude<SessionName, null>, 
   dark: { asia: 'rgba(41, 98, 255, 0.07)', london: 'rgba(255, 152, 0, 0.06)', ny: 'rgba(8, 153, 129, 0.07)' },
   light: { asia: 'rgba(41, 98, 255, 0.06)', london: 'rgba(255, 152, 0, 0.07)', ny: 'rgba(8, 153, 129, 0.07)' },
 };
-const LEVEL_COLOR = { pd: '#f7a600', on: '#7e57c2', open: '#9598a1' };
+const LEVEL_COLOR = { pd: '#f7a600', on: '#7e57c2', open: '#9598a1', asia: '#2962ff', london: '#ff9800', ny: '#089981' };
 
 /** First index whose bar starts at or after `ts`. */
 function indexAtOrAfter(data: KLineData[], ts: number): number {
@@ -318,6 +319,16 @@ export function registerChartIndicators() {
           lines.push({ label: 'PDH', value: lv.prev.h, color: LEVEL_COLOR.pd });
           lines.push({ label: 'PDL', value: lv.prev.l, color: LEVEL_COLOR.pd });
           lines.push({ label: 'PDC', value: lv.prev.c, color: LEVEL_COLOR.pd });
+        }
+        if (ext.show.pdo && lv.prev?.o != null) lines.push({ label: 'PDO', value: lv.prev.o, color: LEVEL_COLOR.pd });
+        // previous day's Asia / London / New York sessions: open, high, low, close (which ones: ext.show.ohlc, e.g. "HL")
+        const which = (ext.show.ohlc ?? 'OHLC').toUpperCase();
+        const sess: [boolean | undefined, 'asia' | 'london' | 'ny', string][] = [[ext.show.pAsia, 'asia', 'pAsia'], [ext.show.pLondon, 'london', 'pLon'], [ext.show.pNy, 'ny', 'pNY']];
+        for (const [on, k, name] of sess) {
+          const v = on ? lv.prevSessions?.[k] : null;
+          if (!v) continue;
+          for (const [ch, val] of [['O', v.o], ['H', v.h], ['L', v.l], ['C', v.c]] as const)
+            if (which.includes(ch)) lines.push({ label: `${name} ${ch}`, value: val, color: LEVEL_COLOR[k] });
         }
         if (ext.show.on && lv.overnight) {
           lines.push({ label: 'ONH', value: lv.overnight.h, color: LEVEL_COLOR.on });

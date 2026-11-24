@@ -769,3 +769,4 @@
 .mc-tab-add:disabled { opacity: .3; cursor: default; }
 .mc-light .mc-tabs { background: #e9ebf0; }
 .mc-light .mc-tab.on { background: #fff; color: #131722; }
+.mc-panel-sub { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--mc-dim); margin: 8px 0 2px; }
