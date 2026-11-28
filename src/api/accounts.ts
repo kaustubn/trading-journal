@@ -4,7 +4,7 @@ import pool from '../db';
 import { encrypt } from '../utils/crypto';
 import { getPlan, FREE_MAX_ACCOUNTS } from '../middleware/plan';
 import { drawdownFloor, bufferLevel, DdType } from '../shared/propRules';
-import { computeEvalStatus } from '../shared/evalGuard';
+import { computeEvalStatus, splitByWindow } from '../shared/evalGuard';
 
 // Optional positive money input: undefined = not sent, null = cleared, number = value. Anything else is invalid.
 function moneyInput(v: unknown): number | null | undefined | 'bad' {
@@ -467,27 +467,31 @@ router.get('/accounts/:id/prop-status', async (req: Request, res: Response) => {
     const num = (v: unknown) => (v === null || v === undefined ? null : Number(v));
     let evalGuard: any = null;
     if (ddType === 'eod' && maxDd !== null) {
-      const closeParams: any[] = [id];
-      let window = '';
+      const all = (await pool.query(
+        `SELECT to_char(day,'YYYY-MM-DD') AS day, balance FROM eval_closes WHERE account_id = $1 ORDER BY day`, [id]))
+        .rows.map((r: any) => ({ day: r.day as string, balance: Number(r.balance) }));
+      // Scope to the selected attempt's dates, but report what is left out instead of hiding it silently.
+      let closes = all, ignored: { count: number; days: string[] } | null = null;
       if (attempt) {
-        closeParams.push(attempt);
-        window = ` AND EXISTS (SELECT 1 FROM account_attempts x WHERE x.id = $2 AND x.account_id = c.account_id
-                     AND c.day >= DATE(x.started_at) AND (x.ended_at IS NULL OR c.day <= DATE(x.ended_at)))`;
+        const win = await pool.query(
+          `SELECT to_char(DATE(started_at),'YYYY-MM-DD') AS from_day, to_char(DATE(ended_at),'YYYY-MM-DD') AS to_day
+           FROM account_attempts WHERE id = $1 AND account_id = $2`, [attempt, id]);
+        if (win.rows.length) {
+          const split = splitByWindow(all, win.rows[0].from_day, win.rows[0].to_day ?? null);
+          closes = split.inside;
+          if (split.outside.length) ignored = { count: split.outside.length, days: split.outside.map(c => c.day) };
+        }
       }
-      const closes = await pool.query(
-        `SELECT to_char(c.day,'YYYY-MM-DD') AS day, c.balance FROM eval_closes c WHERE c.account_id = $1${window} ORDER BY c.day`,
-        closeParams);
       const todayDay: string = todayRes.rows[0].today_day;
       const status = computeEvalStatus({
         start, target: target ?? 0, maxLoss: maxDd,
         lockTrigger: num(rules.prop_lock_trigger), lockFloor: num(rules.prop_lock_floor),
         consistencyPct, dailyLossLimit: dailyLimit, dailyStop: num(rules.prop_daily_stop),
-      }, closes.rows.map((r: any) => ({ day: r.day, balance: Number(r.balance) })),
+      }, closes,
       { day: todayDay, pnl: Number(todayRes.rows[0].n) > 0 ? todayPnl : null },
       Object.fromEntries(dayMap));
       evalGuard = { config: { lockTrigger: num(rules.prop_lock_trigger), lockFloor: num(rules.prop_lock_floor),
-        dailyStop: num(rules.prop_daily_stop) }, today: todayDay, closes: closes.rows.map((r: any) => ({ day: r.day, balance: Number(r.balance) })),
-        status };
+        dailyStop: num(rules.prop_daily_stop) }, today: todayDay, closes, ignored, status };
     }
 
     res.json({

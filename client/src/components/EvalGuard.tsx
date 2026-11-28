@@ -10,19 +10,26 @@ import type { EvalStatus, GuardStatus } from '../../../src/shared/evalGuard';
 interface GuardData {
   today: string;
   closes: { day: string; balance: number }[];
+  ignored?: { count: number; days: string[] } | null;
   status: EvalStatus | null;
 }
 
 const LABEL: Record<GuardStatus, string> = {
-  PUSH: 'PUSH', CAUTION: 'CAUTION', DONE_TODAY: 'DONE TODAY', PASSED: 'TARGET MET', BREACHED: 'BREACHED',
+  PUSH: 'PUSH', CAUTION: 'CAUTION', DONE_TODAY: 'DONE TODAY', DANGER: 'CLOSING HERE BREACHES', PASSED: 'TARGET MET', BREACHED: 'BREACHED',
 };
 const MEANING: Record<GuardStatus, string> = {
   PUSH: 'Rules are fine. Trade your plan.',
   CAUTION: 'Allowed, but slow down.',
   DONE_TODAY: 'Stop trading for today.',
+  DANGER: 'Flatten or stop now. If the day closes here, the account is breached.',
   PASSED: 'Stop and confirm the pass in your firm dashboard.',
-  BREACHED: 'The max-loss floor was hit. Check the firm dashboard.',
+  BREACHED: 'The max-loss floor was hit at a close. Check the firm dashboard.',
 };
+
+// Whole dollars stay clean; cents are shown when present (never round a floor or a balance on a money screen).
+const dp = (x: number | null | undefined) => (x != null && !Number.isInteger(x) ? 2 : 0);
+const m = (x: number | null | undefined) => money(x, dp(x));
+const sm = (x: number | null | undefined) => signedMoney(x, dp(x));
 
 export default function EvalGuard({ token, accountId, data, onChange }: {
   token: string; accountId: number; data: GuardData; onChange: () => void;
@@ -66,34 +73,48 @@ export default function EvalGuard({ token, accountId, data, onChange }: {
   return (
     <div className={`eval-guard eg-${s.status.toLowerCase()}`}>
       <div className="eg-head">
-        <span><Gauge className="ic-sm" /> Eval Guard <span className="pf-hint">from your broker closing balances</span></span>
+        <span><Gauge className="ic-sm" /> Eval Guard <span className="pf-hint">From broker closes (the truth)</span></span>
         <span className={`eg-badge eg-${s.status.toLowerCase()}`} title={MEANING[s.status]}>{LABEL[s.status]}</span>
       </div>
       <div className="eg-meaning">{MEANING[s.status]}</div>
       {s.reasons.length > 0 && <ul className="eg-reasons">{s.reasons.map(r => <li key={r}>{r}</li>)}</ul>}
+      {data.ignored && data.ignored.count > 0 && (
+        <div className="eg-ignored">
+          {data.ignored.count} close{data.ignored.count === 1 ? '' : 's'} outside this attempt {data.ignored.count === 1 ? 'is' : 'are'} ignored
+          ({data.ignored.days.slice(0, 4).join(', ')}{data.ignored.days.length > 4 ? ', …' : ''}). Pick the attempt that covers those dates, or check the attempt start date.
+        </div>
+      )}
 
       <div className="prop-grid eg-grid">
         <div className="pf-stat">
           <div className="pf-label">Buffer to floor</div>
-          <div className={`pf-value ${s.buffer <= 0 ? 'negative' : ''}`}>{money(s.buffer, 0)}</div>
-          <div className="pf-sub">floor {money(s.floor, 0)}{s.floorLocked ? ' · locked' : ''}</div>
+          <div className={`pf-value ${s.buffer <= 0 ? 'negative' : ''}`}>{m(s.buffer)}</div>
+          <div className="pf-sub">floor {m(s.floor)}{s.floorLocked ? ' · locked' : ''}</div>
         </div>
-        <div className="pf-stat">
-          <div className="pf-label">To target</div>
-          <div className="pf-value">{s.toTarget <= 0 ? 'Met' : money(s.toTarget, 0)}</div>
-          <div className="pf-sub">need {money(s.requiredTotal, 0)} total · have {signedMoney(s.profit, 0)}</div>
-        </div>
+        {s.toTarget === null ? (
+          <div className="pf-stat">
+            <div className="pf-label">Account</div>
+            <div className="pf-value negative">Breached</div>
+            <div className="pf-sub">start a new attempt</div>
+          </div>
+        ) : (
+          <div className="pf-stat">
+            <div className="pf-label">To target</div>
+            <div className="pf-value">{s.toTarget <= 0 ? 'Met' : m(s.toTarget)}</div>
+            <div className="pf-sub">need {m(s.requiredTotal)} total · have {sm(s.profit)}</div>
+          </div>
+        )}
         <div className="pf-stat">
           <div className="pf-label">Today</div>
           <div className={`pf-value ${(s.todayPnl ?? 0) < 0 ? 'negative' : (s.todayPnl ?? 0) > 0 ? 'positive' : ''}`}>
-            {s.todayPnl === null ? '—' : money(s.todayPnl, 0)}</div>
+            {s.todayPnl === null ? '—' : m(s.todayPnl)}</div>
           <div className="pf-sub">{s.todayCap === null ? 'no consistency rule'
-            : `room ${money(Math.max(0, s.todayRoom ?? s.todayCap), 0)} before target rises`}{s.todayFromClose ? ' · from close' : s.todayPnl !== null ? ' · journal' : ''}</div>
+            : `room ${m(Math.max(0, s.todayRoom ?? s.todayCap))} before target rises`}{s.todayFromClose ? ' · from close' : s.todayPnl !== null ? ' · journal' : ''}</div>
         </div>
         <div className="pf-stat">
           <div className="pf-label">Days traded</div>
           <div className="pf-value">{s.daysTraded}</div>
-          <div className="pf-sub">{s.greenStreak > 0 ? `${s.greenStreak} green in a row` : 'largest day ' + money(s.largestDay, 0)}</div>
+          <div className="pf-sub">{s.greenStreak > 0 ? `${s.greenStreak} green in a row` : 'largest day ' + m(s.largestDay)}</div>
         </div>
       </div>
 

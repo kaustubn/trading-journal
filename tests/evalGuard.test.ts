@@ -1,7 +1,7 @@
 /// <reference types="node" />
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { computeEvalStatus, validConfig, type EvalConfig } from '../src/shared/evalGuard';
+import { computeEvalStatus, validConfig, splitByWindow, type EvalConfig } from '../src/shared/evalGuard';
 
 // LucidFlex 25K-style rules (all values are inputs; nothing is hardcoded in the engine)
 const LUCID: EvalConfig = { start: 25000, target: 1250, maxLoss: 1000, lockTrigger: 26100, lockFloor: 25100,
@@ -69,8 +69,12 @@ test('breach is detected on the close and remembered after a recovery', () => {
   ], today('2026-11-05'))!;
   assert.equal(s.breachDay, '2026-11-03');   // floor was 24,300 after the 25,300 close
   assert.equal(s.status, 'BREACHED');
+  assert.equal(s.toTarget, null);              // C: "To target" is meaningless once breached
+  // a live dip to the floor is DANGER, not a breach: Lucid's drawdown is end-of-day
   const live = computeEvalStatus(LUCID, [], today('2026-11-02', -1000))!;
-  assert.equal(live.status, 'BREACHED');
+  assert.equal(live.status, 'DANGER');
+  assert.equal(live.breachDay, null);
+  assert.notEqual(live.toTarget, null);
 });
 
 test('DONE TODAY at the consistency cap, the personal stop, or the firm daily limit', () => {
@@ -127,4 +131,25 @@ test('invalid configs are refused, not guessed', () => {
   assert.equal(validConfig({ ...LUCID, consistencyPct: 0 }), false);
   assert.equal(validConfig({ ...LUCID, lockFloor: null }), false);
   assert.equal(computeEvalStatus({ ...LUCID, start: NaN }, [], today('2026-11-02')), null);
+});
+
+test('a typed close for today beats the live DANGER', () => {
+  const closedBelow = computeEvalStatus(LUCID, [{ day: '2026-11-02', balance: 25150 }, { day: '2026-11-03', balance: 24100 }],
+    today('2026-11-03', -1200))!;
+  assert.equal(closedBelow.status, 'BREACHED');      // the close is the truth: breached on 11-03
+  assert.equal(closedBelow.breachDay, '2026-11-03');
+  const closedAbove = computeEvalStatus(LUCID, [{ day: '2026-11-02', balance: 25150 }, { day: '2026-11-03', balance: 24200 }],
+    today('2026-11-03', -1200))!;
+  assert.equal(closedAbove.balance, 24200);           // live -1,200 ignored once the close is typed
+  assert.equal(closedAbove.status, 'DONE_TODAY');     // not DANGER: 50 above the floor, but -950 is past the $200 stop
+});
+
+test('A: closes outside the attempt window are reported, not silently dropped', () => {
+  const closes = [{ day: '2026-10-30', balance: 1 }, { day: '2026-11-02', balance: 2 }, { day: '2026-11-05', balance: 3 }, { day: '2026-11-09', balance: 4 }];
+  const open = splitByWindow(closes, '2026-11-02', null);
+  assert.deepEqual(open.inside.map(c => c.day), ['2026-11-02', '2026-11-05', '2026-11-09']);
+  assert.deepEqual(open.outside.map(c => c.day), ['2026-10-30']);
+  const ended = splitByWindow(closes, '2026-11-02', '2026-11-05');
+  assert.equal(ended.inside.length, 2);                // both ends inclusive
+  assert.deepEqual(ended.outside.map(c => c.day), ['2026-10-30', '2026-11-09']);
 });

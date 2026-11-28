@@ -250,7 +250,7 @@ export default function PropStatus({ token, accountId, attempt }: PropStatusProp
           return (
             <div className={`pf-consistency ${best <= 0 ? '' : pass ? 'ok' : 'bad'}`}>
               <div className="pf-bar-label">
-                <span>Consistency · best day ≤ {money(cap, 0)} ({c.rulePct}% of {money(c.target, 0)} target)</span>
+                <span>Consistency · best day ≤ {money(cap, 0)} ({c.rulePct}% of {money(c.target, 0)} target) <span className="pf-hint">From journal trades</span></span>
                 <span>best {money(best, 0)}</span>
               </div>
               <div className="pf-bar">
@@ -276,7 +276,7 @@ export default function PropStatus({ token, accountId, attempt }: PropStatusProp
         return (
           <div className={`pf-consistency ${over ? 'bad' : c.pass ? 'ok' : ''}`}>
             <div className="pf-bar-label">
-              <span>Consistency · best day ≤ {c.rulePct}% of profit</span>
+              <span>Consistency · best day ≤ {c.rulePct}% of profit <span className="pf-hint">From journal trades</span></span>
               <span>{share !== null ? `${share}% now` : 'no profit yet'}</span>
             </div>
             <div className="pf-bar">

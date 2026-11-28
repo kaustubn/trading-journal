@@ -21,7 +21,9 @@ export interface EvalToday {
   pnl: number | null;   // live P&L for that day from the journal (null = unknown); ignored when a close exists for the day
 }
 
-export type GuardStatus = 'PUSH' | 'CAUTION' | 'DONE_TODAY' | 'PASSED' | 'BREACHED';
+// DANGER = the live balance is at or below the floor but no end-of-day close has breached yet (Lucid's drawdown is
+// end-of-day). BREACHED comes only from a typed close.
+export type GuardStatus = 'PUSH' | 'CAUTION' | 'DONE_TODAY' | 'DANGER' | 'PASSED' | 'BREACHED';
 
 export interface DayCheck {
   day: string;
@@ -43,7 +45,7 @@ export interface EvalStatus {
   buffer: number;             // balance − floor
   largestDay: number;         // largest winning day so far, today included
   requiredTotal: number;      // max(target, largestDay ÷ consistency%)
-  toTarget: number;           // requiredTotal − profit (≤ 0 means met)
+  toTarget: number | null;    // requiredTotal − profit (≤ 0 means met); null once breached (no longer meaningful)
   todayPnl: number | null;
   todayFromClose: boolean;    // true when today's P&L comes from a typed close (truth) rather than the journal
   todayCap: number | null;    // most today can make before requiredTotal rises (null = no consistency rule)
@@ -118,9 +120,12 @@ export function computeEvalStatus(cfg: EvalConfig, closes: readonly DailyClose[]
   const reasons: string[] = [];
   let status: GuardStatus = 'PUSH';
   const buffer = balance - floor;
-  if (breachDay !== null || buffer <= 0) {
+  if (breachDay !== null) {
     status = 'BREACHED';
-    reasons.push(breachDay !== null ? `Close on ${breachDay} was at or below the max-loss floor.` : 'Balance is at or below the max-loss floor.');
+    reasons.push(`Close on ${breachDay} was at or below the max-loss floor. Account breached: start a new attempt.`);
+  } else if (buffer <= 0) {
+    status = 'DANGER';
+    reasons.push(`Live balance ${fmt(balance)} is at or below the floor ${fmt(floor)}: closing here breaches the account. Flatten or stop.`);
   } else if (target > 0 && profit >= requiredTotal) {
     status = 'PASSED';
     reasons.push('Profit meets the required total by your closes. Confirm in the firm dashboard before stopping.');
@@ -156,7 +161,7 @@ export function computeEvalStatus(cfg: EvalConfig, closes: readonly DailyClose[]
     status, reasons,
     balance: dollars(balance), lastClose: dollars(lastClose), profit: dollars(profit),
     highestClose: dollars(highest), floor: dollars(floor), floorLocked, buffer: dollars(buffer),
-    largestDay: dollars(largestDay), requiredTotal: dollars(requiredTotal), toTarget: dollars(requiredTotal - profit),
+    largestDay: dollars(largestDay), requiredTotal: dollars(requiredTotal), toTarget: status === 'BREACHED' ? null : dollars(requiredTotal - profit),
     todayPnl: todayPnl === null ? null : dollars(todayPnl), todayFromClose,
     todayCap: todayCap === null ? null : dollars(todayCap), todayRoom: todayRoom === null ? null : dollars(todayRoom),
     greenStreak, daysTraded: days.length + (!todayClose && todayPnl !== null && todayPnl !== 0 ? 1 : 0),
@@ -167,4 +172,14 @@ export function computeEvalStatus(cfg: EvalConfig, closes: readonly DailyClose[]
 function fmt(c: number) {
   const sign = c < 0 ? '−' : '';
   return `${sign}$${(Math.abs(c) / 100).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
+}
+
+/**
+ * Closes inside an attempt's date window (inclusive) and the ones left out, so the panel can say how many
+ * closes it is ignoring instead of silently showing fewer days. from/to = 'YYYY-MM-DD'; to = null for an open attempt.
+ */
+export function splitByWindow<T extends { day: string }>(closes: readonly T[], from: string, to: string | null) {
+  const inside: T[] = [], outside: T[] = [];
+  for (const c of closes) (c.day >= from && (to === null || c.day <= to) ? inside : outside).push(c);
+  return { inside, outside };
 }
