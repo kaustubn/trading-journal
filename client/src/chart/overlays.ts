@@ -106,6 +106,7 @@ function positionFigures(side: 'long' | 'short') {
       // Just placed: show a marker until the full box is built
       return coordinates.length ? [line([{ x: coordinates[0].x - 6, y: coordinates[0].y }, { x: coordinates[0].x + 40, y: coordinates[0].y }], overlay.extendData)] : [];
     }
+    remember(pts);
     const d = overlay.extendData;
     const E = pts[0].value!, T = pts[1].value!, S = pts[2].value!;
     const [c0, cT, cS, c3] = coordinates;
@@ -149,6 +150,21 @@ function positionFigures(side: 'long' | 'short') {
   };
 }
 
+// Last good entry/right-edge times per position, so a drag that would put the right edge at or before the entry
+// snaps back instead of flipping the box (TradingView keeps a position forward in time; a flipped box put the
+// stop/target handles on the right and lost the outcome). Keyed by the entry time, which the target point still
+// holds while a drag is being applied; recorded on every render so a snapshot exists before the first drag.
+type P = { dataIndex?: number; timestamp?: number; value?: number };
+const lastGood = new Map<number, { e: P; r: P }>();
+const runsForward = (e: P, r: P) => (e.dataIndex != null && r.dataIndex != null)
+  ? r.dataIndex > e.dataIndex : (r.timestamp ?? 0) > (e.timestamp ?? 0);
+function remember(pts: P[]) {
+  const [e, , , r] = pts;
+  if (pts.length < 4 || e.timestamp == null || !runsForward(e, r)) return;
+  if (lastGood.size > 500) lastGood.clear();
+  lastGood.set(e.timestamp, { e: { timestamp: e.timestamp, dataIndex: e.dataIndex }, r: { timestamp: r.timestamp, dataIndex: r.dataIndex } });
+}
+
 function positionTemplate(side: 'long' | 'short'): OverlayTemplate<Drawing> {
   return {
     ...base(`jc_${side}`, 2),
@@ -159,6 +175,11 @@ function positionTemplate(side: 'long' | 'short'): OverlayTemplate<Drawing> {
     performEventPressedMove: ({ points, performPointIndex }) => {
       if (points.length < 4) return;
       const [e, t, s, r] = points;
+      if ((performPointIndex === 0 || performPointIndex === 3) && !runsForward(e, r)) {
+        const good = t.timestamp != null ? lastGood.get(t.timestamp) : undefined;
+        const moved = performPointIndex === 0 ? e : r, snap = good && (performPointIndex === 0 ? good.e : good.r);
+        if (snap) { moved.timestamp = snap.timestamp; moved.dataIndex = snap.dataIndex; }
+      }
       if (performPointIndex === 0) {
         for (const p of [t, s]) { p.timestamp = e.timestamp; p.dataIndex = e.dataIndex; }
         r.value = e.value;
@@ -168,6 +189,7 @@ function positionTemplate(side: 'long' | 'short'): OverlayTemplate<Drawing> {
       } else if (performPointIndex === 3) {
         r.value = e.value;
       }
+      remember(points);
     },
   };
 }
