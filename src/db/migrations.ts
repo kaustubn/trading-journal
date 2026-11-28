@@ -242,6 +242,24 @@ export const MIGRATIONS: Migration[] = [
       CREATE INDEX IF NOT EXISTS idx_news_briefs_created ON news_briefs(created_at);
     `,
   },
+  {
+    // Eval Guard (2026-11-28): broker end-of-day closing balances are the source of truth for a prop
+    // evaluation; plus the floor lock (e.g. Lucid: locks at 25,100 once a close reaches 26,100) and a
+    // personal daily stop. Additive only.
+    id: '011_eval_guard',
+    sql: `
+      ALTER TABLE accounts ADD COLUMN IF NOT EXISTS prop_lock_trigger DECIMAL(14,2);
+      ALTER TABLE accounts ADD COLUMN IF NOT EXISTS prop_lock_floor DECIMAL(14,2);
+      ALTER TABLE accounts ADD COLUMN IF NOT EXISTS prop_daily_stop DECIMAL(14,2);
+      CREATE TABLE IF NOT EXISTS eval_closes (
+        account_id INT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+        day DATE NOT NULL,
+        balance DECIMAL(14,2) NOT NULL,
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        PRIMARY KEY (account_id, day)
+      );
+    `,
+  },
 ];
 
 export async function runMigrations(client: PoolClient, list: Migration[] = MIGRATIONS): Promise<string[]> {

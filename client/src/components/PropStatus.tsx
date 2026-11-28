@@ -4,6 +4,7 @@ import { ShieldCheck, OctagonX, Trophy, CheckCircle2, AlertTriangle } from 'luci
 import { num, money } from '../utils/format';
 import '../styles/PropStatus.css';
 import { PROP_PRESETS, DdType } from '../../../src/shared/propRules';
+import EvalGuard from './EvalGuard';
 
 const DD_LABEL: Record<DdType, string> = { eod: 'end-of-day trailing', intraday: 'intraday trailing', static: 'static' };
 
@@ -17,9 +18,11 @@ export default function PropStatus({ token, accountId, attempt }: PropStatusProp
   const [status, setStatus] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
+  const [saveError, setSaveError] = useState('');
   const [form, setForm] = useState({
     starting_balance: '', profit_target: '', max_drawdown: '', daily_loss_limit: '', trailing: true,
     consistency_pct: '', min_trading_days: '', dd_type: 'eod' as DdType, lock_at_start: false, preset: '',
+    lock_trigger: '', lock_floor: '', daily_stop: '',
   });
   const applyPreset = (id: string) => {
     const p = PROP_PRESETS.find(x => x.id === id);
@@ -27,12 +30,14 @@ export default function PropStatus({ token, accountId, attempt }: PropStatusProp
     const v = (x: number | null) => (x == null ? '' : String(x));
     setForm(f => ({ ...f, preset: p.id, starting_balance: String(p.size), profit_target: v(p.target), max_drawdown: v(p.maxDrawdown),
       daily_loss_limit: v(p.dailyLoss), consistency_pct: v(p.consistencyPct), min_trading_days: v(p.minDays), dd_type: p.ddType,
-      lock_at_start: p.lockAtStart, trailing: p.ddType !== 'static' }));
+      lock_at_start: p.lockAtStart, trailing: p.ddType !== 'static',
+      lock_trigger: v(p.lockTrigger ?? null), lock_floor: v(p.lockFloor ?? null) }));
   };
   const preset = PROP_PRESETS.find(x => x.id === form.preset);
 
-  const load = async () => {
-    setLoading(true);
+  // quiet = refresh in place (no loading flash), e.g. after typing a closing balance
+  const load = async (quiet = false) => {
+    if (!quiet) setLoading(true);
     try {
       const res = await axios.get(`/api/accounts/${accountId}/prop-status`, {
         headers: { Authorization: `Bearer ${token}` },
@@ -58,10 +63,14 @@ export default function PropStatus({ token, accountId, attempt }: PropStatusProp
         preset: form.preset || null,
         consistency_pct: parseFloat(form.consistency_pct) || null,
         min_trading_days: parseInt(form.min_trading_days) || null,
+        lock_trigger: parseFloat(form.lock_trigger) || null,
+        lock_floor: parseFloat(form.lock_floor) || null,
+        daily_stop: parseFloat(form.daily_stop) || null,
       }, { headers: { Authorization: `Bearer ${token}` } });
       setEditing(false);
+      setSaveError('');
       load();
-    } catch (e) { console.error(e); }
+    } catch (e: any) { setSaveError(e?.response?.data?.error || 'Could not save the rules.'); }
   };
 
   if (loading) return null;
@@ -123,7 +132,17 @@ export default function PropStatus({ token, accountId, attempt }: PropStatusProp
               Floor stops at the starting balance
             </label>
           </div>
+          <div className="pf-field"><label>Lock trigger ($) <span className="pf-hint">a close at this balance locks the floor</span></label>
+            <input type="number" value={form.lock_trigger} placeholder="26100" disabled={form.dd_type !== 'eod'}
+              onChange={e => setForm({ ...form, lock_trigger: e.target.value })} /></div>
+          <div className="pf-field"><label>Lock floor ($) <span className="pf-hint">where the floor stops</span></label>
+            <input type="number" value={form.lock_floor} placeholder="25100" disabled={form.dd_type !== 'eod'}
+              onChange={e => setForm({ ...form, lock_floor: e.target.value })} /></div>
+          <div className="pf-field"><label>Personal daily stop ($) <span className="pf-hint">your own limit, tighter than the firm's</span></label>
+            <input type="number" value={form.daily_stop} placeholder="200"
+              onChange={e => setForm({ ...form, daily_stop: e.target.value })} /></div>
         </div>
+        {saveError && <div className="eg-error">{saveError}</div>}
         <div className="prop-actions">
           <button className="cancel-btn" onClick={() => setEditing(false)}>Cancel</button>
           <button className="btn-primary" onClick={save}>Save Rules</button>
@@ -153,6 +172,9 @@ export default function PropStatus({ token, accountId, attempt }: PropStatusProp
             dd_type: (s.ddType as DdType) || 'intraday',
             lock_at_start: !!s.lockAtStart,
             preset: s.preset || '',
+            lock_trigger: String(s.lockTrigger ?? ''),
+            lock_floor: String(s.lockFloor ?? ''),
+            daily_stop: String(s.dailyStop ?? ''),
           });
           setEditing(true);
         }}>Edit</button>
@@ -283,6 +305,8 @@ export default function PropStatus({ token, accountId, attempt }: PropStatusProp
           </span>
         </div>
       )}
+
+      {s.evalGuard && <EvalGuard token={token} accountId={accountId} data={s.evalGuard} onChange={() => load(true)} />}
     </div>
   );
 }

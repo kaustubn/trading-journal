@@ -4,6 +4,21 @@ import pool from '../db';
 import { encrypt } from '../utils/crypto';
 import { getPlan, FREE_MAX_ACCOUNTS } from '../middleware/plan';
 import { drawdownFloor, bufferLevel, DdType } from '../shared/propRules';
+import { computeEvalStatus } from '../shared/evalGuard';
+
+// Optional positive money input: undefined = not sent, null = cleared, number = value. Anything else is invalid.
+function moneyInput(v: unknown): number | null | undefined | 'bad' {
+  if (v === undefined) return undefined;
+  if (v === null || v === '') return null;
+  const n = typeof v === 'number' ? v : typeof v === 'string' ? Number(v) : NaN;
+  return Number.isFinite(n) && n > 0 && n < 1e9 && Math.round(n * 100) / 100 === n ? n : 'bad';
+}
+const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
+function validDay(day: unknown): day is string {
+  if (typeof day !== 'string' || !DAY_RE.test(day)) return false;
+  const d = new Date(day + 'T00:00:00Z');
+  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === day;
+}
 
 const router = Router();
 
@@ -271,8 +286,29 @@ router.put('/accounts/:id/prop-rules', async (req: Request, res: Response) => {
     const ddType: DdType = dd_type === 'eod' || dd_type === 'intraday' || dd_type === 'static' ? dd_type : (trailing === false ? 'static' : 'intraday');
     const presetId = typeof preset === 'string' && /^[a-z0-9-]{1,40}$/.test(preset) ? preset : null;
 
+    // Eval Guard fields are optional: an older client that does not send them leaves them unchanged.
+    const lockTrigger = moneyInput(req.body.lock_trigger), lockFloor = moneyInput(req.body.lock_floor);
+    const dailyStop = moneyInput(req.body.daily_stop);
+    if (lockTrigger === 'bad' || lockFloor === 'bad' || dailyStop === 'bad')
+      return res.status(400).json({ error: 'Lock and daily stop must be positive dollar amounts' });
+    if ((lockTrigger === null) !== (lockFloor === null) && lockTrigger !== undefined && lockFloor !== undefined)
+      return res.status(400).json({ error: 'Set both the lock trigger and the lock floor, or neither' });
+    if (typeof lockTrigger === 'number' && typeof lockFloor === 'number' && lockFloor >= lockTrigger)
+      return res.status(400).json({ error: 'The lock floor must be below the lock trigger' });
+
     const own = await pool.query('SELECT id FROM accounts WHERE id = $1 AND user_id = $2', [id, user_id]);
     if (own.rows.length === 0) return res.status(403).json({ error: 'Account not found' });
+
+    if (lockTrigger !== undefined || lockFloor !== undefined || dailyStop !== undefined) {
+      await pool.query(
+        `UPDATE accounts SET
+           prop_lock_trigger = CASE WHEN $2 THEN $3::numeric ELSE prop_lock_trigger END,
+           prop_lock_floor   = CASE WHEN $2 THEN $4::numeric ELSE prop_lock_floor END,
+           prop_daily_stop   = CASE WHEN $5 THEN $6::numeric ELSE prop_daily_stop END
+         WHERE id = $1 AND user_id = $7`,
+        [id, lockTrigger !== undefined && lockFloor !== undefined, lockTrigger ?? null, lockFloor ?? null,
+         dailyStop !== undefined, dailyStop ?? null, user_id]);
+    }
 
     await pool.query(
       `UPDATE accounts SET prop_starting_balance=$1, prop_profit_target=$2,
@@ -300,7 +336,8 @@ router.get('/accounts/:id/prop-status', async (req: Request, res: Response) => {
     const acc = await pool.query(
       `SELECT prop_starting_balance, prop_profit_target, prop_max_drawdown,
               prop_daily_loss_limit, prop_trailing, prop_consistency_pct, prop_min_trading_days,
-              day_boundary_hour, cost_per_trade, micro_cost_per_trade, prop_dd_type, prop_lock_at_start, prop_preset
+              day_boundary_hour, cost_per_trade, micro_cost_per_trade, prop_dd_type, prop_lock_at_start, prop_preset,
+              prop_lock_trigger, prop_lock_floor, prop_daily_stop
        FROM accounts WHERE id = $1 AND user_id = $2`,
       [id, user_id]
     );
@@ -348,7 +385,7 @@ router.get('/accounts/:id/prop-status', async (req: Request, res: Response) => {
 
     // Today's P&L (net, same session-day + attempt scope)
     const todayRes = await pool.query(
-      `SELECT COALESCE(SUM(pnl${commExpr}),0) AS today FROM trades
+      `SELECT COALESCE(SUM(pnl${commExpr}),0) AS today, COUNT(*)::int AS n, to_char(CURRENT_DATE,'YYYY-MM-DD') AS today_day FROM trades
        WHERE account_id = $1 AND pnl IS NOT NULL AND ${dateExpr} = CURRENT_DATE${attemptFilter}`,
       trParams
     );
@@ -426,6 +463,33 @@ router.get('/accounts/:id/prop-status', async (req: Request, res: Response) => {
       pass: tradingDays >= minDays,
     } : null;
 
+    // --- Eval Guard: end-of-day closing balances typed from the broker are the truth (EOD drawdown only) ---
+    const num = (v: unknown) => (v === null || v === undefined ? null : Number(v));
+    let evalGuard: any = null;
+    if (ddType === 'eod' && maxDd !== null) {
+      const closeParams: any[] = [id];
+      let window = '';
+      if (attempt) {
+        closeParams.push(attempt);
+        window = ` AND EXISTS (SELECT 1 FROM account_attempts x WHERE x.id = $2 AND x.account_id = c.account_id
+                     AND c.day >= DATE(x.started_at) AND (x.ended_at IS NULL OR c.day <= DATE(x.ended_at)))`;
+      }
+      const closes = await pool.query(
+        `SELECT to_char(c.day,'YYYY-MM-DD') AS day, c.balance FROM eval_closes c WHERE c.account_id = $1${window} ORDER BY c.day`,
+        closeParams);
+      const todayDay: string = todayRes.rows[0].today_day;
+      const status = computeEvalStatus({
+        start, target: target ?? 0, maxLoss: maxDd,
+        lockTrigger: num(rules.prop_lock_trigger), lockFloor: num(rules.prop_lock_floor),
+        consistencyPct, dailyLossLimit: dailyLimit, dailyStop: num(rules.prop_daily_stop),
+      }, closes.rows.map((r: any) => ({ day: r.day, balance: Number(r.balance) })),
+      { day: todayDay, pnl: Number(todayRes.rows[0].n) > 0 ? todayPnl : null },
+      Object.fromEntries(dayMap));
+      evalGuard = { config: { lockTrigger: num(rules.prop_lock_trigger), lockFloor: num(rules.prop_lock_floor),
+        dailyStop: num(rules.prop_daily_stop) }, today: todayDay, closes: closes.rows.map((r: any) => ({ day: r.day, balance: Number(r.balance) })),
+        status };
+    }
+
     res.json({
       data: {
         configured: true,
@@ -457,11 +521,52 @@ router.get('/accounts/:id/prop-status', async (req: Request, res: Response) => {
         profitDays,
         consistency,
         minDays: minDaysBlock,
+        evalGuard,
+        lockTrigger: num(rules.prop_lock_trigger),
+        lockFloor: num(rules.prop_lock_floor),
+        dailyStop: num(rules.prop_daily_stop),
       },
     });
   } catch (error: any) {
     console.error('Prop status error:', error);
     res.status(500).json({ error: 'Failed to compute prop status' });
+  }
+});
+
+// Eval Guard: record the broker's end-of-day closing balance for a day (upsert)
+router.put('/accounts/:id/eval-closes', async (req: Request, res: Response) => {
+  try {
+    const { day, balance } = req.body ?? {};
+    const value = moneyInput(balance);
+    if (!validDay(day) || typeof value !== 'number')
+      return res.status(400).json({ error: 'Enter a date (YYYY-MM-DD) and a positive closing balance' });
+    const result = await pool.query(
+      `INSERT INTO eval_closes (account_id, day, balance)
+       SELECT a.id, $3::date, $4 FROM accounts a WHERE a.id = $1 AND a.user_id = $2 AND $3::date <= CURRENT_DATE + 1
+       ON CONFLICT (account_id, day) DO UPDATE SET balance = EXCLUDED.balance, updated_at = NOW()
+       RETURNING to_char(day,'YYYY-MM-DD') AS day, balance`,
+      [req.params.id, req.userId, day, value]);
+    if (!result.rows.length) return res.status(403).json({ error: 'Account not found or date in the future' });
+    res.json({ success: true, data: { day: result.rows[0].day, balance: Number(result.rows[0].balance) } });
+  } catch (error) {
+    console.error('Save eval close error:', error);
+    res.status(500).json({ error: 'Failed to save closing balance' });
+  }
+});
+
+// Eval Guard: remove one day's closing balance
+router.delete('/accounts/:id/eval-closes/:day', async (req: Request, res: Response) => {
+  try {
+    if (!validDay(req.params.day)) return res.status(400).json({ error: 'Invalid date' });
+    const result = await pool.query(
+      `DELETE FROM eval_closes c USING accounts a
+       WHERE c.account_id = a.id AND a.id = $1 AND a.user_id = $2 AND c.day = $3::date`,
+      [req.params.id, req.userId, req.params.day]);
+    if (!result.rowCount) return res.status(404).json({ error: 'Not found' });
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Delete eval close error:', error);
+    res.status(500).json({ error: 'Failed to delete closing balance' });
   }
 });
 

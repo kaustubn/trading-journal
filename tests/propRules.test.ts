@@ -42,4 +42,12 @@ test('buffer levels and presets are sane', () => {
     if (p.maxDrawdown != null) assert.ok(p.maxDrawdown < p.size, p.id);
   }
   assert.equal(new Set(PROP_PRESETS.map(p => p.id)).size, PROP_PRESETS.length);
+  for (const p of PROP_PRESETS) {
+    // a lock needs both numbers, floor below trigger, and the trigger equal to floor + max drawdown (Lucid's table)
+    assert.equal(p.lockTrigger == null, p.lockFloor == null, p.id);
+    if (p.lockTrigger != null) {
+      assert.ok(p.lockFloor! < p.lockTrigger, p.id);
+      assert.equal(p.lockTrigger - p.lockFloor!, p.maxDrawdown, p.id);
+    }
+  }
 });
