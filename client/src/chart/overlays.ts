@@ -150,19 +150,23 @@ function positionFigures(side: 'long' | 'short') {
   };
 }
 
-// Last good entry/right-edge times per position, so a drag that would put the right edge at or before the entry
+// Last good entry/right-edge points per position, so a drag that would put the right edge before the entry
 // snaps back instead of flipping the box (TradingView keeps a position forward in time; a flipped box put the
-// stop/target handles on the right and lost the outcome). Keyed by the entry time, which the target point still
-// holds while a drag is being applied; recorded on every render so a snapshot exists before the first drag.
+// stop/target handles on the right and lost the outcome). Recorded on every render so a snapshot exists before
+// the first drag. Keyed by the entry's time AND bar index: bar indexes differ per timeframe, so each timeframe
+// keeps its own snapshot (a 5m snapshot must never move a handle on the daily chart). While a drag is applied
+// the target point still holds the old entry time/index, so it supplies the key.
 type P = { dataIndex?: number; timestamp?: number; value?: number };
-const lastGood = new Map<number, { e: P; r: P }>();
-const runsForward = (e: P, r: P) => (e.dataIndex != null && r.dataIndex != null)
-  ? r.dataIndex > e.dataIndex : (r.timestamp ?? 0) > (e.timestamp ?? 0);
+const lastGood = new Map<string, { e: P; r: P }>();
+const keyOf = (p: P) => `${p.timestamp}|${p.dataIndex}`;
+// Not backwards: on higher timeframes an intraday box can start and end in the same bar, which is fine.
+const notBackwards = (e: P, r: P) => (e.dataIndex != null && r.dataIndex != null)
+  ? r.dataIndex >= e.dataIndex : (r.timestamp ?? 0) >= (e.timestamp ?? 0);
 function remember(pts: P[]) {
   const [e, , , r] = pts;
-  if (pts.length < 4 || e.timestamp == null || !runsForward(e, r)) return;
+  if (pts.length < 4 || e.timestamp == null || !notBackwards(e, r)) return;
   if (lastGood.size > 500) lastGood.clear();
-  lastGood.set(e.timestamp, { e: { timestamp: e.timestamp, dataIndex: e.dataIndex }, r: { timestamp: r.timestamp, dataIndex: r.dataIndex } });
+  lastGood.set(keyOf(e), { e: { timestamp: e.timestamp, dataIndex: e.dataIndex }, r: { timestamp: r.timestamp, dataIndex: r.dataIndex } });
 }
 
 function positionTemplate(side: 'long' | 'short'): OverlayTemplate<Drawing> {
@@ -175,8 +179,8 @@ function positionTemplate(side: 'long' | 'short'): OverlayTemplate<Drawing> {
     performEventPressedMove: ({ points, performPointIndex }) => {
       if (points.length < 4) return;
       const [e, t, s, r] = points;
-      if ((performPointIndex === 0 || performPointIndex === 3) && !runsForward(e, r)) {
-        const good = t.timestamp != null ? lastGood.get(t.timestamp) : undefined;
+      if ((performPointIndex === 0 || performPointIndex === 3) && !notBackwards(e, r)) {
+        const good = lastGood.get(keyOf(t));
         const moved = performPointIndex === 0 ? e : r, snap = good && (performPointIndex === 0 ? good.e : good.r);
         if (snap) { moved.timestamp = snap.timestamp; moved.dataIndex = snap.dataIndex; }
       }
