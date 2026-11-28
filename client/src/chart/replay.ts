@@ -363,6 +363,21 @@ export class ReplayEngine {
     const k = this.buf[n];
     this.idx = n;
     this.cursor = k.timestamp;
+    // working entry orders fill while stepping too (not only in live mode): walk the minute's price path
+    if (!this.position && this.pending.length) {
+      const path = minutePath(k);
+      for (let s = 0; s < path.length && !this.position; s++) {
+        const px = path[s];
+        const hit = this.pending.find(o => o.side === 'long'
+          ? (o.type === 'limit' ? px <= o.price : px >= o.price)
+          : (o.type === 'limit' ? px >= o.price : px <= o.price));
+        if (hit) {
+          this.pending = this.pending.filter(o => o.id !== hit.id);
+          const fill = hit.type === 'limit' ? (hit.side === 'long' ? Math.min(px, hit.price) : Math.max(px, hit.price)) : px;
+          this.openAt(hit, fill, k.timestamp + (s + 1) * 1000, k.timestamp);
+        }
+      }
+    }
     // stops and targets work on every minute, including ones hidden in RTH view
     const p = this.position;
     if (p && k.timestamp > p.entryMinute) {
@@ -481,6 +496,20 @@ export class ReplayEngine {
     if (o.type === 'stop' && (long ? price <= px : price >= px)) return `A ${long ? 'buy' : 'sell'} stop must be ${long ? 'above' : 'below'} the price (${px}).`;
     if (this.pending.length >= 5) return 'At most 5 working orders.';
     this.pending = [...this.pending, { ...o, price, id: newTradeId(), placed: this.nowMs }];
+    this.hooks.onOverlays();
+    this.hooks.onChange();
+    return null;
+  }
+  /** A working order was dragged to a new price. Below the market a buy is a limit and above it a stop (sells mirror). */
+  movePending(id: string, price: number): string | null {
+    const o = this.pending.find(x => x.id === id);
+    const px = this.price;
+    if (!o || px === null) return 'Order not found.';
+    const to = toTick(price);
+    if (to === px) { this.hooks.onOverlays(); return 'That is the current price: use a market order.'; }
+    const below = to < px;
+    const type: 'limit' | 'stop' = o.side === 'long' ? (below ? 'limit' : 'stop') : (below ? 'stop' : 'limit');
+    this.pending = this.pending.map(x => x.id === id ? { ...x, price: to, type } : x);
     this.hooks.onOverlays();
     this.hooks.onChange();
     return null;
@@ -681,18 +710,29 @@ export class ReplayView {
       if (this.chart.getOverlays({ id: BRACKET_ID }).length) this.chart.overrideOverlay(spec);
       else this.chart.createOverlay(spec);
     }
-    // working entry orders (forward test) as dashed lines with a label
+    // working entry orders as dashed lines: drag one to move the order (its type follows the market side)
     const want = new Set(eng.pending.map(o => `pending_${o.id}`));
     for (const o of this.chart.getOverlays({ groupId: 'replay', name: 'jc_hline' })) if (!want.has(o.id)) this.chart.removeOverlay({ id: o.id });
     for (const o of eng.pending) {
       const id = `pending_${o.id}`;
-      if (this.chart.getOverlays({ id }).length) continue;
       const col = o.side === 'long' ? '#089981' : '#f23645';
-      this.chart.createOverlay({
-        id, name: 'jc_hline', groupId: 'replay', paneId: PANE, lock: true,
-        points: [{ timestamp: barTime(eng.cursor, tf, rth), value: o.price }],
-        extendData: { id, tool: 'hline', points: [], color: col, width: 1, line: 'dashed', text: `${o.side === 'long' ? 'BUY' : 'SELL'} ${o.type.toUpperCase()} ${o.qty} ${o.contract}`, textColor: col },
-      } as OverlayCreate);
+      const pv = POINT_VALUE[o.contract] * o.qty;
+      const reward = o.targetUnit === 'R' ? o.stopPts * o.target : o.target;
+      const text = `${o.side === 'long' ? 'BUY' : 'SELL'} ${o.type.toUpperCase()} ${o.qty} ${o.contract} @ ${o.price}`
+        + ` · SL -$${Math.round(o.stopPts * pv)} · TP +$${Math.round(reward * pv)} · drag to move`;
+      const at = () => [{ timestamp: barTime(eng.cursor, tf, rth), value: o.price }];
+      const spec = {
+        id, name: 'jc_hline', groupId: 'replay', paneId: PANE, lock: false,
+        points: at(),
+        extendData: { id, tool: 'hline', points: [], color: col, width: 1, line: 'dashed', text, textColor: col },
+        onPressedMoveEnd: ({ overlay }: { overlay: { points: Array<{ value?: number }> } }) => {
+          const v = overlay.points[0]?.value;
+          // a rejected move snaps the line back to the order's price
+          if (typeof v !== 'number' || eng.movePending(o.id, v)) this.chart.overrideOverlay({ id, points: at() });
+        },
+      } as OverlayCreate;
+      if (this.chart.getOverlays({ id }).length) this.chart.overrideOverlay(spec);
+      else this.chart.createOverlay(spec);
     }
     const shown = this.chart.getOverlays({ groupId: 'replay', name: 'jc_trade' }).length;
     if (shown !== eng.trades.length || !eng.trades.length) {

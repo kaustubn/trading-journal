@@ -480,7 +480,7 @@ export default function MarketChart({ token, focus }: { token: string; focus?: {
       .map(p => ({ tf: p.tf(), bars: (p.chart.getDataList() as KLineData[]).slice(-300) }));
   };
   const askClaude = async (kind: 'entry' | 'exit' | 'ask', o: { question?: string; order?: OrderInput; checks?: string[]; trade?: ClosedTrade } = {}) => {
-    setCoachOpen(true);
+    if (kind === 'ask') setCoachOpen(true); // automatic entry/exit reviews stay in the background
     setCoachBusy(true);
     try {
       const at = coachNow();
@@ -505,24 +505,24 @@ export default function MarketChart({ token, focus }: { token: string; focus?: {
     rules: s.coach,
     check: o => checkOrder(sRef.current.coach, o, coachNow(), engine.trades),
     review: (o, checks) => askClaude('entry', { order: o, checks }),
-    note: (from, text, verdict) => { note(from, text, verdict); if (from !== 'claude') setCoachOpen(true); },
+    // Backtesting is for testing ideas: the coach never pops up or pauses the chart. Notes collect quietly
+    // (count on the Coach button) and rule breaks stay logged on the trade.
+    note: (from, text, verdict) => note(from, text, verdict),
   };
   closedRef.current = (t: ClosedTrade) => {
     const r = sRef.current.coach;
     if (!r.enabled) return;
     const stop = checkAfterClose(r, t.exitTime, engine.trades);
-    if (stop.length) {
-      note('rule', stop.join('\n'));
-      setCoachOpen(true);
-      if (r.pauseOnBreak) engine.pause();
-    }
-    if (r.ai === 'trades') askClaude('exit', { trade: t }).then(res => { if (res?.verdict === 'STOP') engine.pause(); });
+    if (stop.length) note('rule', stop.join('\n'));
+    if (r.ai === 'trades') void askClaude('exit', { trade: t });
   };
   widenRef.current = (prev: number) => {
     const r = sRef.current.coach;
-    if (!r.enabled || !r.noWidenStop) return;
-    engine.pause();
-    setWiden({ prev });
+    const p = engine.position;
+    if (!r.enabled || !r.noWidenStop || !p) return;
+    const text = `Widened the stop from ${prev} to ${p.stop}`;
+    engine.addRuleBreak(text);
+    note('rule', `${text}: logged as a rule break on this trade.`);
   };
   const keepWidened = () => {
     const p = engine.position;
@@ -774,7 +774,7 @@ export default function MarketChart({ token, focus }: { token: string; focus?: {
         <button className={`mc-btn${mentorOpen ? ' on' : ''}`} onClick={() => { setMentorOpen(!mentorOpen); if (!mentorOpen) setCoachOpen(false); }}
           title="Mentor: learn a mentor's book or course bar by bar, practise real setups, Pattern Sprint game"><GraduationCap size={15} /> Mentor</button>
         <button className={`mc-btn${coachOpen ? ' on' : ''}`} onClick={() => { setCoachOpen(!coachOpen); if (!coachOpen) setMentorOpen(false); }}
-          title="Coach: checks your orders against your rules, pauses the replay when you break one, and lets you ask Claude about the chart">
+          title="Coach: checks your orders against your rules quietly (never pauses the chart; breaks are logged on the trade) and lets you ask Claude about the chart">
           Coach{coachMsgs.length ? ` · ${coachMsgs.length}` : ''}
         </button>
         <button className={`mc-btn${replayOn || replayPick || panel === 'replay' ? ' on' : ''}`} disabled={replayOn}

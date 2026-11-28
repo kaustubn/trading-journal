@@ -286,7 +286,7 @@ export default function ReplayBar({ engine: e, clock, accounts, accountId, onAcc
   });
 
   const openTicket = (side: Side) => {
-    if (!e.live) e.pause(); // think with the chart still (a forward test keeps running, like the real market)
+    // the chart keeps running while the ticket is open (TradingView-style); pause yourself if you want to think
     setOtype('market'); setOprice('');
     setTicket(ticket === side ? null : side); setStage(null); setShowTrades(false); setErr('');
   };
@@ -325,19 +325,21 @@ export default function ReplayBar({ engine: e, clock, accounts, accountId, onAcc
     if (sizing.mode === 'risk' && qtyNow < 1) { setErr(`Stop too wide for ${fmtUsd(riskUsd)} risk with ${form.contract}: switch to MNQ or use a closer level.`); return; }
     if (!Number.isInteger(o.qty) || o.qty < 1 || o.qty > 100) { setErr('Quantity must be 1–100.'); return; }
     if (!(o.stopPts > 0) || !(o.target > 0)) { setErr('Stop and target must be above 0.'); return; }
-    if (e.live && otype !== 'market') {
+    const breaks = coach.check(o);
+    if (pastDaily) breaks.push(`Past your daily loss limit (${fmtUsd(-dailyLimit)}): the plan says stop for the day`);
+    if (otype !== 'market') {
       const px = Number(oprice);
       if (!Number.isFinite(px) || px <= 0) { setErr('Enter the order price.'); return; }
       const msg = e.placeOrder({ ...o, type: otype, price: px });
       if (msg) { setErr(msg); return; }
       setErr(''); setTicket(null);
+      if (breaks.length) coach.note('rule', `Working order placed with ${breaks.length} rule break${breaks.length === 1 ? '' : 's'}:\n• ${breaks.join('\n• ')}`);
       return;
     }
-    const breaks = coach.check(o);
-    if (pastDaily) breaks.push(`Past your daily loss limit (${fmtUsd(-dailyLimit)}): the plan says stop for the day`);
-    if (breaks.length && coach.rules.pauseOnBreak) { e.pause(); setStage({ kind: 'breaks', o, breaks }); return; }
-    if (aiOnTrades) { runReview(o, breaks); return; }
+    // Backtesting is for testing ideas: never pause, block or hold an order. Rule breaks are logged on the
+    // trade and noted quietly in the coach panel; a Claude review (if switched on) runs in the background.
     place(o, breaks);
+    if (aiOnTrades) void coach.review(o, breaks);
   };
   const cancelStage = () => { setStage(null); };
 
@@ -358,9 +360,9 @@ export default function ReplayBar({ engine: e, clock, accounts, accountId, onAcc
       {ticket && (
         <form className="mc-ticket" onSubmit={submit} noValidate>
           <div className="mc-panel-title">{ticket === 'long' ? 'Buy' : 'Sell'} {otype === 'market' ? 'at market' : otype}{price !== null ? ` · ${fmtPrice(price)}` : ''}</div>
-          {e.live && (
+          {(
             <div className="mc-row">
-              <div className="mc-seg" title="Market fills now. Limit / stop wait for the price (forward test).">
+              <div className="mc-seg" title="Market fills now. Limit / stop wait for the price; drag the order's line on the chart to move it.">
                 {(['market', 'limit', 'stop'] as OrderType[]).map(t => (
                   <button type="button" key={t} className={otype === t ? 'on' : ''}
                     onClick={() => { setOtype(t); if (t !== 'market' && price !== null && !oprice) setOprice(String(price + ((t === 'limit') === (ticket === 'long') ? -5 : 5))); }}>
